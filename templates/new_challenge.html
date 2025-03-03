@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+
+{% block title %}Novo Desafio - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <h2>Novo Desafio</h2>
+        <p class="text-muted">
+            Crie um novo desafio respeitando as regras da liga. Um jogador só pode desafiar outro que esteja até uma linha acima.
+        </p>
+    </div>
+    
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0">Formulário de Desafio</h4>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('new_challenge') }}" method="post">
+                    <div class="mb-3">
+                        <label for="challenger_id" class="form-label">Desafiante</label>
+                        <select class="form-select" id="challenger_id" name="challenger_id" required>
+                            <option value="">Selecione o desafiante</option>
+                            {% for player in players %}
+                            <option value="{{ player['id'] }}" {% if preselected_challenger and preselected_challenger|int == player['id']|int %}selected{% endif %}>
+                                {{ player['name'] }} (Posição: {{ player['position'] }}, Tier: {{ player['tier'] }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="challenged_id" class="form-label">Desafiado</label>
+                        <select class="form-select" id="challenged_id" name="challenged_id" required>
+                            <option value="">Selecione o desafiado</option>
+                            {% for player in players %}
+                            <option value="{{ player['id'] }}">
+                                {{ player['name'] }} (Posição: {{ player['position'] }}, Tier: {{ player['tier'] }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="scheduled_date" class="form-label">Data do Desafio</label>
+                        <input type="date" class="form-control" id="scheduled_date" name="scheduled_date" required>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success">Criar Desafio</button>
+                        <a href="{{ url_for('challenges') }}" class="btn btn-outline-secondary">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h4 class="mb-0">Regras de Desafio</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h5>Limites dos Desafios</h5>
+                    <p><strong>Regra Geral:</strong></p>
+                    <ul>
+                        <li>O jogador de uma linha poderá desafiar qualquer jogador acima de sua posição até 1 (uma) linha acima.</li>
+                        <li>Em caso de vitória contra um jogador de uma linha acima, o vencedor terá direito a um novo desafio novamente uma linha acima da sua nova posição.</li>
+                    </ul>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <h5>Regras para Troca de Posições</h5>
+                    <ol>
+                        <li>O jogador desafiado, em caso de derrota, descerá 1 (uma) posição, sendo sua posição original assumida pelo desafiante.</li>
+                        <li>Em caso de derrota do desafiante, as posições ficam inalteradas.</li>
+                        <li>O golfista que desafiou e venceu, e foi desafiado e perdeu (dentro do mesmo mês), fica 1 (uma) posição abaixo do golfista que ele venceu o desafio.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var challengerId = document.getElementById('challenger_id');
+        var challengedId = document.getElementById('challenged_id');
+        
+        // Função para filtrar os jogadores que podem ser desafiados com base no desafiante
+        challengerId.addEventListener('change', function() {
+            var selectedChallengerId = this.value;
+            if (selectedChallengerId) {
+                // Obter informações do desafiante selecionado
+                var selectedOption = this.options[this.selectedIndex];
+                var challengerPosition = parseInt(selectedOption.text.match(/Posição: (\d+)/)[1]);
+                var challengerTier = selectedOption.text.match(/Tier: ([A-Z])/)[1];
+                
+                // Habilitar/desabilitar opções com base nas regras
+                for (var i = 1; i < challengedId.options.length; i++) {
+                    var option = challengedId.options[i];
+                    var challengedPosition = parseInt(option.text.match(/Posição: (\d+)/)[1]);
+                    var challengedTier = option.text.match(/Tier: ([A-Z])/)[1];
+                    
+                    // Regras:
+                    // 1. Desafiado deve estar acima (posição menor) do desafiante
+                    // 2. Desafiado pode estar na mesma linha ou uma linha acima
+                    var tierDiff = challengerTier.charCodeAt(0) - challengedTier.charCodeAt(0);
+                    
+                    if (challengedPosition < challengerPosition && 
+                        (tierDiff === 0 || tierDiff === 1) && 
+                        option.value !== selectedChallengerId) {
+                        option.disabled = false;
+                    } else {
+                        option.disabled = true;
+                    }
+                }
+            }
+        });
+        
+        // Disparar o evento change se um desafiante já estiver pré-selecionado
+        if (challengerId.value) {
+            var event = new Event('change');
+            challengerId.dispatchEvent(event);
+        }
+    });
+</script>
+{% endblock %}

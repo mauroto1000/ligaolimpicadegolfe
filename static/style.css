@@ -1,0 +1,145 @@
+/* Estilos gerais */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.container {
+    max-width: 1200px;
+}
+
+/* Cabeçalho e navegação */
+.navbar-brand {
+    font-weight: bold;
+}
+
+/* Estilos para a pirâmide */
+.pyramid-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 30px 0;
+}
+
+.pyramid-row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.pyramid-cell {
+    width: 80px;
+    height: 80px;
+    margin: 0 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #28a745;
+    color: white;
+    border-radius: 5px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: bold;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.pyramid-cell:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+}
+
+.player-position {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    font-size: 12px;
+    color: #ffffff;
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 0 4px;
+    border-radius: 3px;
+}
+
+.player-hcp {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    font-size: 12px;
+    color: #ffffff;
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 0 4px;
+    border-radius: 3px;
+}
+
+.tier-label {
+    padding: 5px 10px;
+    background-color: #007bff;
+    color: white;
+    border-radius: 5px;
+    margin-right: 15px;
+    font-weight: bold;
+    display: inline-block;
+    width: 40px;
+    text-align: center;
+}
+
+/* Tabelas */
+.table th {
+    background-color: #343a40;
+    color: white;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+/* Cards e seções */
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 20px;
+}
+
+.card-header {
+    font-weight: bold;
+}
+
+/* Botões de ação */
+.btn-action {
+    margin-right: 5px;
+}
+
+/* Status de desafios */
+.status-pending {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.status-accepted {
+    background-color: #17a2b8;
+    color: white;
+}
+
+.status-completed {
+    background-color: #28a745;
+    color: white;
+}
+
+.status-rejected {
+    background-color: #dc3545;
+    color: white;
+}
+
+/* Responsividade para dispositivos móveis */
+@media (max-width: 768px) {
+    .pyramid-cell {
+        width: 60px;
+        height: 60px;
+        font-size: 12px;
+    }
+    
+    .player-position, .player-hcp {
+        font-size: 10px;
+    }
+}

@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block title %}Ranking - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h3 class="mb-0">Ranking Liga Olímpica de Golfe 2025</h3>
+                <small>HCP INDEX Atualizado em 01/03/2025</small>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Posição</th>
+                                <th>Linha</th>
+                                <th>Nome</th>
+                                <th>HCP Index</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for player in players %}
+                            <tr>
+                                <td>{{ player['position'] }}</td>
+                                <td><span class="badge bg-primary">{{ player['tier'] }}</span></td>
+                                <td>{{ player['name'] }}</td>
+                                <td>{{ player['hcp_index'] }}</td>
+                                <td>
+                                    <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-info-circle"></i> Detalhes
+                                    </a>
+                                    <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}" class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-trophy"></i> Desafiar
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

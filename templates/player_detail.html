@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ player['name'] }} - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Ranking</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ player['name'] }}</li>
+            </ol>
+        </nav>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Perfil do Jogador</h4>
+            </div>
+            <div class="card-body">
+                <h2 class="card-title">{{ player['name'] }}</h2>
+                <div class="d-flex align-items-center mb-3">
+                    <span class="badge bg-success me-2 p-2">Posição: {{ player['position'] }}</span>
+                    <span class="badge bg-info me-2 p-2">Linha: {{ player['tier'] }}</span>
+                </div>
+                <p class="card-text"><strong>HCP Index:</strong> {{ player['hcp_index'] }}</p>
+                <p class="card-text"><strong>Data de Registro:</strong> {{ player['created_at'].split()[0] }}</p>
+                
+                <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}" class="btn btn-success mt-3">
+                    <i class="fas fa-trophy me-1"></i> Iniciar Desafio
+                </a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0">Possíveis Desafios</h4>
+            </div>
+            <div class="card-body">
+                {% if potential_challenges %}
+                <ul class="list-group">
+                    {% for potential in potential_challenges %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ potential['name'] }}
+                        <div>
+                            <span class="badge bg-secondary me-1">Pos: {{ potential['position'] }}</span>
+                            <span class="badge bg-info">{{ potential['tier'] }}</span>
+                            <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}&challenged_id={{ potential['id'] }}" 
+                               class="btn btn-sm btn-outline-success ms-2">
+                                <i class="fas fa-trophy"></i>
+                            </a>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="alert alert-info">
+                    Nenhum jogador disponível para desafio.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0">Desafios como Desafiante</h4>
+            </div>
+            <div class="card-body">
+                {% if challenges_as_challenger %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Oponente</th>
+                                <th>Status</th>
+                                <th>Resultado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for challenge in challenges_as_challenger %}
+                            <tr>
+                                <td>{{ challenge['created_at'].split(' ')[0] }}</td>
+                                <td>
+                                    {{ challenge['opponent_name'] }}
+                                    <small class="text-muted d-block">Posição: {{ challenge['opponent_position'] }}</small>
+                                </td>
+                                <td>
+                                    {% if challenge['status'] == 'pending' %}
+                                    <span class="badge bg-warning text-dark">Pendente</span>
+                                    {% elif challenge['status'] == 'accepted' %}
+                                    <span class="badge bg-info">Aceito</span>
+                                    {% elif challenge['status'] == 'completed' %}
+                                    <span class="badge bg-success">Concluído</span>
+                                    {% elif challenge['status'] == 'rejected' %}
+                                    <span class="badge bg-danger">Rejeitado</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if challenge['result'] == 'challenger_win' %}
+                                    <span class="badge bg-success">Vitória</span>
+                                    {% elif challenge['result'] == 'challenged_win' %}
+                                    <span class="badge bg-danger">Derrota</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Não definido</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    Este jogador ainda não iniciou nenhum desafio.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">Desafios como Desafiado</h4>
+            </div>
+            <div class="card-body">
+                {% if challenges_as_challenged %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Oponente</th>
+                                <th>Status</th>
+                                <th>Resultado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for challenge in challenges_as_challenged %}
+                            <tr>
+                                <td>{{ challenge['created_at'].split(' ')[0] }}</td>
+                                <td>
+                                    {{ challenge['opponent_name'] }}
+                                    <small class="text-muted d-block">Posição: {{ challenge['opponent_position'] }}</small>
+                                </td>
+                                <td>
+                                    {% if challenge['status'] == 'pending' %}
+                                    <span class="badge bg-warning text-dark">Pendente</span>
+                                    {% elif challenge['status'] == 'accepted' %}
+                                    <span class="badge bg-info">Aceito</span>
+                                    {% elif challenge['status'] == 'completed' %}
+                                    <span class="badge bg-success">Concluído</span>
+                                    {% elif challenge['status'] == 'rejected' %}
+                                    <span class="badge bg-danger">Rejeitado</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if challenge['result'] == 'challenger_win' %}
+                                    <span class="badge bg-danger">Derrota</span>
+                                    {% elif challenge['result'] == 'challenged_win' %}
+                                    <span class="badge bg-success">Vitória</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Não definido</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    Este jogador ainda não foi desafiado.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h4 class="mb-0">Histórico de Posições</h4>
+            </div>
+            <div class="card-body">
+                {% if history %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Alteração</th>
+                                <th>Motivo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in history %}
+                            <tr>
+                                <td>{{ entry['change_date'].split(' ')[0] }}</td>
+                                <td>
+                                    Posição: {{ entry['old_position'] }} → {{ entry['new_position'] }}
+                                    {% if entry['old_tier'] != entry['new_tier'] %}
+                                    <br>
+                                    <small>Linha: {{ entry['old_tier'] }} → {{ entry['new_tier'] }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if entry['reason'] == 'challenge_win' %}
+                                    <span class="badge bg-success">Vitória em desafio</span>
+                                    {% elif entry['reason'] == 'challenge_loss' %}
+                                    <span class="badge bg-danger">Derrota em desafio</span>
+                                    {% elif entry['reason'] == 'monthly_update' %}
+                                    <span class="badge bg-info">Atualização mensal</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ entry['reason'] }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    Sem histórico de alterações de posição.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

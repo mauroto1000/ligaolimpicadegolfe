@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block title %}Histórico - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <h2>Histórico de Mudanças no Ranking</h2>
+        <p class="text-muted">
+            Acompanhe todas as alterações de posições que ocorreram no ranking.
+        </p>
+    </div>
+    
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h4 class="mb-0">Movimentações no Ranking</h4>
+            </div>
+            <div class="card-body">
+                {% if history %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Data</th>
+                                <th>Jogador</th>
+                                <th>Movimento</th>
+                                <th>Motivo</th>
+                                <th>Detalhes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in history %}
+                            <tr>
+                                <td>{{ entry['change_date'].split(' ')[0] }}</td>
+                                <td>
+                                    <a href="{{ url_for('player_detail', player_id=entry['player_id']) }}">
+                                        {{ entry['player_name'] }}
+                                    </a>
+                                </td>
+                                <td>
+                                    {% if entry['old_position'] > entry['new_position'] %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-arrow-up"></i> {{ entry['old_position'] - entry['new_position'] }} posições
+                                        </span>
+                                    {% elif entry['old_position'] < entry['new_position'] %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-arrow-down"></i> {{ entry['new_position'] - entry['old_position'] }} posições
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="fas fa-equals"></i> Sem alteração
+                                        </span>
+                                    {% endif %}
+                                    
+                                    {% if entry['old_tier'] != entry['new_tier'] %}
+                                        <span class="badge bg-warning text-dark ms-1">
+                                            Mudança de linha: {{ entry['old_tier'] }} → {{ entry['new_tier'] }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if entry['reason'] == 'challenge_win' %}
+                                        <span class="badge bg-success">Vitória em desafio</span>
+                                    {% elif entry['reason'] == 'challenge_loss' %}
+                                        <span class="badge bg-danger">Derrota em desafio</span>
+                                    {% elif entry['reason'] == 'monthly_update' %}
+                                        <span class="badge bg-info">Atualização mensal</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ entry['reason'] }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if entry['challenge_id'] %}
+                                        <a href="{{ url_for('challenge_detail', challenge_id=entry['challenge_id']) }}" class="btn btn-sm btn-outline-info">
+                                            <i class="fas fa-trophy"></i> Ver desafio
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    Nenhum histórico de mudança no ranking registrado.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
