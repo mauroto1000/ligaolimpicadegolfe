@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>{% block title %}Liga Olímpica de Golfe{% endblock %}</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -13,10 +13,10 @@
     {% block head %}{% endblock %}
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="fas fa-golf-ball me-2"></i>Liga Olímpica de Golfe 2025
+                <i class="fas fa-golf-ball me-2"></i><span class="d-none d-sm-inline">Liga Olímpica de Golfe</span><span class="d-inline d-sm-none">LO Golfe</span>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -34,7 +34,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('challenges') }}">
+                        <a class="nav-link" href="{{ url_for('challenges_calendar') }}">
+                            <i class="fas fa-calendar-alt me-1"></i>Calendário
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('challenges_list') }}">
                             <i class="fas fa-trophy me-1"></i>Desafios
                         </a>
                     </li>
@@ -53,7 +58,7 @@
         </div>
     </nav>
 
-    <div class="container">
+    <div class="container mt-3">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -71,7 +76,7 @@
     <footer class="mt-5 py-3 bg-light">
         <div class="container text-center">
             <p class="mb-0">
-                Liga Olímpica de Golfe &copy; 2025 - Todos os direitos reservados.
+                Liga Olímpica de Golfe &copy; 2025
             </p>
             <small class="text-muted">Atualizado em 01/03/2025</small>
         </div>
@@ -79,6 +84,38 @@
 
     <!-- Bootstrap JS (with Popper.js) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Script para realçar o item de menu ativo -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Pegar o caminho atual da URL
+        var path = window.location.pathname;
+        
+        // Para cada item do menu
+        document.querySelectorAll('.navbar-nav .nav-link').forEach(function(link) {
+            // Obter o href do link
+            var href = link.getAttribute('href');
+            
+            // Verificar se o href está no caminho atual
+            if (href === path) {
+                // Adicionar a classe active ao link
+                link.classList.add('active');
+            }
+        });
+        
+        // Fechar menu automático em cliques em dispositivos móveis
+        document.querySelectorAll('.navbar-nav .nav-link').forEach(function(link) {
+            link.addEventListener('click', function() {
+                if (window.innerWidth < 992) {
+                    var navbarToggler = document.querySelector('.navbar-toggler');
+                    if (navbarToggler && !navbarToggler.classList.contains('collapsed')) {
+                        navbarToggler.click();
+                    }
+                }
+            });
+        });
+    });
+    </script>
     
     {% block scripts %}{% endblock %}
 </body>

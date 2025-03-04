@@ -1,0 +1,213 @@
+{% extends 'base.html' %}
+
+{% block title %}Calendário de Desafios - Liga Olímpica de Golfe{% endblock %}
+
+{% block head %}
+<!-- FullCalendar CSS -->
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet">
+<style>
+    .fc-event {
+        cursor: pointer;
+    }
+    .fc-event-title {
+        font-weight: bold;
+    }
+    .fc-event-pending {
+        background-color: #ffc107;
+        border-color: #ffc107;
+    }
+    .fc-event-accepted {
+        background-color: #17a2b8;
+        border-color: #17a2b8;
+    }
+    .fc-event-completed {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+    .fc-event-rejected {
+        background-color: #dc3545;
+        border-color: #dc3545;
+    }
+    .calendar-container {
+        height: 650px;
+        margin-bottom: 30px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>Calendário de Desafios</h2>
+            <div>
+                <a href="{{ url_for('challenges_list') }}" class="btn btn-primary me-2">
+                    <i class="fas fa-list"></i> Ver Lista de Desafios
+                </a>
+                <a href="{{ url_for('new_challenge') }}" class="btn btn-success">
+                    <i class="fas fa-plus-circle"></i> Novo Desafio
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Debug: Mostrar desafios disponíveis -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Dados Disponíveis</h5>
+                <button class="btn btn-sm btn-light float-end" type="button" data-bs-toggle="collapse" data-bs-target="#debugData">Mostrar/Ocultar</button>
+            </div>
+            <div class="card-body collapse" id="debugData">
+                <h6>Total de desafios: {{ challenges|length }}</h6>
+                <h6>Desafios com data agendada:</h6>
+                <ul>
+                {% set scheduled_count = 0 %}
+                {% for challenge in challenges %}
+                    {% if challenge['scheduled_date'] %}
+                        {% set scheduled_count = scheduled_count + 1 %}
+                        <li>{{ challenge['challenger_name'] }} vs {{ challenge['challenged_name'] }} ({{ challenge['scheduled_date'] }})</li>
+                    {% endif %}
+                {% endfor %}
+                {% if scheduled_count == 0 %}
+                    <li>Nenhum desafio com data agendada encontrado.</li>
+                {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Calendário de desafios -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Calendário de Desafios</h4>
+            </div>
+            <div class="card-body">
+                <div id="calendar" class="calendar-container"></div>
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between">
+                    <div class="legend">
+                        <span class="badge bg-warning text-dark me-2">Pendente</span>
+                        <span class="badge bg-info me-2">Aceito</span>
+                        <span class="badge bg-success me-2">Concluído</span>
+                        <span class="badge bg-danger me-2">Rejeitado</span>
+                    </div>
+                    <div>
+                        <em class="text-muted">Clique em um evento para ver mais detalhes</em>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- FullCalendar JS -->
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales-all.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("Inicializando calendário de desafios...");
+    
+    var calendarEl = document.getElementById('calendar');
+    
+    // Verificar se o elemento do calendário existe
+    if (!calendarEl) {
+        console.error("Elemento do calendário não encontrado!");
+        return;
+    }
+    
+    // Definir eventos para o calendário
+    var events = [];
+    
+    // Debugar dados dos desafios
+    console.log("Total de desafios disponíveis:", {{ challenges|length }});
+    
+    {% for challenge in challenges %}
+        {% if challenge.scheduled_date %}
+            events.push({
+                id: '{{ challenge.id }}',
+                title: '{{ challenge.challenger_name }} vs {{ challenge.challenged_name }}',
+                start: '{{ challenge.scheduled_date }}',
+                className: 'fc-event-{{ challenge.status }}',
+                extendedProps: {
+                    status: '{{ challenge.status }}',
+                    result: '{{ challenge.result }}',
+                    challenger: '{{ challenge.challenger_name }}',
+                    challenged: '{{ challenge.challenged_name }}',
+                    challengerPosition: '{{ challenge.challenger_position }}',
+                    challengedPosition: '{{ challenge.challenged_position }}',
+                    challengerTier: '{{ challenge.challenger_tier }}',
+                    challengedTier: '{{ challenge.challenged_tier }}'
+                }
+            });
+            console.log("Adicionado evento para:", '{{ challenge.challenger_name }} vs {{ challenge.challenged_name }}', "Data:", '{{ challenge.scheduled_date }}');
+        {% endif %}
+    {% endfor %}
+    
+    console.log("Total de eventos para o calendário:", events.length);
+    
+    // Inicializar o calendário
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,listMonth'
+        },
+        locale: 'pt-br',
+        buttonText: {
+            today: 'Hoje',
+            month: 'Mês',
+            week: 'Semana',
+            list: 'Lista'
+        },
+        events: events,
+        eventClick: function(info) {
+            // Redirecionar para a página de detalhes do desafio
+            window.location.href = '{{ url_for('challenge_detail', challenge_id=0) }}'.replace('0', info.event.id);
+        },
+        eventDidMount: function(info) {
+            // Adicionar tooltip com informações do evento
+            var tooltip = new bootstrap.Tooltip(info.el, {
+                title: function() {
+                    var event = info.event;
+                    var props = event.extendedProps;
+                    var result = '';
+                    
+                    if (props.status === 'pending') {
+                        result = 'Pendente';
+                    } else if (props.status === 'accepted') {
+                        result = 'Aceito';
+                    } else if (props.status === 'completed') {
+                        if (props.result === 'challenger_win') {
+                            result = 'Vitória de ' + props.challenger;
+                        } else if (props.result === 'challenged_win') {
+                            result = 'Vitória de ' + props.challenged;
+                        }
+                    } else if (props.status === 'rejected') {
+                        result = 'Rejeitado';
+                    }
+                    
+                    return 'Desafio: ' + event.title + '<br>' +
+                           'Status: ' + result + '<br>' +
+                           'Data: ' + new Date(event.start).toLocaleDateString();
+                },
+                html: true,
+                placement: 'top',
+                trigger: 'hover',
+                container: 'body'
+            });
+        }
+    });
+    
+    calendar.render();
+    console.log("Calendário renderizado");
+});
+</script>
+{% endblock %}

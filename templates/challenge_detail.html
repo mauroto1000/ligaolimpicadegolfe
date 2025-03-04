@@ -4,178 +4,211 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-md-12 mb-4">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('challenges') }}">Desafios</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Detalhes do Desafio</li>
-            </ol>
-        </nav>
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>Detalhes do Desafio</h2>
+            <div>
+                <a href="{{ url_for('challenges_list') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left"></i> Voltar para Lista
+                </a>
+            </div>
+        </div>
     </div>
-
-    <div class="col-md-8 mx-auto">
-        <div class="card">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h4 class="mb-0">Detalhes do Desafio #{{ challenge['id'] }}</h4>
-                <div>
-                    {% if not (challenge['status'] == 'completed' and challenge['result']) %}
-                    <a href="{{ url_for('edit_challenge', challenge_id=challenge['id']) }}" class="btn btn-sm btn-light me-2">
-                        <i class="fas fa-edit"></i> Editar
-                    </a>
-                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
-                        <i class="fas fa-trash"></i> Excluir
-                    </button>
-                    {% endif %}
-                </div>
+    
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Informações do Desafio</h4>
             </div>
             <div class="card-body">
-                <div class="alert 
-                    {% if challenge['status'] == 'pending' %}alert-warning
-                    {% elif challenge['status'] == 'accepted' %}alert-info
-                    {% elif challenge['status'] == 'completed' %}alert-success
-                    {% elif challenge['status'] == 'rejected' %}alert-danger
-                    {% endif %}">
-                    <h5 class="alert-heading">Status: 
-                        {% if challenge['status'] == 'pending' %}Pendente
-                        {% elif challenge['status'] == 'accepted' %}Aceito
-                        {% elif challenge['status'] == 'completed' %}Concluído
-                        {% elif challenge['status'] == 'rejected' %}Rejeitado
-                        {% endif %}
-                    </h5>
-                    {% if challenge['status'] == 'completed' and challenge['result'] %}
-                        <hr>
-                        <p class="mb-0">
-                        {% if challenge['result'] == 'challenger_win' %}
-                            <strong>Resultado:</strong> Vitória do desafiante ({{ challenge['challenger_name'] }})
-                        {% elif challenge['result'] == 'challenged_win' %}
-                            <strong>Resultado:</strong> Vitória do desafiado ({{ challenge['challenged_name'] }})
-                        {% endif %}
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h5 class="text-primary">Desafiante</h5>
+                        <p class="mb-1">
+                            <a href="{{ url_for('player_detail', player_id=challenge['challenger_id']) }}">
+                                <strong>{{ challenge['challenger_name'] }}</strong>
+                            </a>
                         </p>
-                    {% endif %}
-                </div>
-
-                <div class="row mt-4">
-                    <div class="col-md-6">
-                        <div class="card border-success mb-3">
-                            <div class="card-header bg-success text-white">Desafiante</div>
-                            <div class="card-body">
-                                <h5 class="card-title">{{ challenge['challenger_name'] }}</h5>
-                                <p class="card-text">
-                                    <strong>Posição:</strong> {{ challenge['challenger_position'] }}<br>
-                                    <strong>HCP Index:</strong> {{ challenge['challenger_hcp'] }}
-                                </p>
-                                <a href="{{ url_for('player_detail', player_id=challenge['challenger_id']) }}" class="btn btn-sm btn-outline-success">
-                                    Ver perfil
-                                </a>
-                            </div>
-                        </div>
+                        <p class="mb-1">Posição: {{ challenge['challenger_position'] }}</p>
+                        <p>HCP Index: {{ challenge['challenger_hcp'] }}</p>
                     </div>
                     <div class="col-md-6">
-                        <div class="card border-danger mb-3">
-                            <div class="card-header bg-danger text-white">Desafiado</div>
-                            <div class="card-body">
-                                <h5 class="card-title">{{ challenge['challenged_name'] }}</h5>
-                                <p class="card-text">
-                                    <strong>Posição:</strong> {{ challenge['challenged_position'] }}<br>
-                                    <strong>HCP Index:</strong> {{ challenge['challenged_hcp'] }}
-                                </p>
-                                <a href="{{ url_for('player_detail', player_id=challenge['challenged_id']) }}" class="btn btn-sm btn-outline-danger">
-                                    Ver perfil
-                                </a>
-                            </div>
-                        </div>
+                        <h5 class="text-primary">Desafiado</h5>
+                        <p class="mb-1">
+                            <a href="{{ url_for('player_detail', player_id=challenge['challenged_id']) }}">
+                                <strong>{{ challenge['challenged_name'] }}</strong>
+                            </a>
+                        </p>
+                        <p class="mb-1">Posição: {{ challenge['challenged_position'] }}</p>
+                        <p>HCP Index: {{ challenge['challenged_hcp'] }}</p>
                     </div>
                 </div>
-
-                <div class="mt-3">
-                    <h5><i class="fas fa-calendar-alt me-2"></i> Informações da Partida</h5>
-                    <table class="table">
-                        <tr>
-                            <th style="width: 40%">Data de Criação do Desafio:</th>
-                            <td>{{ challenge['created_at'].split(' ')[0] }}</td>
-                        </tr>
-                        <tr>
-                            <th>Data Agendada para o Jogo:</th>
-                            <td>{{ challenge['scheduled_date'] or 'Não definida' }}</td>
-                        </tr>
-                    </table>
+                
+                <hr>
+                
+                <div class="row">
+                    <div class="col-md-4">
+                        <h5>Data do Desafio</h5>
+                        <p>{{ challenge['scheduled_date'] or 'Não agendado' }}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h5>Status</h5>
+                        <p>
+                            {% if challenge['status'] == 'pending' %}
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                            {% elif challenge['status'] == 'accepted' %}
+                            <span class="badge bg-info">Aceito</span>
+                            {% elif challenge['status'] == 'completed' %}
+                            <span class="badge bg-success">Concluído</span>
+                            {% elif challenge['status'] == 'rejected' %}
+                            <span class="badge bg-danger">Rejeitado</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-4">
+                        <h5>Resultado</h5>
+                        <p>
+                            {% if challenge['result'] == 'challenger_win' %}
+                            <span class="badge bg-success">Vitória do Desafiante</span>
+                            {% elif challenge['result'] == 'challenged_win' %}
+                            <span class="badge bg-info">Vitória do Desafiado</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Não definido</span>
+                            {% endif %}
+                        </p>
+                    </div>
                 </div>
-
-                {% if challenge['status'] != 'completed' %}
-                <div class="mt-4">
-                    <h5><i class="fas fa-edit me-2"></i> Atualizar Status do Desafio</h5>
-                    <form action="{{ url_for('update_challenge', challenge_id=challenge['id']) }}" method="post" class="row g-3">
-                        <div class="col-md-6">
-                            <label for="status" class="form-label">Status</label>
-                            <select class="form-select" id="status" name="status" required>
-                                <option value="pending" {% if challenge['status'] == 'pending' %}selected{% endif %}>Pendente</option>
-                                <option value="accepted" {% if challenge['status'] == 'accepted' %}selected{% endif %}>Aceito</option>
-                                <option value="completed" {% if challenge['status'] == 'completed' %}selected{% endif %}>Concluído</option>
-                                <option value="rejected" {% if challenge['status'] == 'rejected' %}selected{% endif %}>Rejeitado</option>
-                            </select>
-                        </div>
-                        
-                        <div class="col-md-6" id="resultDiv" style="display: none;">
-                            <label for="result" class="form-label">Resultado</label>
-                            <select class="form-select" id="result" name="result">
-                                <option value="">Selecione o resultado</option>
-                                <option value="challenger_win">Vitória do Desafiante</option>
-                                <option value="challenged_win">Vitória do Desafiado</option>
-                            </select>
-                        </div>
-
-                        <div class="col-12 mt-3">
-                            <button type="submit" class="btn btn-primary">Atualizar Status</button>
-                        </div>
-                    </form>
+                
+                <hr>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>Data de Criação</h5>
+                        <p>{{ challenge['created_at'] }}</p>
+                    </div>
                 </div>
-
-                <script>
-                    document.addEventListener('DOMContentLoaded', function() {
-                        var status = document.getElementById('status');
-                        var resultDiv = document.getElementById('resultDiv');
-                        var result = document.getElementById('result');
-                        
-                        // Função para mostrar/esconder o campo de resultado
-                        function toggleResultField() {
-                            if (status.value === 'completed') {
-                                resultDiv.style.display = 'block';
-                                result.setAttribute('required', '');
-                            } else {
-                                resultDiv.style.display = 'none';
-                                result.removeAttribute('required');
-                            }
-                        }
-                        
-                        // Executar na inicialização
-                        toggleResultField();
-                        
-                        // Adicionar evento para alterações no status
-                        status.addEventListener('change', toggleResultField);
-                    });
-                </script>
-                {% endif %}
             </div>
             <div class="card-footer">
-                <a href="{{ url_for('challenges') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left me-1"></i> Voltar para Lista de Desafios
-                </a>
+                <div class="d-flex justify-content-end">
+                    <!-- Botão para atualizar status - agora sempre disponível -->
+                    <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#updateModal">
+                        <i class="fas fa-edit"></i> Atualizar Status
+                    </button>
+                    
+                    <!-- Botão para editar desafio - agora sempre disponível -->
+                    <a href="{{ url_for('edit_challenge', challenge_id=challenge['id']) }}" class="btn btn-success me-2">
+                        <i class="fas fa-pencil-alt"></i> Editar Desafio
+                    </a>
+                    
+                    <!-- Botão para excluir desafio - agora sempre disponível -->
+                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                        <i class="fas fa-trash"></i> Excluir
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h4 class="mb-0">Ações Rápidas</h4>
+            </div>
+            <div class="card-body">
+                {% if challenge['status'] == 'completed' %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> Este desafio está concluído. 
+                    {% if challenge['result'] %}
+                        <p class="mt-2 mb-0"><strong>Atenção:</strong> Editar ou excluir este desafio irá reverter suas alterações no ranking.</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                <div class="mb-3">
+                    <label class="form-label">Atualizar Status</label>
+                    <div class="d-grid">
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#updateModal">
+                            <i class="fas fa-edit"></i> Atualizar Status
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Outras Ações</label>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('edit_challenge', challenge_id=challenge['id']) }}" class="btn btn-success">
+                            <i class="fas fa-pencil-alt"></i> Editar Desafio
+                        </a>
+                        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                            <i class="fas fa-trash"></i> Excluir Desafio
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal de Confirmação de Exclusão -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+<!-- Modal para atualizar o status -->
+<div class="modal fade" id="updateModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="deleteModalLabel">Confirmar Exclusão</h5>
+            <div class="modal-header">
+                <h5 class="modal-title">Atualizar Status do Desafio</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('update_challenge', challenge_id=challenge['id']) }}" method="post">
+                <div class="modal-body">
+                    {% if challenge['status'] == 'completed' and challenge['result'] %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> <strong>Atenção:</strong> Alterar o status ou resultado deste desafio irá reverter suas alterações no ranking.
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Status</label>
+                        <select class="form-select" id="status" name="status" required>
+                            <option value="pending" {% if challenge['status'] == 'pending' %}selected{% endif %}>Pendente</option>
+                            <option value="accepted" {% if challenge['status'] == 'accepted' %}selected{% endif %}>Aceito</option>
+                            <option value="completed" {% if challenge['status'] == 'completed' %}selected{% endif %}>Concluído</option>
+                            <option value="rejected" {% if challenge['status'] == 'rejected' %}selected{% endif %}>Rejeitado</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3" id="resultDiv" style="display: none;">
+                        <label for="result" class="form-label">Resultado</label>
+                        <select class="form-select" id="result" name="result">
+                            <option value="">Selecione o resultado</option>
+                            <option value="challenger_win" {% if challenge['result'] == 'challenger_win' %}selected{% endif %}>Vitória de {{ challenge['challenger_name'] }}</option>
+                            <option value="challenged_win" {% if challenge['result'] == 'challenged_win' %}selected{% endif %}>Vitória de {{ challenge['challenged_name'] }}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para confirmar exclusão -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p>Tem certeza que deseja excluir este desafio?</p>
-                <p class="text-danger"><strong>Esta ação não pode ser desfeita.</strong></p>
+                <p>Tem certeza que deseja excluir este desafio entre <strong>{{ challenge['challenger_name'] }}</strong> e <strong>{{ challenge['challenged_name'] }}</strong>?</p>
+                
+                {% if challenge['status'] == 'completed' and challenge['result'] %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> <strong>Atenção:</strong> Excluir este desafio irá reverter suas alterações no ranking.
+                </div>
+                {% endif %}
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -186,4 +219,32 @@
         </div>
     </div>
 </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var status = document.getElementById('status');
+        var resultDiv = document.getElementById('resultDiv');
+        var result = document.getElementById('result');
+        
+        // Verificar status inicial
+        if (status.value === 'completed') {
+            resultDiv.style.display = 'block';
+            result.setAttribute('required', '');
+        }
+        
+        // Adicionar listener para mudanças
+        status.addEventListener('change', function() {
+            if (this.value === 'completed') {
+                resultDiv.style.display = 'block';
+                result.setAttribute('required', '');
+            } else {
+                resultDiv.style.display = 'none';
+                result.removeAttribute('required');
+            }
+        });
+    });
+</script>
 {% endblock %}

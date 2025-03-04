@@ -4,46 +4,91 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-md-12 mb-4">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('challenges') }}">Desafios</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}">Detalhes do Desafio</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Editar Desafio</li>
-            </ol>
-        </nav>
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>Editar Desafio</h2>
+            <div>
+                <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left"></i> Voltar para Detalhes
+                </a>
+            </div>
+        </div>
     </div>
 
     <div class="col-md-8 mx-auto">
         <div class="card">
             <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">Editar Desafio #{{ challenge['id'] }}</h4>
+                <h4 class="mb-0">Informações do Desafio</h4>
             </div>
             <div class="card-body">
-                <div class="alert alert-info">
-                    <h5 class="alert-heading">Informações do Desafio</h5>
-                    <p>Desafiante: <strong>{{ challenge['challenger_name'] }}</strong> (Posição: {{ challenge['challenger_position'] }})</p>
-                    <p>Desafiado: <strong>{{ challenge['challenged_name'] }}</strong> (Posição: {{ challenge['challenged_position'] }})</p>
+                <h5 class="mb-3">Desafio entre <strong>{{ challenge['challenger_name'] }}</strong> e <strong>{{ challenge['challenged_name'] }}</strong></h5>
+                
+                {% if ranking_affected %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> <strong>Atenção:</strong> Editar este desafio irá reverter suas alterações no ranking.
                 </div>
-
-                <form action="{{ url_for('edit_challenge', challenge_id=challenge['id']) }}" method="post" class="mt-4">
+                {% endif %}
+                
+                <form action="{{ url_for('edit_challenge', challenge_id=challenge['id']) }}" method="post">
                     <div class="mb-3">
-                        <label for="scheduled_date" class="form-label">Data Agendada</label>
-                        <input type="date" class="form-control" id="scheduled_date" name="scheduled_date" value="{{ challenge['scheduled_date'] }}" required>
-                        <div class="form-text">Selecione a nova data para o desafio.</div>
+                        <label for="scheduled_date" class="form-label">Data do Desafio</label>
+                        <input type="date" class="form-control" id="scheduled_date" name="scheduled_date" 
+                               value="{{ challenge['scheduled_date'] }}">
                     </div>
                     
-                    <div class="d-flex justify-content-between mt-4">
-                        <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left me-1"></i> Cancelar
-                        </a>
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-save me-1"></i> Salvar Alterações
-                        </button>
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Status</label>
+                        <select class="form-select" id="status" name="status" required>
+                            <option value="pending" {% if challenge['status'] == 'pending' %}selected{% endif %}>Pendente</option>
+                            <option value="accepted" {% if challenge['status'] == 'accepted' %}selected{% endif %}>Aceito</option>
+                            <option value="completed" {% if challenge['status'] == 'completed' %}selected{% endif %}>Concluído</option>
+                            <option value="rejected" {% if challenge['status'] == 'rejected' %}selected{% endif %}>Rejeitado</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3" id="resultDiv" style="display: none;">
+                        <label for="result" class="form-label">Resultado</label>
+                        <select class="form-select" id="result" name="result">
+                            <option value="">Selecione o resultado</option>
+                            <option value="challenger_win" {% if challenge['result'] == 'challenger_win' %}selected{% endif %}>Vitória de {{ challenge['challenger_name'] }}</option>
+                            <option value="challenged_win" {% if challenge['result'] == 'challenged_win' %}selected{% endif %}>Vitória de {{ challenge['challenged_name'] }}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="btn btn-secondary me-md-2">Cancelar</a>
+                        <button type="submit" class="btn btn-success">Salvar Alterações</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var status = document.getElementById('status');
+        var resultDiv = document.getElementById('resultDiv');
+        var result = document.getElementById('result');
+        
+        // Verificar status inicial
+        if (status.value === 'completed') {
+            resultDiv.style.display = 'block';
+            result.setAttribute('required', '');
+        }
+        
+        // Adicionar listener para mudanças
+        status.addEventListener('change', function() {
+            if (this.value === 'completed') {
+                resultDiv.style.display = 'block';
+                result.setAttribute('required', '');
+            } else {
+                resultDiv.style.display = 'none';
+                result.removeAttribute('required');
+            }
+        });
+    });
+</script>
 {% endblock %}
