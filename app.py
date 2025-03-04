@@ -2,8 +2,9 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 import sqlite3
 from datetime import datetime
 import os
-from apscheduler.schedulers.background import BackgroundScheduler
-import atexit
+# Removida a importação do APScheduler
+# from apscheduler.schedulers.background import BackgroundScheduler
+# import atexit
 
 app = Flask(__name__)
 app.secret_key = 'liga_olimpica_golfe_2025'
@@ -277,6 +278,45 @@ def process_challenge_result(conn, challenge_id, status, result):
         conn.commit()
         print("Tiers corrigidos automaticamente.")
 
+# Função para reverter os efeitos de um desafio no ranking
+def revert_challenge_result(conn, challenge_id):
+    """
+    Reverte as alterações feitas por um desafio no ranking.
+    Restaura as posições anteriores dos jogadores e remove os registros de histórico.
+    """
+    # Buscar registros de histórico para este desafio
+    history_records = conn.execute('''
+        SELECT * FROM ranking_history 
+        WHERE challenge_id = ? 
+        ORDER BY change_date DESC
+    ''', (challenge_id,)).fetchall()
+    
+    # Para cada registro, restaurar a posição anterior
+    for record in history_records:
+        player_id = record['player_id']
+        old_position = record['old_position']
+        old_tier = record['old_tier']
+        
+        # Restaurar a posição e tier anteriores
+        conn.execute('''
+            UPDATE players 
+            SET position = ?, tier = ? 
+            WHERE id = ?
+        ''', (old_position, old_tier, player_id))
+    
+    # Rebalancear todas as posições para garantir que não haja lacunas
+    fix_position_gaps(conn)
+    update_all_tiers(conn)
+    
+    # Remover os registros de histórico relacionados a este desafio
+    conn.execute('DELETE FROM ranking_history WHERE challenge_id = ?', (challenge_id,))
+    
+    # Atualizar o desafio para remover o resultado
+    conn.execute('UPDATE challenges SET result = NULL WHERE id = ?', (challenge_id,))
+    
+    conn.commit()
+    print(f"Alterações do desafio ID {challenge_id} foram revertidas com sucesso.")
+
 @app.route('/')
 def index():
     conn = get_db_connection()
@@ -464,7 +504,6 @@ def update_challenge(challenge_id):
     flash('Status do desafio atualizado com sucesso!', 'success')
     return redirect(url_for('challenge_detail', challenge_id=challenge_id))
 
-# Rota modificada para excluir desafios
 @app.route('/delete_challenge/<int:challenge_id>', methods=['POST'])
 def delete_challenge(challenge_id):
     conn = get_db_connection()
@@ -501,7 +540,6 @@ def delete_challenge(challenge_id):
     flash('Desafio excluído com sucesso!', 'success')
     return redirect(url_for('challenges_calendar'))
 
-# Rota modificada para editar desafios 
 @app.route('/edit_challenge/<int:challenge_id>', methods=['GET', 'POST'])
 def edit_challenge(challenge_id):
     conn = get_db_connection()
@@ -570,45 +608,6 @@ def edit_challenge(challenge_id):
     
     conn.close()
     return render_template('edit_challenge.html', challenge=challenge, ranking_affected=ranking_affected)
-
-# Nova função para reverter os efeitos de um desafio no ranking
-def revert_challenge_result(conn, challenge_id):
-    """
-    Reverte as alterações feitas por um desafio no ranking.
-    Restaura as posições anteriores dos jogadores e remove os registros de histórico.
-    """
-    # Buscar registros de histórico para este desafio
-    history_records = conn.execute('''
-        SELECT * FROM ranking_history 
-        WHERE challenge_id = ? 
-        ORDER BY change_date DESC
-    ''', (challenge_id,)).fetchall()
-    
-    # Para cada registro, restaurar a posição anterior
-    for record in history_records:
-        player_id = record['player_id']
-        old_position = record['old_position']
-        old_tier = record['old_tier']
-        
-        # Restaurar a posição e tier anteriores
-        conn.execute('''
-            UPDATE players 
-            SET position = ?, tier = ? 
-            WHERE id = ?
-        ''', (old_position, old_tier, player_id))
-    
-    # Rebalancear todas as posições para garantir que não haja lacunas
-    fix_position_gaps(conn)
-    update_all_tiers(conn)
-    
-    # Remover os registros de histórico relacionados a este desafio
-    conn.execute('DELETE FROM ranking_history WHERE challenge_id = ?', (challenge_id,))
-    
-    # Atualizar o desafio para remover o resultado
-    conn.execute('UPDATE challenges SET result = NULL WHERE id = ?', (challenge_id,))
-    
-    conn.commit()
-    print(f"Alterações do desafio ID {challenge_id} foram revertidas com sucesso.")
 
 @app.route('/history')
 def history():
@@ -739,9 +738,13 @@ def fix_pyramid():
     
     return redirect(url_for('pyramid_dynamic'))
 
-# Função para verificação periódica da integridade da pirâmide
+# Função para verificação da integridade da pirâmide (sem o scheduler)
 def check_pyramid_integrity():
-    print("Executando verificação automática da integridade da pirâmide...")
+    """
+    Executa uma verificação manual da integridade da pirâmide.
+    Pode ser chamada a partir de rotas específicas quando necessário.
+    """
+    print("Executando verificação manual da integridade da pirâmide...")
     conn = get_db_connection()
     try:
         # Verificar lacunas nas posições
@@ -762,24 +765,24 @@ def check_pyramid_integrity():
         if incorrect_players or positions_fixed > 0:
             # Corrigir tiers se necessário
             update_all_tiers(conn)
-            print(f"Correção automática: {positions_fixed} posições e {len(incorrect_players)} tiers ajustados.")
+            print(f"Correção: {positions_fixed} posições e {len(incorrect_players)} tiers ajustados.")
             conn.commit()
         else:
-            print("Verificação automática: Estrutura da pirâmide está correta.")
+            print("Verificação: Estrutura da pirâmide está correta.")
     
     except Exception as e:
-        print(f"Erro na verificação automática da pirâmide: {e}")
+        print(f"Erro na verificação da pirâmide: {e}")
         conn.rollback()
     finally:
         conn.close()
 
-# Configurar verificação periódica da integridade da pirâmide
-scheduler = BackgroundScheduler()
-scheduler.add_job(func=check_pyramid_integrity, trigger="interval", hours=24)
-scheduler.start()
-
-# Garantir que o scheduler seja encerrado quando a aplicação for fechada
-atexit.register(lambda: scheduler.shutdown())
+# Rota adicional para verificação manual da integridade da pirâmide
+@app.route('/check_pyramid')
+def check_pyramid_route():
+    """Rota para executar a verificação da pirâmide sob demanda."""
+    check_pyramid_integrity()
+    flash('Verificação da integridade da pirâmide concluída.', 'info')
+    return redirect(url_for('pyramid_dynamic'))
 
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
