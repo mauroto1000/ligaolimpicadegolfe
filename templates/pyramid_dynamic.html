@@ -1,171 +1,99 @@
 {% extends 'base.html' %}
 
-{% block content %}
-<div class="container mt-4">
-    <h2>Pirâmide de Classificação</h2>
-    
-    <div class="d-flex justify-content-between mb-3">
-        <a href="{{ url_for('index') }}" class="btn btn-secondary">Voltar para Lista</a>
-        <a href="{{ url_for('fix_pyramid') }}" class="btn btn-warning">Verificar/Corrigir Estrutura</a>
-    </div>
-    
-    <div class="pyramid-container">
-        {% for tier_letter, tier_players in tiers %}
-        <div class="tier-row" id="tier-{{ tier_letter }}">
-            <div class="tier-letter">{{ tier_letter }}</div>
-            <div class="tier-players">
-                {% for player in tier_players %}
-                <a href="{{ url_for('player_detail', player_id=player.id) }}" 
-                   class="player-box" 
-                   title="{{ player.name }} - Posição: {{ player.position }} - HCP: {{ player.hcp_index }}">
-                    <div class="position-number">{{ player.position }}</div>
-                    <div class="player-name">{{ player.name }}</div>
-                    <div class="player-hcp">{{ player.hcp_index }}</div>
-                </a>
-                {% endfor %}
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-</div>
+{% block title %}Pirâmide - Liga Olímpica de Golfe{% endblock %}
 
+{% block head %}
 <style>
-    /* Estilo responsivo para a pirâmide */
+    /* Estilos específicos para a pirâmide alinhada à esquerda */
     .pyramid-container {
         display: flex;
         flex-direction: column;
-        align-items: center;
-        width: 100%;
-        margin: 0 auto;
-        max-width: 1200px;
+        align-items: flex-start; /* Alinhamento à esquerda */
+        margin: 30px 0;
     }
 
-    .tier-row {
+    .pyramid-row {
         display: flex;
-        margin-bottom: 0.5rem;
-        width: 100%;
-        align-items: stretch;
+        justify-content: flex-start; /* Alinhamento à esquerda */
+        margin-bottom: 6px; /* Aumentado em 20% de 5px */
     }
 
-    .tier-letter {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: #343a40;
-        color: white;
-        font-weight: bold;
-        width: 30px;
-        flex-shrink: 0;
-        margin-right: 10px;
-        border-radius: 4px;
-    }
-
-    .tier-players {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 0.5rem;
-        flex-grow: 1;
-    }
-
-    .player-box {
+    .pyramid-cell {
+        width: 84px; /* Aumentado em 20% de 70px */
+        height: 84px; /* Aumentado em 20% de 70px */
+        margin: 0 6px 0 0; /* Aumentado a margem em 20% */
         display: flex;
         flex-direction: column;
-        justify-content: space-between;
         align-items: center;
-        text-align: center;
-        color: #fff;
-        background-color: #007bff;
-        border-radius: 4px;
-        padding: 0.25rem;
-        text-decoration: none;
-        /* Base sizes that will be adjusted by media queries */
-        width: calc(33.333% - 0.5rem);
-        min-width: 75px;
-        max-width: 100px;
-        aspect-ratio: 1/1;
-        transition: all 0.3s;
-    }
-
-    .player-box:hover {
-        background-color: #0056b3;
-        transform: scale(1.05);
+        justify-content: center;
         color: white;
-        text-decoration: none;
+        border-radius: 0; /* Remover arredondamento */
+        text-align: center;
+        font-size: 14px; /* Ligeiramente maior para combinar com o tamanho maior */
+        font-weight: bold;
+        position: relative;
+        cursor: pointer;
+        padding: 3px; /* Aumentado em proporção */
     }
 
-    .position-number {
-        font-weight: bold;
-        font-size: 1rem;
+    /* Cores das células */
+    .pyramid-cell {
+        background-color: #28a745; /* Verde para todos as células */
+    }
+
+    /* Cor de fundo para a primeira coluna */
+    .pyramid-cell.first-col {
+        background-color: #002970; /* Azul escuro para primeira coluna */
+    }
+
+    .player-position {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        font-size: 12px; /* Ligeiramente maior */
+        color: #ffffff;
     }
 
     .player-name {
-        font-size: 0.8rem;
+        font-size: 12px; /* Aumentado para melhor legibilidade no espaço maior */
+        text-align: center;
+        margin-top: 15px; /* Ajustado proporcionalmente */
+        line-height: 1.2;
+        max-width: 95%;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
-        width: 100%;
-    }
-
-    .player-hcp {
-        font-size: 0.7rem;
-    }
-
-    /* Responsividade */
-    @media (max-width: 767px) {
-        .player-box {
-            width: calc(25% - 0.5rem);
-            min-width: 60px;
-            max-width: 80px;
-            padding: 0.15rem;
-            font-size: 0.7rem;
-        }
-        
-        .position-number {
-            font-size: 0.8rem;
-        }
-        
-        .player-name {
-            font-size: 0.7rem;
-        }
-        
-        .player-hcp {
-            font-size: 0.6rem;
-        }
-    }
-
-    @media (max-width: 480px) {
-        .player-box {
-            width: calc(20% - 0.4rem);
-            min-width: 50px; 
-            max-width: 65px;
-            padding: 0.1rem;
-        }
-        
-        .position-number {
-            font-size: 0.7rem;
-        }
-        
-        .player-name {
-            font-size: 0.6rem;
-        }
-        
-        .player-hcp {
-            font-size: 0.5rem;
-        }
-        
-        .tier-letter {
-            width: 25px;
-            font-size: 0.8rem;
-        }
-    }
-
-    @media (max-width: 360px) {
-        .player-box {
-            width: calc(20% - 0.3rem);
-            min-width: 40px;
-            max-width: 55px;
-        }
     }
 </style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-success text-white">
+        <h3 class="mb-0">Estrutura da Pirâmide - Liga Olímpica de Golfe 2025</h3>
+        <small>Atualizada em 01/03/2025</small>
+    </div>
+    <div class="card-body">
+        <div class="pyramid-container">
+            {% for tier_letter, players in tiers %}
+                <div class="pyramid-row">
+                    <!-- Célula com a letra do tier -->
+                    <div class="pyramid-cell first-col">
+                        {{ tier_letter }}
+                    </div>
+                    
+                    <!-- Célula para cada posição no tier -->
+                    {% for player in players|sort(attribute='position') %}
+                        <div class="pyramid-cell" onclick="window.location='{{ url_for('player_detail', player_id=player['id']) }}'">
+                            <span class="player-position">{{ player['position'] }}</span>
+                            <!-- Mostrar nome completo -->
+                            <span class="player-name">{{ player['name'] }}</span>
+                            <!-- HCP Index removido conforme solicitado anteriormente -->
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
 {% endblock %}
