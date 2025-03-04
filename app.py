@@ -510,29 +510,9 @@ def new_challenge():
     conn.close()
     return render_template('new_challenge.html', players=players, preselected_challenger=preselected_challenger)
 
-@app.route('/update_challenge/<int:challenge_id>', methods=['POST'])
-def update_challenge(challenge_id):
-    status = request.form['status']
-    result = request.form.get('result', None)
-    
-    print(f"Debug - Status recebido: {status}")  # Adicione para debug
-    print(f"Debug - Resultado recebido: {result}")  # Adicione para debug
-    
-    conn = get_db_connection()
-    
-    if status == 'completed' and result:
-        # Processar o resultado do desafio com a nova função
-        process_challenge_result(conn, challenge_id, status, result)
-    else:
-        # Apenas atualizar o status
-        conn.execute('UPDATE challenges SET status = ? WHERE id = ?', (status, challenge_id))
-        conn.commit()
-    
-    conn.close()
-    
-    flash('Status do desafio atualizado com sucesso!', 'success')
-    return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+# Modifique estas funções no arquivo principal
 
+# Alteração na rota delete_challenge
 @app.route('/delete_challenge/<int:challenge_id>', methods=['POST'])
 def delete_challenge(challenge_id):
     conn = get_db_connection()
@@ -544,6 +524,15 @@ def delete_challenge(challenge_id):
         conn.close()
         flash('Desafio não encontrado!', 'error')
         return redirect(url_for('challenges_calendar'))
+    
+    # Verificar se o desafio está concluído
+    if challenge['status'] == 'completed':
+        # Verificar se a senha foi fornecida e está correta
+        senha = request.form.get('senha', '')
+        if senha != '123':
+            conn.close()
+            flash('Senha incorreta! Desafios concluídos só podem ser excluídos com a senha correta.', 'error')
+            return redirect(url_for('challenge_detail', challenge_id=challenge_id))
     
     # Verificar se o desafio já afetou o ranking
     if challenge['status'] == 'completed' and challenge['result']:
@@ -569,6 +558,7 @@ def delete_challenge(challenge_id):
     flash('Desafio excluído com sucesso!', 'success')
     return redirect(url_for('challenges_calendar'))
 
+# Alteração na rota edit_challenge
 @app.route('/edit_challenge/<int:challenge_id>', methods=['GET', 'POST'])
 def edit_challenge(challenge_id):
     conn = get_db_connection()
@@ -598,6 +588,14 @@ def edit_challenge(challenge_id):
             ranking_affected = True
     
     if request.method == 'POST':
+        # Se o desafio está concluído, verificar a senha
+        if challenge['status'] == 'completed':
+            senha = request.form.get('senha', '')
+            if senha != '123':
+                conn.close()
+                flash('Senha incorreta! Desafios concluídos só podem ser editados com a senha correta.', 'error')
+                return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+        
         scheduled_date = request.form['scheduled_date']
         status = request.form.get('status', challenge['status'])
         result = request.form.get('result', challenge['result'])
@@ -637,6 +635,38 @@ def edit_challenge(challenge_id):
     
     conn.close()
     return render_template('edit_challenge.html', challenge=challenge, ranking_affected=ranking_affected)
+
+# Alteração na rota update_challenge (opcional, caso a atualização de status também deva ter restrição)
+@app.route('/update_challenge/<int:challenge_id>', methods=['POST'])
+def update_challenge(challenge_id):
+    status = request.form['status']
+    result = request.form.get('result', None)
+    
+    conn = get_db_connection()
+    
+    # Verificar se o desafio existe
+    challenge = conn.execute('SELECT * FROM challenges WHERE id = ?', (challenge_id,)).fetchone()
+    
+    # Se o desafio está concluído e estamos modificando-o, verificar a senha
+    if challenge and challenge['status'] == 'completed':
+        senha = request.form.get('senha', '')
+        if senha != '123':
+            conn.close()
+            flash('Senha incorreta! Desafios concluídos só podem ser modificados com a senha correta.', 'error')
+            return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+    
+    if status == 'completed' and result:
+        # Processar o resultado do desafio com a nova função
+        process_challenge_result(conn, challenge_id, status, result)
+    else:
+        # Apenas atualizar o status
+        conn.execute('UPDATE challenges SET status = ? WHERE id = ?', (status, challenge_id))
+        conn.commit()
+    
+    conn.close()
+    
+    flash('Status do desafio atualizado com sucesso!', 'success')
+    return redirect(url_for('challenge_detail', challenge_id=challenge_id))
 
 @app.route('/history')
 def history():
