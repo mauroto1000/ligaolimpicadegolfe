@@ -441,21 +441,47 @@ def new_challenge():
         scheduled_date = request.form['scheduled_date']
         
         conn = get_db_connection()
+        
         # Verificar se o desafio é válido conforme as regras
         challenger = conn.execute('SELECT * FROM players WHERE id = ?', (challenger_id,)).fetchone()
         challenged = conn.execute('SELECT * FROM players WHERE id = ?', (challenged_id,)).fetchone()
         
-        error = None
-        # Regra: Desafio apenas uma linha acima
-        challenger_tier_value = ord(challenger['tier'])
-        challenged_tier_value = ord(challenged['tier'])
+        # NOVA REGRA: Verificar se algum dos jogadores já tem desafios pendentes ou aceitos
+        pending_challenges = conn.execute('''
+            SELECT * FROM challenges 
+            WHERE (challenger_id = ? OR challenged_id = ? OR challenger_id = ? OR challenged_id = ?)
+            AND status IN ('pending', 'accepted')
+        ''', (challenger_id, challenger_id, challenged_id, challenged_id)).fetchall()
         
-        if challenged_tier_value > challenger_tier_value:
-            error = "Você só pode desafiar jogadores de níveis acima do seu."
-        elif challenger_tier_value - challenged_tier_value > 1:
-            error = "Você só pode desafiar jogadores até uma linha acima da sua."
-        elif challenged['position'] > challenger['position']:
-            error = "Você só pode desafiar jogadores em posições melhores que a sua."
+        error = None
+        
+        # Se encontrou desafios pendentes ou aceitos
+        if pending_challenges:
+            # Verificar se o desafio pendente é entre estes mesmos jogadores
+            same_players_challenge = False
+            for challenge in pending_challenges:
+                if ((challenge['challenger_id'] == int(challenger_id) and challenge['challenged_id'] == int(challenged_id)) or
+                    (challenge['challenger_id'] == int(challenged_id) and challenge['challenged_id'] == int(challenger_id))):
+                    same_players_challenge = True
+                    break
+            
+            if same_players_challenge:
+                error = "Já existe um desafio pendente ou aceito entre estes jogadores."
+            else:
+                error = "Um dos jogadores já está envolvido em um desafio pendente ou aceito. Conclua o desafio atual antes de criar um novo."
+        
+        # Regras existentes
+        if not error:
+            # Regra: Desafio apenas uma linha acima
+            challenger_tier_value = ord(challenger['tier'])
+            challenged_tier_value = ord(challenged['tier'])
+            
+            if challenged_tier_value > challenger_tier_value:
+                error = "Você só pode desafiar jogadores de níveis acima do seu."
+            elif challenger_tier_value - challenged_tier_value > 1:
+                error = "Você só pode desafiar jogadores até uma linha acima da sua."
+            elif challenged['position'] > challenger['position']:
+                error = "Você só pode desafiar jogadores em posições melhores que a sua."
         
         if error:
             conn.close()
@@ -488,6 +514,9 @@ def new_challenge():
 def update_challenge(challenge_id):
     status = request.form['status']
     result = request.form.get('result', None)
+    
+    print(f"Debug - Status recebido: {status}")  # Adicione para debug
+    print(f"Debug - Resultado recebido: {result}")  # Adicione para debug
     
     conn = get_db_connection()
     
