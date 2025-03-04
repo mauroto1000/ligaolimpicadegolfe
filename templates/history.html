@@ -22,7 +22,7 @@
                     <table class="table table-striped">
                         <thead class="table-dark">
                             <tr>
-                                <th>Data do Desafio</th>
+                                <th>Data</th>
                                 <th>Jogador</th>
                                 <th>Movimento</th>
                                 <th>Motivo</th>
@@ -32,13 +32,7 @@
                         <tbody>
                             {% for entry in history %}
                             <tr>
-                                <td>
-                                    {% if entry.challenge_id and challenges_dates.get(entry.challenge_id) %}
-                                        {{ challenges_dates.get(entry.challenge_id) }}
-                                    {% else %}
-                                        {{ entry['change_date'].split(' ')[0] }}
-                                    {% endif %}
-                                </td>
+                                <td>{{ entry['change_date'].split(' ')[0] }}</td>
                                 <td>
                                     <a href="{{ url_for('player_detail', player_id=entry['player_id']) }}">
                                         {{ entry['player_name'] }}
