@@ -32,8 +32,8 @@
                                 <td class="text-center">{{ player['position'] }}</td>
                                 <td class="text-truncate-mobile">{{ player['name'] }}</td>
                                 <td class="text-center">{{ player['tier'] }}</td>
-                                <td class="text-center">
-                                    <div class="d-flex flex-wrap justify-content-center gap-1">
+                                <td class="text-center actions-cell">
+                                    <div class="d-flex justify-content-center gap-1">
                                         <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-primary">
                                             <i class="fas fa-user"></i> <span class="d-none d-md-inline">Detalhes</span>
                                         </a>
@@ -51,4 +51,29 @@
         </div>
     </div>
 </div>
+
+<style>
+    /* Impedir quebra de linha nas células de ações */
+    .actions-cell {
+        white-space: nowrap;
+    }
+    
+    /* Ajustes para dispositivos móveis muito pequenos */
+    @media (max-width: 360px) {
+        .actions-cell .btn {
+            padding: 0.25rem 0.4rem;
+        }
+    }
+    
+    /* Truncar nomes muito longos em celulares */
+    @media (max-width: 576px) {
+        .text-truncate-mobile {
+            max-width: 120px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: inline-block;
+        }
+    }
+</style>
 {% endblock %}
