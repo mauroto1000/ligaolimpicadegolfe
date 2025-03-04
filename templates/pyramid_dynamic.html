@@ -10,12 +10,15 @@
         flex-direction: column;
         align-items: flex-start; /* Alinhamento à esquerda */
         margin: 30px 0;
+        width: 100%;
+        overflow-x: auto; /* Permite rolar horizontalmente em telas pequenas */
     }
 
     .pyramid-row {
         display: flex;
         justify-content: flex-start; /* Alinhamento à esquerda */
         margin-bottom: 6px; /* Aumentado em 20% de 5px */
+        min-width: max-content; /* Garante que a linha não seja comprimida */
     }
 
     .pyramid-cell {
@@ -34,6 +37,7 @@
         position: relative;
         cursor: pointer;
         padding: 3px; /* Aumentado em proporção */
+        box-sizing: border-box;
     }
 
     /* Cores das células */
@@ -59,9 +63,50 @@
         text-align: center;
         margin-top: 15px; /* Ajustado proporcionalmente */
         line-height: 1.2;
-        max-width: 95%;
+        width: 90%;
         overflow: hidden;
-        text-overflow: ellipsis;
+        word-break: break-word; /* Quebra palavras longas */
+        display: -webkit-box;
+        -webkit-line-clamp: 3; /* Limita a 3 linhas */
+        -webkit-box-orient: vertical;
+        max-height: 45px; /* Limita altura para não ultrapassar o quadrado */
+    }
+
+    /* Ajustes para dispositivos móveis */
+    @media (max-width: 767px) {
+        .pyramid-container {
+            padding-bottom: 10px; /* Espaço para o scrollbar */
+        }
+        
+        .card-header h3 {
+            font-size: 1.2rem;
+        }
+        
+        /* Instrução para indicar rolagem horizontal */
+        .scroll-hint {
+            display: block;
+            text-align: center;
+            font-style: italic;
+            color: #666;
+            margin-bottom: 10px;
+        }
+    }
+
+    /* Para telas muito pequenas */
+    @media (max-width: 480px) {
+        .pyramid-cell {
+            width: 70px; /* Um pouco menor em telas muito pequenas */
+            height: 70px;
+        }
+        
+        .player-name {
+            font-size: 10px;
+            max-height: 40px;
+        }
+        
+        .player-position {
+            font-size: 10px;
+        }
     }
 </style>
 {% endblock %}
@@ -73,6 +118,16 @@
         <small>Atualizada em 01/03/2025</small>
     </div>
     <div class="card-body">
+        <!-- Indicação de rolagem para dispositivos móveis -->
+        <div class="scroll-hint d-md-none">
+            <small>Deslize para o lado para ver toda a pirâmide</small>
+        </div>
+        
+        <div class="d-flex justify-content-between mb-3">
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">Voltar para Lista</a>
+            <a href="{{ url_for('fix_pyramid') }}" class="btn btn-warning">Verificar/Corrigir Estrutura</a>
+        </div>
+        
         <div class="pyramid-container">
             {% for tier_letter, players in tiers %}
                 <div class="pyramid-row">
