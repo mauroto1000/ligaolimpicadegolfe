@@ -30,7 +30,7 @@
                             {% for player in players %}
                             <tr>
                                 <td class="text-center">{{ player['position'] }}</td>
-                                <td class="text-truncate-mobile">{{ player['name'] }}</td>
+                                <td>{{ player['name'] }}</td>
                                 <td class="text-center">{{ player['tier'] }}</td>
                                 <td class="text-center actions-cell">
                                     <div class="d-flex justify-content-center gap-1">
@@ -62,17 +62,6 @@
     @media (max-width: 360px) {
         .actions-cell .btn {
             padding: 0.25rem 0.4rem;
-        }
-    }
-    
-    /* Truncar nomes muito longos em celulares */
-    @media (max-width: 576px) {
-        .text-truncate-mobile {
-            max-width: 120px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            display: inline-block;
         }
     }
 </style>
