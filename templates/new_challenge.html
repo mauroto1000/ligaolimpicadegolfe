@@ -1,145 +1,55 @@
 {% extends 'base.html' %}
 
-{% block title %}Novo Desafio - Liga Olímpica de Golfe{% endblock %}
+{% block title %}Novo Desafio{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>Novo Desafio</h2>
-    
-    <div class="card mb-4">
-        <div class="card-header bg-primary text-white">
-            <h4 class="mb-0">Registrar Novo Desafio</h4>
-        </div>
-        <div class="card-body">
-            <form action="{{ url_for('new_challenge') }}" method="post">
-                <div class="mb-3">
-                    <label for="challenger_id" class="form-label">Desafiante:</label>
-                    <select class="form-select challenger-select" id="challenger_id" name="challenger_id" required>
-                        <option value="">-- Selecione o Desafiante --</option>
-                        {% for player in players %}
-                            <option value="{{ player.id }}" {% if preselected_challenger and preselected_challenger|int == player.id|int %}selected{% endif %}>
-                                {{ player.position }}. {{ player.name }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="challenged_id" class="form-label">Desafiado:</label>
-                    <select class="form-select challenged-select" id="challenged_id" name="challenged_id" required>
-                        <option value="">-- Selecione o Desafiado --</option>
-                        {% for player in players %}
-                            <option value="{{ player.id }}">
-                                {{ player.position }}. {{ player.name }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="scheduled_date" class="form-label">Data do Desafio:</label>
-                    <input type="date" class="form-control" id="scheduled_date" name="scheduled_date" required>
-                </div>
-                
-                <button type="submit" class="btn btn-primary">Registrar Desafio</button>
-                <a href="{{ url_for('challenges_calendar') }}" class="btn btn-secondary">Cancelar</a>
-            </form>
-        </div>
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h2>Registrar Novo Desafio</h2>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            <div class="mb-3">
+                <label for="challenger_id" class="form-label">Desafiante:</label>
+                <select class="form-select" id="challenger_id" name="challenger_id" required>
+                    <option value="">-- Selecione o Desafiante --</option>
+                    {% for player in all_players %}
+                        <option value="{{ player.id }}" {% if preselected_challenger and player.id|string == preselected_challenger|string %}selected{% endif %}>
+                            {{ player.position }}. {{ player.name }} ({{ player.tier }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="mb-3">
+                <label for="challenged_id" class="form-label">Desafiado:</label>
+                <select class="form-select" id="challenged_id" name="challenged_id" required {% if not eligible_challenged %}disabled{% endif %}>
+                    <option value="">-- Selecione o Desafiado --</option>
+                    {% for player in eligible_challenged %}
+                        <option value="{{ player.id }}">
+                            {{ player.position }}. {{ player.name }} ({{ player.tier }})
+                        </option>
+                    {% endfor %}
+                </select>
+                <small class="text-muted">Você só pode desafiar jogadores até uma linha acima da sua posição atual</small>
+            </div>
+            
+            <div class="mb-3">
+                <label for="scheduled_date" class="form-label">Data do Desafio:</label>
+                <input type="date" class="form-control" id="scheduled_date" name="scheduled_date" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Registrar Desafio</button>
+            <a href="{{ url_for('challenges_calendar') }}" class="btn btn-secondary">Cancelar</a>
+        </form>
     </div>
 </div>
 
-<style>
-    /* Estilo para as opções nos selects de jogadores */
-    .challenger-select option, 
-    .challenged-select option {
-        font-size: 0.9rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    /* Ajustar tamanho da fonte no select quando exibido */
-    .challenger-select,
-    .challenged-select {
-        font-size: 0.9rem;
-    }
-
-    /* Personalização para dispositivos móveis */
-    @media (max-width: 768px) {
-        .challenger-select, 
-        .challenged-select,
-        .challenger-select option, 
-        .challenged-select option {
-            font-size: 0.85rem;
-        }
-    }
-</style>
-
 <script>
-    // Script para validar e filtrar opções de desafio
-    document.addEventListener('DOMContentLoaded', function() {
-        const challengerSelect = document.getElementById('challenger_id');
-        const challengedSelect = document.getElementById('challenged_id');
-        
-        // Data atual para o campo de data
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        let mm = today.getMonth() + 1;
-        let dd = today.getDate();
-        if (mm < 10) mm = '0' + mm;
-        if (dd < 10) dd = '0' + dd;
-        document.getElementById('scheduled_date').min = yyyy + '-' + mm + '-' + dd;
-        
-        // Função para atualizar as opções válidas para desafio
-        function updateChallengedOptions() {
-            const challengerId = challengerSelect.value;
-            
-            if (!challengerId) {
-                // Se não houver desafiante selecionado, desabilita o select de desafiado
-                challengedSelect.disabled = true;
-                return;
-            }
-            
-            // Habilita o select de desafiado
-            challengedSelect.disabled = false;
-            
-            // Obter informações do desafiante selecionado
-            const challengerOption = challengerSelect.options[challengerSelect.selectedIndex];
-            const challengerPosition = parseInt(challengerOption.text.split('.')[0]);
-            
-            // Percorrer todas as opções do desafiado e aplicar lógica de habilitação
-            for (let i = 0; i < challengedSelect.options.length; i++) {
-                const option = challengedSelect.options[i];
-                
-                if (option.value === '') {
-                    // Manter a opção "Selecione o Desafiado"
-                    continue;
-                }
-                
-                // Desafiar apenas posições melhores (números menores)
-                const optionPosition = parseInt(option.text.split('.')[0]);
-                
-                if (optionPosition >= challengerPosition || option.value === challengerId) {
-                    option.disabled = true;
-                    option.style.color = '#aaa';
-                } else {
-                    option.disabled = false;
-                    option.style.color = '';
-                }
-            }
-            
-            // Se o desafiado atual estiver desabilitado, limpar a seleção
-            if (challengedSelect.selectedIndex > 0 && 
-                challengedSelect.options[challengedSelect.selectedIndex].disabled) {
-                challengedSelect.selectedIndex = 0;
-            }
-        }
-        
-        // Evento para quando o desafiante mudar
-        challengerSelect.addEventListener('change', updateChallengedOptions);
-        
-        // Inicializar o estado
-        updateChallengedOptions();
+    // Script para atualizar automaticamente a página quando o desafiante é selecionado
+    document.getElementById('challenger_id').addEventListener('change', function() {
+        // Redirecionar para a mesma página com o novo challenger_id
+        window.location.href = "{{ url_for('new_challenge') }}?challenger_id=" + this.value;
     });
 </script>
 {% endblock %}

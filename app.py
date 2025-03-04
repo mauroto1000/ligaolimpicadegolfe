@@ -473,11 +473,8 @@ def new_challenge():
         # Regras existentes
         if not error:
             # Regra: Desafio apenas uma linha acima
-            challenger_tier = challenger['tier']  # Ex: 'E'
-            challenged_tier = challenged['tier']  # Ex: 'C'
-            
-            # Como 'A' é mais alto que 'B' (menor valor ASCII)
-            # Precisamos garantir que o challenged_tier não seja mais que 1 nível acima do challenger_tier
+            challenger_tier = challenger['tier']
+            challenged_tier = challenged['tier']
             
             # Calcular a diferença de níveis (em termos de "distância alfabética")
             tier_difference = ord(challenger_tier) - ord(challenged_tier)
@@ -511,13 +508,44 @@ def new_challenge():
         
     # Para requisições GET, mostrar formulário
     conn = get_db_connection()
-    players = conn.execute('SELECT * FROM players ORDER BY position').fetchall()
     
     # Verificar se há um challenger_id na query string
-    preselected_challenger = request.args.get('challenger_id', None)
+    preselected_challenger_id = request.args.get('challenger_id', None)
     
+    # Se temos um desafiante pré-selecionado, obter apenas os jogadores que podem ser desafiados
+    if preselected_challenger_id:
+        # Buscar informações do desafiante
+        challenger = conn.execute('SELECT * FROM players WHERE id = ?', (preselected_challenger_id,)).fetchone()
+        
+        if challenger:
+            # Buscar todos os jogadores para a lista de desafiantes
+            all_players = conn.execute('SELECT * FROM players ORDER BY position').fetchall()
+            
+            # Buscar apenas jogadores que podem ser desafiados (mesmo nível ou um nível acima)
+            # e que tenham posição melhor que o desafiante
+            eligible_challenged = conn.execute('''
+                SELECT * FROM players 
+                WHERE position < ? 
+                AND (tier = ? OR tier = ?)
+                ORDER BY position
+            ''', (challenger['position'], challenger['tier'], chr(ord(challenger['tier'])-1))).fetchall()
+            
+            conn.close()
+            return render_template('new_challenge.html', 
+                                all_players=all_players,
+                                eligible_challenged=eligible_challenged,
+                                preselected_challenger=preselected_challenger_id,
+                                challenger_info=challenger)
+    
+    # Se não houver um desafiante pré-selecionado ou o desafiante não for encontrado,
+    # mostrar todos os jogadores (comportamento padrão)
+    players = conn.execute('SELECT * FROM players ORDER BY position').fetchall()
     conn.close()
-    return render_template('new_challenge.html', players=players, preselected_challenger=preselected_challenger)
+    
+    return render_template('new_challenge.html', 
+                         all_players=players, 
+                         eligible_challenged=[],
+                         preselected_challenger=preselected_challenger_id)
 
 # Modifique estas funções no arquivo principal
 
