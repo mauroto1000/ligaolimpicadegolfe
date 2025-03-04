@@ -475,10 +475,10 @@ def new_challenge():
             # Regra: Desafio apenas uma linha acima
             challenger_tier_value = ord(challenger['tier'])
             challenged_tier_value = ord(challenged['tier'])
-            
+
             if challenged_tier_value > challenger_tier_value:
                 error = "Você só pode desafiar jogadores de níveis acima do seu."
-            elif challenger_tier_value - challenged_tier_value > 1:
+            elif challenged_tier_value < challenger_tier_value - 1:
                 error = "Você só pode desafiar jogadores até uma linha acima da sua."
             elif challenged['position'] > challenger['position']:
                 error = "Você só pode desafiar jogadores em posições melhores que a sua."
