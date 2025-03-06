@@ -76,7 +76,7 @@ def update_all_tiers(conn):
     Atualiza o tier de todos os jogadores com base em suas posições atuais e na estrutura fixa da pirâmide.
     """
     # Buscar todos os jogadores ordenados por posição
-    players = conn.execute('SELECT id, position FROM players ORDER BY position').fetchall()
+    players = conn.execute('SELECT id, position FROM players WHERE active = 1 AND position IS NOT NULL ORDER BY position').fetchall()
     
     # Atualizar o tier de cada jogador com base em sua posição
     for player in players:
@@ -95,7 +95,7 @@ def verify_pyramid_structure(conn):
     Verifica se todos os jogadores estão no tier correto de acordo com suas posições.
     Retorna uma lista de jogadores com tiers incorretos.
     """
-    players = conn.execute('SELECT id, name, position, tier FROM players ORDER BY position').fetchall()
+    players = conn.execute('SELECT id, name, position, tier FROM players WHERE active = 1 AND position IS NOT NULL ORDER BY position').fetchall()
     incorrect_players = []
     
     for player in players:
@@ -118,7 +118,7 @@ def fix_position_gaps(conn):
     garantindo que as posições sejam sequenciais (1, 2, 3, ...).
     """
     # Buscar todos os jogadores ordenados por posição atual
-    players = conn.execute('SELECT id, position FROM players ORDER BY position').fetchall()
+    players = conn.execute('SELECT id, position FROM players WHERE active = 1 AND position IS NOT NULL ORDER BY position').fetchall()
     
     # Verificar e corrigir lacunas
     expected_position = 1
@@ -158,6 +158,7 @@ def rebalance_positions_after_challenge(conn, winner_id, loser_id, winner_new_po
             SET position = position + 1 
             WHERE position >= ? AND position < ?
             AND id != ? AND id != ?
+            AND active = 1
         ''', (winner_new_pos, winner_old_pos, winner_id, loser_id))
         
         # Em seguida, definir as novas posições para vencedor e perdedor
@@ -317,13 +318,198 @@ def revert_challenge_result(conn, challenge_id):
     conn.commit()
     print(f"Alterações do desafio ID {challenge_id} foram revertidas com sucesso.")
 
+@app.route('/deactivate_player/<int:player_id>', methods=['GET', 'POST'])
+def deactivate_player(player_id):
+    """
+    Inativa um jogador e oferece opções para reorganizar ou não o ranking.
+    GET: Mostra formulário de confirmação
+    POST: Processa a inativação
+    """
+    conn = get_db_connection()
+    
+    # Buscar jogador
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Jogador não encontrado!', 'error')
+        return redirect(url_for('index'))
+    
+    # Para requisição GET, mostrar tela de confirmação
+    if request.method == 'GET':
+        conn.close()
+        return render_template('deactivate_player.html', player=player)
+    
+    # Para requisição POST, processar a inativação
+    senha = request.form.get('senha', '')
+    rerank = request.form.get('rerank', 'no') == 'yes'
+    
+    if senha != '123':
+        conn.close()
+        flash('Senha incorreta! Operação não autorizada.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    try:
+        current_position = player['position']
+        current_tier = player['tier']
+        
+        # Se rerank=True, inativa e reorganiza ranking
+        if rerank:
+            # 1. Marcar o jogador como inativo - CORRIGIDO: não definir position/tier como NULL
+            conn.execute('''
+                UPDATE players
+                SET active = 0, 
+                    notes = ?
+                WHERE id = ?
+            ''', (f"Inativado em {datetime.now().strftime('%d/%m/%Y')}. Posição anterior: {current_position} (Tier {current_tier})", 
+                  player_id))
+            
+            # 2. Registrar a inativação no histórico
+            conn.execute('''
+                INSERT INTO ranking_history 
+                (player_id, old_position, new_position, old_tier, new_tier, reason)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (player_id, current_position, current_position, current_tier, current_tier, 'player_inactivated'))
+            
+            # 3. Ajustar posições de todos os jogadores abaixo
+            conn.execute('''
+                UPDATE players
+                SET position = position - 1
+                WHERE position > ? AND active = 1
+            ''', (current_position,))
+            
+            # 4. Registrar o ajuste de posição para todos os jogadores afetados
+            affected_players = conn.execute('''
+                SELECT id, position, tier FROM players 
+                WHERE position >= ? AND active = 1
+                ORDER BY position
+            ''', (current_position,)).fetchall()
+            
+            for affected in affected_players:
+                conn.execute('''
+                    INSERT INTO ranking_history 
+                    (player_id, old_position, new_position, old_tier, new_tier, reason)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (affected['id'], affected['position']+1, affected['position'], 
+                      get_tier_from_position(affected['position']+1), affected['tier'], 
+                      f'rerank_after_player_{player_id}_removal'))
+            
+            flash_message = 'Jogador inativado com sucesso e ranking reorganizado.'
+        else:
+            # Apenas inativa o jogador sem reorganizar
+            conn.execute('''
+                UPDATE players
+                SET active = 0, 
+                    notes = ?
+                WHERE id = ?
+            ''', (f"Inativado em {datetime.now().strftime('%d/%m/%Y')}. Mantida posição: {current_position} (Tier {current_tier})", 
+                  player_id))
+            
+            # Registrar a inativação no histórico sem ajuste de posição
+            conn.execute('''
+                INSERT INTO ranking_history 
+                (player_id, old_position, new_position, old_tier, new_tier, reason)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (player_id, current_position, current_position, current_tier, current_tier, 'player_inactivated_nochange'))
+            
+            flash_message = 'Jogador inativado com sucesso. Posição no ranking mantida (jogador ficará invisível nas visualizações).'
+        
+        # 5. Cancelar quaisquer desafios pendentes
+        conn.execute('''
+            UPDATE challenges
+            SET status = 'cancelled', result = 'player_inactive'
+            WHERE (challenger_id = ? OR challenged_id = ?) AND status IN ('pending', 'accepted')
+        ''', (player_id, player_id))
+        
+        # 6. Atualizar tiers após a reorganização de posições
+        update_all_tiers(conn)
+        
+        conn.commit()
+        flash(flash_message, 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao processar operação: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('index'))
+
+@app.route('/reactivate_player/<int:player_id>', methods=['GET', 'POST'])
+def reactivate_player(player_id):
+    """
+    Reativa um jogador inativo, colocando-o na última posição do ranking
+    """
+    conn = get_db_connection()
+    
+    # Buscar jogador
+    player = conn.execute('SELECT * FROM players WHERE id = ? AND active = 0', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Jogador não encontrado ou já está ativo!', 'error')
+        return redirect(url_for('index'))
+    
+    # Para requisição GET, mostrar tela de confirmação
+    if request.method == 'GET':
+        conn.close()
+        return render_template('reactivate_player.html', player=player)
+    
+    # Para requisição POST, processar a reativação
+    senha = request.form.get('senha', '')
+    
+    if senha != '123':
+        conn.close()
+        flash('Senha incorreta! Operação não autorizada.', 'error')
+        return redirect(url_for('index'))
+    
+    try:
+        # Determinar a última posição do ranking
+        last_pos = conn.execute('SELECT MAX(position) as max_pos FROM players WHERE active = 1').fetchone()
+        new_position = 1 if not last_pos['max_pos'] else last_pos['max_pos'] + 1
+        new_tier = get_tier_from_position(new_position)
+        
+        # Reativar jogador na última posição do ranking
+        conn.execute('''
+            UPDATE players
+            SET active = 1, 
+                position = ?,
+                tier = ?,
+                notes = ?
+            WHERE id = ?
+        ''', (new_position, new_tier, 
+              f"{player['notes'] or ''} | Reativado em {datetime.now().strftime('%d/%m/%Y')}",
+              player_id))
+        
+        # Registrar a reativação no histórico
+        conn.execute('''
+            INSERT INTO ranking_history 
+            (player_id, old_position, new_position, old_tier, new_tier, reason)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (player_id, player['position'], new_position, player['tier'], new_tier, 'player_reactivated'))
+        
+        conn.commit()
+        flash(f'Jogador reativado com sucesso na posição {new_position}.', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao reativar jogador: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('player_detail', player_id=player_id))
+
 @app.route('/')
 def index():
     conn = get_db_connection()
-    # Obter todos os jogadores ordenados por posição
-    players = conn.execute('SELECT * FROM players ORDER BY position').fetchall()
+    # Modificado para mostrar apenas jogadores ativos
+    players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
+    
+    # Buscar jogadores inativos para mostrar em seção separada
+    inactive_players = conn.execute('SELECT * FROM players WHERE active = 0 ORDER BY name').fetchall()
+    
     conn.close()
-    return render_template('index.html', players=players)
+    return render_template('index.html', players=players, inactive_players=inactive_players)
 
 @app.route('/pyramid')
 def pyramid_redirect():
@@ -333,7 +519,8 @@ def pyramid_redirect():
 @app.route('/pyramid_dynamic')
 def pyramid_dynamic():
     conn = get_db_connection()
-    players = conn.execute('SELECT * FROM players ORDER BY position').fetchall()
+    # Modificado para mostrar apenas jogadores ativos
+    players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
     conn.close()
     
     # Organizar jogadores por tier
@@ -443,8 +630,14 @@ def new_challenge():
         conn = get_db_connection()
         
         # Verificar se o desafio é válido conforme as regras
-        challenger = conn.execute('SELECT * FROM players WHERE id = ?', (challenger_id,)).fetchone()
-        challenged = conn.execute('SELECT * FROM players WHERE id = ?', (challenged_id,)).fetchone()
+        # Verificar se ambos jogadores estão ativos
+        challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', (challenger_id,)).fetchone()
+        challenged = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', (challenged_id,)).fetchone()
+        
+        if not challenger or not challenged:
+            conn.close()
+            flash('Um dos jogadores está inativo e não pode participar de desafios.', 'error')
+            return redirect(url_for('new_challenge'))
         
         # NOVA REGRA: Verificar se algum dos jogadores já tem desafios pendentes ou aceitos
         pending_challenges = conn.execute('''
@@ -455,7 +648,7 @@ def new_challenge():
         
         error = None
         
-        # Se encontrou desafios pendentes ou aceitos
+# Se encontrou desafios pendentes ou aceitos
         if pending_challenges:
             # Verificar se o desafio pendente é entre estes mesmos jogadores
             same_players_challenge = False
@@ -515,17 +708,18 @@ def new_challenge():
     # Se temos um desafiante pré-selecionado, obter apenas os jogadores que podem ser desafiados
     if preselected_challenger_id:
         # Buscar informações do desafiante
-        challenger = conn.execute('SELECT * FROM players WHERE id = ?', (preselected_challenger_id,)).fetchone()
+        challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', (preselected_challenger_id,)).fetchone()
         
         if challenger:
             # Buscar todos os jogadores para a lista de desafiantes
-            all_players = conn.execute('SELECT * FROM players ORDER BY position').fetchall()
+            all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
             
             # Buscar apenas jogadores que podem ser desafiados (mesmo nível ou um nível acima)
             # e que tenham posição melhor que o desafiante
             eligible_challenged = conn.execute('''
                 SELECT * FROM players 
-                WHERE position < ? 
+                WHERE active = 1
+                AND position < ? 
                 AND (tier = ? OR tier = ?)
                 ORDER BY position
             ''', (challenger['position'], challenger['tier'], chr(ord(challenger['tier'])-1))).fetchall()
@@ -539,15 +733,13 @@ def new_challenge():
     
     # Se não houver um desafiante pré-selecionado ou o desafiante não for encontrado,
     # mostrar todos os jogadores (comportamento padrão)
-    players = conn.execute('SELECT * FROM players ORDER BY position').fetchall()
+    players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
     conn.close()
     
     return render_template('new_challenge.html', 
                          all_players=players, 
                          eligible_challenged=[],
                          preselected_challenger=preselected_challenger_id)
-
-# Modifique estas funções no arquivo principal
 
 # Alteração na rota delete_challenge
 @app.route('/delete_challenge/<int:challenge_id>', methods=['POST'])
@@ -753,14 +945,17 @@ def player_detail(player_id):
         ORDER BY rh.change_date DESC
     ''', (player_id,)).fetchall()
     
-    # Buscar possíveis jogadores para desafiar
-    potential_challenges = conn.execute('''
-        SELECT p.*
-        FROM players p
-        WHERE p.position < ? 
-          AND (p.tier = ? OR p.tier = ?)
-        ORDER BY p.position DESC
-    ''', (player['position'], player['tier'], chr(ord(player['tier'])-1))).fetchall()
+    # Buscar possíveis jogadores para desafiar (apenas se o jogador estiver ativo)
+    potential_challenges = []
+    if player['active'] == 1:
+        potential_challenges = conn.execute('''
+            SELECT p.*
+            FROM players p
+            WHERE p.position < ? 
+              AND (p.tier = ? OR p.tier = ?)
+              AND p.active = 1
+            ORDER BY p.position DESC
+        ''', (player['position'], player['tier'], chr(ord(player['tier'])-1))).fetchall()
     
     conn.close()
     
@@ -798,7 +993,7 @@ def fix_pyramid():
     
     try:
         # Passo 1: Corrigir qualquer lacuna nas posições
-        players_before = conn.execute('SELECT id, position FROM players ORDER BY position').fetchall()
+        players_before = conn.execute('SELECT id, position FROM players WHERE active = 1 ORDER BY position').fetchall()
         fix_position_gaps(conn)
         
         # Passo 2: Verificar se há jogadores com tiers incorretos
@@ -809,7 +1004,7 @@ def fix_pyramid():
             update_all_tiers(conn)
             
         # Verificação final
-        players_after = conn.execute('SELECT id, position FROM players ORDER BY position').fetchall()
+        players_after = conn.execute('SELECT id, position FROM players WHERE active = 1 ORDER BY position').fetchall()
         final_check = verify_pyramid_structure(conn)
         
         # Calcular quantas posições foram corrigidas
@@ -844,7 +1039,7 @@ def check_pyramid_integrity():
     conn = get_db_connection()
     try:
         # Verificar lacunas nas posições
-        players = conn.execute('SELECT id, position FROM players ORDER BY position').fetchall()
+        players = conn.execute('SELECT id, position FROM players WHERE active = 1 AND position IS NOT NULL ORDER BY position').fetchall()
         expected_position = 1
         positions_fixed = 0
         
@@ -880,6 +1075,18 @@ def check_pyramid_route():
     flash('Verificação da integridade da pirâmide concluída.', 'info')
     return redirect(url_for('pyramid_dynamic'))
 
+# Rota para verificar o status de um jogador (útil para diagnóstico)
+@app.route('/check_player/<int:player_id>')
+def check_player(player_id):
+    conn = get_db_connection()
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    conn.close()
+    
+    if not player:
+        return f"Jogador ID {player_id} não encontrado"
+    
+    return f"Jogador: {player['name']}, Active: {player['active']}, Position: {player['position']}, Notes: {player['notes']}"
+
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
     if not os.path.exists(DATABASE):
@@ -887,6 +1094,24 @@ if __name__ == '__main__':
         import import_data
         import_data.create_database()
         import_data.import_players_data(import_data.cursor)
+    
+    # Verificar se as colunas active e notes existem na tabela players
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    columns_info = cursor.execute('PRAGMA table_info(players)').fetchall()
+    column_names = [col[1] for col in columns_info]
+    
+    if 'active' not in column_names:
+        print("Adicionando coluna 'active' à tabela players...")
+        cursor.execute('ALTER TABLE players ADD COLUMN active INTEGER DEFAULT 1')
+    
+    if 'notes' not in column_names:
+        print("Adicionando coluna 'notes' à tabela players...")
+        cursor.execute('ALTER TABLE players ADD COLUMN notes TEXT')
+    
+    conn.commit()
+    conn.close()
     
     # Criar pasta de templates se não existir
     if not os.path.exists('templates'):
