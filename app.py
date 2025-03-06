@@ -378,21 +378,8 @@ def deactivate_player(player_id):
                 WHERE position > ? AND active = 1
             ''', (current_position,))
             
-            # 4. Registrar o ajuste de posição para todos os jogadores afetados
-            affected_players = conn.execute('''
-                SELECT id, position, tier FROM players 
-                WHERE position >= ? AND active = 1
-                ORDER BY position
-            ''', (current_position,)).fetchall()
-            
-            for affected in affected_players:
-                conn.execute('''
-                    INSERT INTO ranking_history 
-                    (player_id, old_position, new_position, old_tier, new_tier, reason)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (affected['id'], affected['position']+1, affected['position'], 
-                      get_tier_from_position(affected['position']+1), affected['tier'], 
-                      f'rerank_after_player_{player_id}_removal'))
+            # 4. Removido o trecho que registrava os ajustes de posição no histórico
+            # para todos os jogadores afetados pelo reposicionamento
             
             flash_message = 'Jogador inativado com sucesso e ranking reorganizado.'
         else:
@@ -494,6 +481,69 @@ def reactivate_player(player_id):
     except Exception as e:
         conn.rollback()
         flash(f'Erro ao reativar jogador: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('player_detail', player_id=player_id))
+
+@app.route('/update_player_name/<int:player_id>', methods=['POST'])
+def update_player_name(player_id):
+    """
+    Atualiza o nome de um jogador
+    """
+    conn = get_db_connection()
+    
+    # Verificar se o jogador existe
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Jogador não encontrado!', 'error')
+        return redirect(url_for('index'))
+    
+    # Verificar senha
+    senha = request.form.get('senha', '')
+    if senha != '123':
+        conn.close()
+        flash('Senha incorreta! Operação não autorizada.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    # Obter novo nome
+    new_name = request.form.get('new_name', '').strip()
+    old_name = player['name']
+    
+    # Validar novo nome
+    if not new_name:
+        conn.close()
+        flash('O nome não pode estar vazio!', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    # Se o nome não mudou, não fazer nada
+    if new_name == old_name:
+        conn.close()
+        flash('Nenhuma alteração foi realizada.', 'info')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    try:
+        # Atualizar o nome do jogador
+        conn.execute('UPDATE players SET name = ? WHERE id = ?', (new_name, player_id))
+        
+        # Opcional: Registrar alteração no histórico
+        notes = f"Nome alterado de '{old_name}' para '{new_name}' em {datetime.now().strftime('%d/%m/%Y')}"
+        
+        # Se o jogador já tem notas, adicionar à frente
+        if player['notes']:
+            notes = f"{player['notes']} | {notes}"
+        
+        # Atualizar as notas
+        conn.execute('UPDATE players SET notes = ? WHERE id = ?', (notes, player_id))
+        
+        conn.commit()
+        flash(f'Nome atualizado com sucesso de "{old_name}" para "{new_name}".', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao atualizar o nome: {str(e)}', 'error')
     finally:
         conn.close()
     
@@ -648,7 +698,7 @@ def new_challenge():
         
         error = None
         
-# Se encontrou desafios pendentes ou aceitos
+        # Se encontrou desafios pendentes ou aceitos
         if pending_challenges:
             # Verificar se o desafio pendente é entre estes mesmos jogadores
             same_players_challenge = False
@@ -1086,6 +1136,34 @@ def check_player(player_id):
         return f"Jogador ID {player_id} não encontrado"
     
     return f"Jogador: {player['name']}, Active: {player['active']}, Position: {player['position']}, Notes: {player['notes']}"
+
+# Rota para adicionar colunas (útil para atualização do banco de dados)
+@app.route('/add_columns')
+def add_columns():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Verificar se as colunas existem
+    columns_info = cursor.execute('PRAGMA table_info(players)').fetchall()
+    column_names = [col[1] for col in columns_info]
+    
+    changes = []
+    
+    if 'active' not in column_names:
+        cursor.execute('ALTER TABLE players ADD COLUMN active INTEGER DEFAULT 1')
+        changes.append("Coluna 'active' adicionada")
+    
+    if 'notes' not in column_names:
+        cursor.execute('ALTER TABLE players ADD COLUMN notes TEXT')
+        changes.append("Coluna 'notes' adicionada")
+    
+    conn.commit()
+    conn.close()
+    
+    if changes:
+        return f"Alterações realizadas: {', '.join(changes)}"
+    else:
+        return "Nenhuma alteração necessária."
 
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados

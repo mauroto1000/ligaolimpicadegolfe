@@ -24,7 +24,30 @@
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <h5>Nome</h5>
-                        <p><strong>{{ player['name'] }}</strong></p>
+                        <p class="d-flex align-items-center">
+                            <strong id="playerNameDisplay">{{ player['name'] }}</strong>
+                            <button type="button" class="btn btn-sm btn-outline-primary ms-2" 
+                                    onclick="toggleEditName()">
+                                <i class="fas fa-pencil-alt"></i> Editar
+                            </button>
+                        </p>
+                        
+                        <!-- Formulário para editar nome (inicialmente oculto) -->
+                        <form id="editNameForm" action="{{ url_for('update_player_name', player_id=player.id) }}" 
+                              method="post" class="d-none mb-3">
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="new_name" 
+                                       value="{{ player['name'] }}" required>
+                                <button type="submit" class="btn btn-primary">Salvar</button>
+                                <button type="button" class="btn btn-secondary" 
+                                        onclick="toggleEditName()">Cancelar</button>
+                            </div>
+                            <div class="form-group mt-2">
+                                <label for="senha" class="small">Senha de Administrador:</label>
+                                <input type="password" class="form-control form-control-sm" 
+                                       id="senha" name="senha" required>
+                            </div>
+                        </form>
                     </div>
                     <div class="col-md-6">
                         <h5>E-mail</h5>
@@ -276,4 +299,21 @@
         </div>
     </div>
 </div>
+
+<script>
+function toggleEditName() {
+    const displayElement = document.getElementById('playerNameDisplay');
+    const formElement = document.getElementById('editNameForm');
+    
+    if (formElement.classList.contains('d-none')) {
+        // Mostrar formulário, ocultar display
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        // Ocultar formulário, mostrar display
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
+}
+</script>
 {% endblock %}
