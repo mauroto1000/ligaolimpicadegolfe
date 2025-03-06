@@ -161,16 +161,18 @@
                             <tr>
                                 <td>{{ item['change_date'].split(' ')[0] }}</td>
                                 <td>
-                                    {% if item['old_position'] == item['new_position'] %}
+                                    {% if item['old_position'] is not none and item['new_position'] is not none and item['old_position'] == item['new_position'] %}
                                     <span class="badge bg-secondary">Sem alteração</span>
-                                    {% elif item['new_position'] and item['old_position'] > item['new_position'] %}
+                                    {% elif item['new_position'] is not none and item['old_position'] is not none and item['old_position'] > item['new_position'] %}
                                     <span class="badge bg-success">↑ {{ item['old_position'] }} → {{ item['new_position'] }}</span>
-                                    {% elif item['new_position'] and item['old_position'] < item['new_position'] %}
+                                    {% elif item['new_position'] is not none and item['old_position'] is not none and item['old_position'] < item['new_position'] %}
                                     <span class="badge bg-danger">↓ {{ item['old_position'] }} → {{ item['new_position'] }}</span>
-                                    {% elif not item['new_position'] %}
+                                    {% elif item['new_position'] is none %}
                                     <span class="badge bg-warning text-dark">Removido</span>
-                                    {% elif not item['old_position'] %}
+                                    {% elif item['old_position'] is none %}
                                     <span class="badge bg-info">Adicionado #{{ item['new_position'] }}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Status alterado</span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -184,6 +186,8 @@
                                     <span class="text-secondary">Jogador inativado</span>
                                     {% elif 'player_reactivated' in item['reason'] %}
                                     <span class="text-success">Jogador reativado</span>
+                                    {% elif 'player_added' in item['reason'] %}
+                                    <span class="text-success">Jogador adicionado</span>
                                     {% else %}
                                     <span>{{ item['reason'] }}</span>
                                     {% endif %}
