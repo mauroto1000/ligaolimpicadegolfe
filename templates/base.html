@@ -73,7 +73,7 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link {% if request.path == url_for('challenges_calendar') %}active{% endif %}" href="{{ url_for('challenges_calendar') }}">
+                            <a class="nav-link {% if 'challenges' in request.path %}active{% endif %}" href="{{ url_for('challenges') }}">
                                 <i class="fas fa-calendar-alt"></i> Desafios
                             </a>
                         </li>
