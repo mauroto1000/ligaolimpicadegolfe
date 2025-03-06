@@ -969,6 +969,10 @@ def player_detail(player_id):
         flash('Jogador não encontrado!', 'error')
         return redirect(url_for('index'))
     
+    # Garanta que a posição seja um inteiro válido
+    player_position = player['position'] if player['position'] is not None else 0
+    player_tier = player['tier'] if player['tier'] is not None else 'Z'
+    
     # Buscar desafios do jogador
     challenges_as_challenger = conn.execute('''
         SELECT c.*, p.name as opponent_name, p.position as opponent_position
@@ -997,15 +1001,21 @@ def player_detail(player_id):
     
     # Buscar possíveis jogadores para desafiar (apenas se o jogador estiver ativo)
     potential_challenges = []
-    if player['active'] == 1:
-        potential_challenges = conn.execute('''
-            SELECT p.*
-            FROM players p
-            WHERE p.position < ? 
-              AND (p.tier = ? OR p.tier = ?)
-              AND p.active = 1
-            ORDER BY p.position DESC
-        ''', (player['position'], player['tier'], chr(ord(player['tier'])-1))).fetchall()
+    if player['active'] == 1 and player_position > 0:  # Verificar se a posição é válida
+        try:
+            # Calcular o tier anterior (um nível acima)
+            prev_tier = chr(ord(player_tier) - 1) if ord(player_tier) > ord('A') else player_tier
+            
+            potential_challenges = conn.execute('''
+                SELECT p.*
+                FROM players p
+                WHERE p.position < ? 
+                  AND (p.tier = ? OR p.tier = ?)
+                  AND p.active = 1
+                ORDER BY p.position DESC
+            ''', (player_position, player_tier, prev_tier)).fetchall()
+        except Exception as e:
+            print(f"Erro ao buscar desafios potenciais: {str(e)}")
     
     conn.close()
     
@@ -1164,6 +1174,122 @@ def add_columns():
         return f"Alterações realizadas: {', '.join(changes)}"
     else:
         return "Nenhuma alteração necessária."
+
+@app.route('/add_player', methods=['GET', 'POST'])
+def add_player():
+    """
+    Adiciona um novo jogador ao sistema, colocando-o na última posição do ranking.
+    GET: Mostra formulário para adicionar jogador
+    POST: Processa a adição do jogador
+    """
+    if request.method == 'POST':
+        # Obter dados do formulário
+        name = request.form.get('name', '').strip()
+        hcp_index = request.form.get('hcp_index', '').strip()  # Garante que não seja None
+        email = request.form.get('email', '').strip()
+        notes = request.form.get('notes', '').strip()
+        senha = request.form.get('senha', '')
+        
+        # Validar campos obrigatórios
+        if not name:
+            flash('Nome é obrigatório!', 'error')
+            return redirect(url_for('add_player'))
+        
+        # Validar senha
+        if senha != '123':
+            flash('Senha incorreta! Operação não autorizada.', 'error')
+            return redirect(url_for('add_player'))
+        
+        conn = get_db_connection()
+        try:
+            # Verificar se o jogador já existe
+            existing_player = conn.execute('SELECT * FROM players WHERE name = ?', (name,)).fetchone()
+            if existing_player:
+                if existing_player['active'] == 0:
+                    # Se o jogador existe mas está inativo, sugerir reativação
+                    flash(f'Jogador "{name}" já existe mas está inativo. Considere reativá-lo na página de detalhes.', 'warning')
+                    conn.close()
+                    return redirect(url_for('player_detail', player_id=existing_player['id']))
+                else:
+                    # Se o jogador já existe e está ativo, informar erro
+                    flash(f'Jogador "{name}" já existe no sistema!', 'error')
+                    conn.close()
+                    return redirect(url_for('add_player'))
+            
+            # Determinar a última posição do ranking
+            last_pos_result = conn.execute('SELECT MAX(position) as max_pos FROM players WHERE active = 1').fetchone()
+            last_pos = last_pos_result['max_pos'] if last_pos_result and last_pos_result['max_pos'] is not None else 0
+            new_position = last_pos + 1
+            
+            # Garantir que a posição seja um inteiro válido
+            if not isinstance(new_position, int) or new_position <= 0:
+                new_position = 1
+            
+            # Determinar o tier com base na posição
+            new_tier = get_tier_from_position(new_position)
+            
+            # Converter hcp_index para float se fornecido, ou None se vazio
+            hcp_index_val = None
+            if hcp_index:
+                try:
+                    hcp_index_val = float(hcp_index.replace(',', '.'))
+                except ValueError:
+                    # Se não for um número válido, deixar como None
+                    pass
+            
+            # Verificar quais colunas existem na tabela
+            columns_info = conn.execute('PRAGMA table_info(players)').fetchall()
+            column_names = [col[1] for col in columns_info]
+            
+            # Construir a query dinamicamente com base nas colunas existentes
+            columns = ['name', 'active', 'position', 'tier']
+            values = [name, 1, new_position, new_tier]
+            
+            if 'hcp_index' in column_names:
+                columns.append('hcp_index')
+                values.append(hcp_index_val)
+            
+            if 'email' in column_names and email:
+                columns.append('email')
+                values.append(email)
+            
+            if 'notes' in column_names and notes:
+                columns.append('notes')
+                values.append(notes)
+            
+            # Construir a string SQL
+            columns_str = ', '.join(columns)
+            placeholders = ', '.join(['?'] * len(values))
+            
+            # Inserir o novo jogador
+            cursor = conn.execute(f'''
+                INSERT INTO players ({columns_str})
+                VALUES ({placeholders})
+            ''', values)
+            
+            player_id = cursor.lastrowid
+            
+            # Registrar no histórico
+            conn.execute('''
+                INSERT INTO ranking_history 
+                (player_id, old_position, new_position, old_tier, new_tier, reason)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (player_id, None, new_position, None, new_tier, 'player_added'))
+            
+            conn.commit()
+            flash(f'Jogador "{name}" adicionado com sucesso na posição {new_position} (Tier {new_tier})!', 'success')
+            return redirect(url_for('player_detail', player_id=player_id))
+            
+        except Exception as e:
+            conn.rollback()
+            flash(f'Erro ao adicionar jogador: {str(e)}', 'error')
+        finally:
+            conn.close()
+        
+        return redirect(url_for('index'))
+    
+    # Para requisição GET, mostrar formulário
+    return render_template('add_player.html')
 
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
