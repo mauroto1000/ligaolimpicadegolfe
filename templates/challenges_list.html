@@ -1,210 +1,108 @@
 {% extends 'base.html' %}
 
-{% block title %}Lista de Desafios - Liga Olímpica de Golfe{% endblock %}
+{% block title %}Lista de Desafios{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12 mb-3">
-        <div class="d-flex justify-content-between align-items-center flex-wrap">
-            <h2>Lista de Desafios</h2>
-            <div class="d-flex gap-2 mt-2 mt-sm-0">
-                <a href="{{ url_for('challenges_calendar') }}" class="btn btn-primary">
-                    <i class="fas fa-calendar-alt"></i> <span class="d-none d-sm-inline">Calendário</span>
-                </a>
-                <a href="{{ url_for('new_challenge') }}" class="btn btn-success">
-                    <i class="fas fa-plus-circle"></i> <span class="d-none d-sm-inline">Novo Desafio</span>
-                </a>
-            </div>
-        </div>
+<div class="container-fluid mt-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>Lista de Desafios</h1>
+        <a href="{{ url_for('new_challenge') }}" class="btn btn-success">
+            <i class="fas fa-plus"></i> Novo Desafio
+        </a>
     </div>
     
-    <!-- Filtros em acordo responsivo -->
-    <div class="col-12 mb-3">
-        <div class="card">
-            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Filtros</h5>
-                <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse">
-                    <i class="fas fa-filter"></i>
-                </button>
-            </div>
-            <div class="card-body collapse" id="filterCollapse">
-                <form method="get" action="{{ url_for('challenges_list') }}" class="row g-2">
-                    <div class="col-md-6 col-lg-3">
-                        <label for="status" class="form-label">Status</label>
-                        <select class="form-select" id="status" name="status">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Lista de Desafios</h5>
+        </div>
+        <div class="card-body">
+            <!-- Filtros para a lista de desafios -->
+            <form action="{{ url_for('challenges_list') }}" method="GET" class="mb-3">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label for="statusFilter" class="form-label">Status:</label>
+                        <select class="form-select" id="statusFilter" name="status">
                             <option value="">Todos</option>
-                            <option value="pending" {% if request.args.get('status') == 'pending' %}selected{% endif %}>Pendente</option>
-                            <option value="accepted" {% if request.args.get('status') == 'accepted' %}selected{% endif %}>Aceito</option>
-                            <option value="completed" {% if request.args.get('status') == 'completed' %}selected{% endif %}>Concluído</option>
-                            <option value="rejected" {% if request.args.get('status') == 'rejected' %}selected{% endif %}>Rejeitado</option>
+                            <option value="pending" {% if request.args.get('status') == 'pending' %}selected{% endif %}>Pendentes</option>
+                            <option value="accepted" {% if request.args.get('status') == 'accepted' %}selected{% endif %}>Aceitos</option>
+                            <option value="completed" {% if request.args.get('status') == 'completed' %}selected{% endif %}>Concluídos</option>
+                            <option value="rejected" {% if request.args.get('status') == 'rejected' %}selected{% endif %}>Rejeitados</option>
                         </select>
                     </div>
-                    <div class="col-md-6 col-lg-3">
-                        <label for="player" class="form-label">Jogador</label>
-                        <input type="text" class="form-control" id="player" name="player" placeholder="Nome do jogador" value="{{ request.args.get('player', '') }}">
+                    <div class="col-md-3">
+                        <label for="playerFilter" class="form-label">Jogador:</label>
+                        <input type="text" class="form-control" id="playerFilter" name="player" placeholder="Nome do jogador" value="{{ request.args.get('player', '') }}">
                     </div>
-                    <div class="col-md-6 col-lg-3">
-                        <label for="date_from" class="form-label">Data de</label>
-                        <input type="date" class="form-control" id="date_from" name="date_from" value="{{ request.args.get('date_from', '') }}">
+                    <div class="col-md-2">
+                        <label for="dateFromFilter" class="form-label">Data inicial:</label>
+                        <input type="date" class="form-control" id="dateFromFilter" name="date_from" value="{{ request.args.get('date_from', '') }}">
                     </div>
-                    <div class="col-md-6 col-lg-3">
-                        <label for="date_to" class="form-label">Data até</label>
-                        <input type="date" class="form-control" id="date_to" name="date_to" value="{{ request.args.get('date_to', '') }}">
+                    <div class="col-md-2">
+                        <label for="dateToFilter" class="form-label">Data final:</label>
+                        <input type="date" class="form-control" id="dateToFilter" name="date_to" value="{{ request.args.get('date_to', '') }}">
                     </div>
-                    <div class="col-12 text-end mt-3">
-                        <a href="{{ url_for('challenges_list') }}" class="btn btn-outline-secondary me-2">Limpar</a>
-                        <button type="submit" class="btn btn-primary">Filtrar</button>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">Filtrar</button>
                     </div>
-                </form>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Lista de desafios com responsividade -->
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">Lista de Desafios</h4>
-            </div>
-            <div class="card-body p-0">
-                {% if challenges %}
-                <div class="table-responsive">
-                    <table class="table table-striped mb-0">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>Data</th>
-                                <th>Competidores</th>
-                                <th class="text-center">Status</th>
-                                <th class="text-center">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for challenge in challenges %}
-                            <tr>
-                                <td>
-                                    {% if challenge['scheduled_date'] %}
-                                        <strong>{{ challenge['scheduled_date'] }}</strong>
-                                    {% else %}
-                                        <span class="text-muted">Não agendado</span>
-                                    {% endif %}
-                                    <small class="text-muted d-block d-md-none">
-                                        <i class="fas fa-clock"></i> {{ challenge['created_at'].split(' ')[0] }}
-                                    </small>
-                                </td>
-                                <td>
-                                    <div class="d-flex flex-column">
-                                        <a href="{{ url_for('player_detail', player_id=challenge['challenger_id']) }}" class="text-decoration-none">
-                                            <strong>{{ challenge['challenger_name'] }}</strong>
-                                            <small class="text-muted">#{{ challenge['challenger_position'] }} ({{ challenge['challenger_tier'] }})</small>
-                                        </a>
-                                        <div class="text-center my-1 d-block d-md-none">
-                                            <i class="fas fa-exchange-alt text-muted"></i>
-                                        </div>
-                                        <a href="{{ url_for('player_detail', player_id=challenge['challenged_id']) }}" class="text-decoration-none">
-                                            <strong>{{ challenge['challenged_name'] }}</strong>
-                                            <small class="text-muted">#{{ challenge['challenged_position'] }} ({{ challenge['challenged_tier'] }})</small>
-                                        </a>
-                                    </div>
-                                </td>
-                                <td class="text-center align-middle">
-                                    {% if challenge['status'] == 'pending' %}
-                                    <span class="badge bg-warning text-dark">Pendente</span>
-                                    {% elif challenge['status'] == 'accepted' %}
-                                    <span class="badge bg-info">Aceito</span>
-                                    {% elif challenge['status'] == 'completed' %}
-                                    <span class="badge bg-success">Concluído</span>
-                                    <br>
-                                    {% if challenge['result'] == 'challenger_win' %}
-                                    <small class="badge bg-success mt-1">Vitória do Desafiante</small>
-                                    {% elif challenge['result'] == 'challenged_win' %}
-                                    <small class="badge bg-info mt-1">Vitória do Desafiado</small>
-                                    {% endif %}
-                                    {% elif challenge['status'] == 'rejected' %}
-                                    <span class="badge bg-danger">Rejeitado</span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center align-middle">
-                                    <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="btn btn-sm btn-outline-info mb-1">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-
-                                    {% if challenge['status'] != 'completed' %}
-                                    <button type="button" class="btn btn-sm btn-outline-success mb-1" data-bs-toggle="modal" data-bs-target="#updateModal{{ challenge['id'] }}">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    
-                                    <!-- Modal para atualizar o status (sem alterações) -->
-                                    <div class="modal fade" id="updateModal{{ challenge['id'] }}" tabindex="-1" aria-hidden="true">
-                                        <!-- Conteúdo do modal permanece o mesmo -->
-                                        <div class="modal-dialog modal-dialog-centered">
-                                            <div class="modal-content">
-                                                <div class="modal-header">
-                                                    <h5 class="modal-title">Atualizar Desafio</h5>
-                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                </div>
-                                                <form action="{{ url_for('update_challenge', challenge_id=challenge['id']) }}" method="post">
-                                                    <div class="modal-body">
-                                                        <div class="mb-3">
-                                                            <label for="status{{ challenge['id'] }}" class="form-label">Status</label>
-                                                            <select class="form-select" id="status{{ challenge['id'] }}" name="status" required>
-                                                                <option value="pending" {% if challenge['status'] == 'pending' %}selected{% endif %}>Pendente</option>
-                                                                <option value="accepted" {% if challenge['status'] == 'accepted' %}selected{% endif %}>Aceito</option>
-                                                                <option value="completed" {% if challenge['status'] == 'completed' %}selected{% endif %}>Concluído</option>
-                                                                <option value="rejected" {% if challenge['status'] == 'rejected' %}selected{% endif %}>Rejeitado</option>
-                                                            </select>
-                                                        </div>
-                                                        
-                                                        <div class="mb-3" id="resultDiv{{ challenge['id'] }}" style="display: none;">
-                                                            <label for="result{{ challenge['id'] }}" class="form-label">Resultado</label>
-                                                            <select class="form-select" id="result{{ challenge['id'] }}" name="result">
-                                                                <option value="">Selecione o resultado</option>
-                                                                <option value="challenger_win" {% if challenge['result'] == 'challenger_win' %}selected{% endif %}>Vitória do Desafiante</option>
-                                                                <option value="challenged_win" {% if challenge['result'] == 'challenged_win' %}selected{% endif %}>Vitória do Desafiado</option>
-                                                            </select>
-                                                        </div>
-                                                    </div>
-                                                    <div class="modal-footer">
-                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                                        <button type="submit" class="btn btn-success">Salvar</button>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <script>
-                                        document.getElementById('status{{ challenge['id'] }}').addEventListener('change', function() {
-                                            var resultDiv = document.getElementById('resultDiv{{ challenge['id'] }}');
-                                            if (this.value === 'completed') {
-                                                resultDiv.style.display = 'block';
-                                                document.getElementById('result{{ challenge['id'] }}').setAttribute('required', '');
-                                            } else {
-                                                resultDiv.style.display = 'none';
-                                                document.getElementById('result{{ challenge['id'] }}').removeAttribute('required');
-                                            }
-                                        });
-
-                                        // Executar a verificação no carregamento para casos já marcados como completed
-                                        document.addEventListener('DOMContentLoaded', function() {
-                                            var status = document.getElementById('status{{ challenge['id'] }}');
-                                            if (status.value === 'completed') {
-                                                document.getElementById('resultDiv{{ challenge['id'] }}').style.display = 'block';
-                                                document.getElementById('result{{ challenge['id'] }}').setAttribute('required', '');
-                                            }
-                                        });
-                                    </script>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
                 </div>
-                {% else %}
-                <div class="alert alert-info m-3">
-                    Nenhum desafio registrado no momento.
-                </div>
-                {% endif %}
+            </form>
+            
+            <!-- Tabela de desafios -->
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Desafiante</th>
+                            <th>Desafiado</th>
+                            <th>Status</th>
+                            <th>Resultado</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for challenge in challenges %}
+                        <tr>
+                            <td>{{ challenge.scheduled_date }}</td>
+                            <td>
+                                <a href="{{ url_for('player_detail', player_id=challenge.challenger_id) }}">
+                                    {{ challenge.challenger_position }}. {{ challenge.challenger_name }} ({{ challenge.challenger_tier }})
+                                </a>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('player_detail', player_id=challenge.challenged_id) }}">
+                                    {{ challenge.challenged_position }}. {{ challenge.challenged_name }} ({{ challenge.challenged_tier }})
+                                </a>
+                            </td>
+                            <td>
+                                {% if challenge.status == 'pending' %}
+                                <span class="badge bg-warning">Pendente</span>
+                                {% elif challenge.status == 'accepted' %}
+                                <span class="badge bg-info">Aceito</span>
+                                {% elif challenge.status == 'completed' %}
+                                <span class="badge bg-success">Concluído</span>
+                                {% elif challenge.status == 'rejected' %}
+                                <span class="badge bg-danger">Rejeitado</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if challenge.result == 'challenger_win' %}
+                                <span class="text-success">Vitória do Desafiante</span>
+                                {% elif challenge.result == 'challenged_win' %}
+                                <span class="text-primary">Vitória do Desafiado</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
