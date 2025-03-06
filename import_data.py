@@ -27,7 +27,7 @@ def get_tier_from_position(position):
         'H': [29, 30, 31, 32, 33, 34, 35, 36],
         'I': [37, 38, 39, 40, 41, 42, 43, 44, 45],
         'J': [46, 47, 48, 49, 50, 51, 52, 53, 54, 55],
-        'K': [56, 57, 58, 59, 60, 61]
+        'K': [56, 57, 58, 59, 60, 61, 62]
     }
     
     for tier, positions in tiers.items():
@@ -103,6 +103,7 @@ def import_players_data(cursor):
         (59, "Eduardo Henrique Dantas", 36.0),
         (60, "Henrique Jorge Jatobá Barreto", 36.0),
         (61, "Vinicius Terk Cruz", 38.6),
+        (62, "João Victor Lahmann", 40.2)  # Exemplo de Handicap Index
     ]
     
     # Limpar a tabela de jogadores existente (se necessário)
