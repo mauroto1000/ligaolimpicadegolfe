@@ -11,7 +11,7 @@
     </div>
     
     <div class="col-12">
-        <div class="card">
+        <div class="card mb-4">
             <div class="card-header bg-primary text-white">
                 <h4 class="mb-0">Tabela de Classificação</h4>
             </div>
@@ -50,6 +50,67 @@
             </div>
         </div>
     </div>
+    
+    {% if inactive_players %}
+    <div class="col-12">
+        <div class="card mt-2 mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h4 class="mb-0">Jogadores Inativos</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Nome</th>
+                                <th>Última Posição</th>
+                                <th>Data de Inativação</th>
+                                <th class="text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for player in inactive_players %}
+                            <tr>
+                                <td>{{ player.name }}</td>
+                                <td>
+                                    {% if player.notes %}
+                                        {% set notes = player.notes.split('.') %}
+                                        {% if notes|length > 1 and 'Posição anterior:' in notes[1] %}
+                                            {{ notes[1].replace('Posição anterior:', '').strip() }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if player.notes %}
+                                        {% set notes = player.notes.split('.') %}
+                                        {% if notes|length > 0 and 'Inativado em' in notes[0] %}
+                                            {{ notes[0].replace('Inativado em', '').strip() }}
+                                        {% else %}
+                                            Desconhecida
+                                        {% endif %}
+                                    {% else %}
+                                        Desconhecida
+                                    {% endif %}
+                                </td>
+                                <td class="text-center actions-cell">
+                                    <div class="d-flex justify-content-center gap-1">
+                                        <a href="{{ url_for('player_detail', player_id=player.id) }}" class="btn btn-sm btn-outline-info">Detalhes</a>
+                                        <a href="{{ url_for('reactivate_player', player_id=player.id) }}" class="btn btn-sm btn-outline-success">Reativar</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <style>
