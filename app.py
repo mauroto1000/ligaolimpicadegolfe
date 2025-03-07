@@ -1396,7 +1396,7 @@ def update_player_hcp(player_id):
         conn.execute('UPDATE players SET hcp_index = ? WHERE id = ?', (hcp_value, player_id))
         
         # Opcional: Registrar alteração nas notas
-        notes = f"HCP Campo alterado de '{old_hcp or 'não informado'}' para '{new_hcp or 'não informado'}' em {datetime.now().strftime('%d/%m/%Y')}"
+        notes = f"HCP Index alterado de '{old_hcp or 'não informado'}' para '{new_hcp or 'não informado'}' em {datetime.now().strftime('%d/%m/%Y')}"
         
         # Se o jogador já tem notas, adicionar à frente
         if player['notes']:
