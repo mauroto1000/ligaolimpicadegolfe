@@ -1269,12 +1269,12 @@ def add_player():
             
             player_id = cursor.lastrowid
             
-            # Registrar no histórico
+            # Registrar no histórico - Usando 0 em vez de None para old_position e old_tier
             conn.execute('''
                 INSERT INTO ranking_history 
                 (player_id, old_position, new_position, old_tier, new_tier, reason)
                 VALUES (?, ?, ?, ?, ?, ?)
-            ''', (player_id, None, new_position, None, new_tier, 'player_added'))
+            ''', (player_id, 0, new_position, "NEW", new_tier, 'player_added'))
             
             conn.commit()
             flash(f'Jogador "{name}" adicionado com sucesso na posição {new_position} (Tier {new_tier})!', 'success')
