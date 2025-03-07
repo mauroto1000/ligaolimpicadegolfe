@@ -161,16 +161,14 @@
                             <tr>
                                 <td>{{ item['change_date'].split(' ')[0] }}</td>
                                 <td>
-                                    {% if item['old_position'] is not none and item['new_position'] is not none and item['old_position'] == item['new_position'] %}
-                                    <span class="badge bg-secondary">Sem alteração</span>
-                                    {% elif item['new_position'] is not none and item['old_position'] is not none and item['old_position'] > item['new_position'] %}
-                                    <span class="badge bg-success">↑ {{ item['old_position'] }} → {{ item['new_position'] }}</span>
-                                    {% elif item['new_position'] is not none and item['old_position'] is not none and item['old_position'] < item['new_position'] %}
-                                    <span class="badge bg-danger">↓ {{ item['old_position'] }} → {{ item['new_position'] }}</span>
-                                    {% elif item['new_position'] is none %}
-                                    <span class="badge bg-warning text-dark">Removido</span>
-                                    {% elif item['old_position'] is none %}
+                                    {% if item['old_position'] == 0 or item['old_tier'] == "NEW" %}
                                     <span class="badge bg-info">Adicionado #{{ item['new_position'] }}</span>
+                                    {% elif item['old_position'] == item['new_position'] %}
+                                    <span class="badge bg-secondary">Sem alteração</span>
+                                    {% elif item['old_position'] > item['new_position'] %}
+                                    <span class="badge bg-success">↑ {{ item['old_position'] }} → {{ item['new_position'] }}</span>
+                                    {% elif item['old_position'] < item['new_position'] %}
+                                    <span class="badge bg-danger">↓ {{ item['old_position'] }} → {{ item['new_position'] }}</span>
                                     {% else %}
                                     <span class="badge bg-secondary">Status alterado</span>
                                     {% endif %}
