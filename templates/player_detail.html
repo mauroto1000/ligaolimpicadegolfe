@@ -117,6 +117,31 @@
                     </div>
                 </div>
                 
+                <!-- Se houver jogadores disponíveis para desafiar -->
+                {% if player.active == 1 and potential_challenges %}
+                <div class="card mb-3">
+                    <div class="card-header bg-warning">
+                        <h5 class="mb-0">Jogadores Disponíveis para Desafiar</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group">
+                            {% for potential in potential_challenges %}
+                            <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}&challenged_id={{ potential['id'] }}" class="list-group-item list-group-item-action">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">{{ potential['name'] }}</h6>
+                                    <small>Tier {{ potential['tier'] }}</small>
+                                </div>
+                                <div class="d-flex w-100 justify-content-between">
+                                    <small>Posição #{{ potential['position'] }}</small>
+                                    <span class="badge bg-success">Desafiar</span>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
                 <!-- Seção de Status do Jogador (Ativo/Inativo) -->
                 {% if player.active == 1 %}
                 <div class="card mb-3">
@@ -147,31 +172,6 @@
                         <a href="{{ url_for('reactivate_player', player_id=player.id) }}" class="btn btn-success">
                             <i class="fas fa-user-check"></i> Reativar Jogador
                         </a>
-                    </div>
-                </div>
-                {% endif %}
-                                
-                <!-- Se houver jogadores disponíveis para desafiar -->
-                {% if player.active == 1 and potential_challenges %}
-                <div class="card mb-3">
-                    <div class="card-header bg-warning">
-                        <h5 class="mb-0">Jogadores Disponíveis para Desafiar</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="list-group">
-                            {% for potential in potential_challenges %}
-                            <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}&challenged_id={{ potential['id'] }}" class="list-group-item list-group-item-action">
-                                <div class="d-flex w-100 justify-content-between">
-                                    <h6 class="mb-1">{{ potential['name'] }}</h6>
-                                    <small>Tier {{ potential['tier'] }}</small>
-                                </div>
-                                <div class="d-flex w-100 justify-content-between">
-                                    <small>Posição #{{ potential['position'] }}</small>
-                                    <span class="badge bg-success">Desafiar</span>
-                                </div>
-                            </a>
-                            {% endfor %}
-                        </div>
                     </div>
                 </div>
                 {% endif %}
