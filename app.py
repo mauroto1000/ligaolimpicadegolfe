@@ -1291,6 +1291,132 @@ def add_player():
     # Para requisição GET, mostrar formulário
     return render_template('add_player.html')
 
+
+@app.route('/update_player_contact/<int:player_id>', methods=['POST'])
+def update_player_contact(player_id):
+    """
+    Atualiza o contato (email/telefone) de um jogador
+    """
+    conn = get_db_connection()
+    
+    # Verificar se o jogador existe
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Jogador não encontrado!', 'error')
+        return redirect(url_for('index'))
+    
+    # Verificar senha
+    senha = request.form.get('senha', '')
+    if senha != '123':
+        conn.close()
+        flash('Senha incorreta! Operação não autorizada.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    # Obter novo contato
+    new_contact = request.form.get('new_contact', '').strip()
+    old_contact = player['email']
+    
+    # Se o contato não mudou, não fazer nada
+    if new_contact == old_contact:
+        conn.close()
+        flash('Nenhuma alteração foi realizada.', 'info')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    try:
+        # Atualizar o contato do jogador
+        conn.execute('UPDATE players SET email = ? WHERE id = ?', (new_contact, player_id))
+        
+        # Opcional: Registrar alteração nas notas
+        notes = f"Contato alterado de '{old_contact or 'não informado'}' para '{new_contact or 'não informado'}' em {datetime.now().strftime('%d/%m/%Y')}"
+        
+        # Se o jogador já tem notas, adicionar à frente
+        if player['notes']:
+            notes = f"{player['notes']} | {notes}"
+        
+        # Atualizar as notas
+        conn.execute('UPDATE players SET notes = ? WHERE id = ?', (notes, player_id))
+        
+        conn.commit()
+        flash(f'Contato atualizado com sucesso.', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao atualizar o contato: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('player_detail', player_id=player_id))
+
+@app.route('/update_player_hcp/<int:player_id>', methods=['POST'])
+def update_player_hcp(player_id):
+    """
+    Atualiza o HCP Campo de um jogador
+    """
+    conn = get_db_connection()
+    
+    # Verificar se o jogador existe
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Jogador não encontrado!', 'error')
+        return redirect(url_for('index'))
+    
+    # Verificar senha
+    senha = request.form.get('senha', '')
+    if senha != '123':
+        conn.close()
+        flash('Senha incorreta! Operação não autorizada.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    # Obter novo HCP
+    new_hcp = request.form.get('new_hcp', '').strip()
+    old_hcp = str(player['hcp_index']) if player['hcp_index'] is not None else ''
+    
+    # Se o HCP não mudou, não fazer nada
+    if new_hcp == old_hcp:
+        conn.close()
+        flash('Nenhuma alteração foi realizada.', 'info')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    try:
+        # Converter o novo HCP para float se não estiver vazio
+        hcp_value = None
+        if new_hcp:
+            try:
+                hcp_value = float(new_hcp.replace(',', '.'))
+            except ValueError:
+                conn.close()
+                flash('Valor de HCP inválido. Use apenas números.', 'error')
+                return redirect(url_for('player_detail', player_id=player_id))
+        
+        # Atualizar o HCP do jogador
+        conn.execute('UPDATE players SET hcp_index = ? WHERE id = ?', (hcp_value, player_id))
+        
+        # Opcional: Registrar alteração nas notas
+        notes = f"HCP Campo alterado de '{old_hcp or 'não informado'}' para '{new_hcp or 'não informado'}' em {datetime.now().strftime('%d/%m/%Y')}"
+        
+        # Se o jogador já tem notas, adicionar à frente
+        if player['notes']:
+            notes = f"{player['notes']} | {notes}"
+        
+        # Atualizar as notas
+        conn.execute('UPDATE players SET notes = ? WHERE id = ?', (notes, player_id))
+        
+        conn.commit()
+        flash(f'HCP Campo atualizado com sucesso.', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao atualizar o HCP: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('player_detail', player_id=player_id))
+
+
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
     if not os.path.exists(DATABASE):
