@@ -49,9 +49,33 @@
                             </div>
                         </form>
                     </div>
+                    
                     <div class="col-md-6">
-                        <h5>E-mail</h5>
-                        <p>{{ player['email'] or 'Não informado' }}</p>
+                        <h5>Contato</h5>
+                        <p class="d-flex align-items-center">
+                            <span id="playerContactDisplay">Adicionar contato</span>
+                            <button type="button" class="btn btn-sm btn-outline-primary ms-2" 
+                                    onclick="toggleEditContact()">
+                                <i class="fas fa-pencil-alt"></i> Editar
+                            </button>
+                        </p>
+                        
+                        <!-- Formulário para editar contato (inicialmente oculto) -->
+                        <form id="editContactForm" action="{{ url_for('update_player_contact', player_id=player.id) }}" 
+                              method="post" class="d-none mb-3">
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="new_contact" 
+                                       value="{{ player['email'] or '' }}">
+                                <button type="submit" class="btn btn-primary">Salvar</button>
+                                <button type="button" class="btn btn-secondary" 
+                                        onclick="toggleEditContact()">Cancelar</button>
+                            </div>
+                            <div class="form-group mt-2">
+                                <label for="senha_contact" class="small">Senha de Administrador:</label>
+                                <input type="password" class="form-control form-control-sm" 
+                                       id="senha_contact" name="senha" required>
+                            </div>
+                        </form>
                     </div>
                 </div>
                 
@@ -65,8 +89,31 @@
                         <p>{{ player['tier'] or 'N/A' }}</p>
                     </div>
                     <div class="col-md-4">
-                        <h5>HCP Index</h5>
-                        <p>{{ player['hcp_index'] or 'Não informado' }}</p>
+                        <h5>HCP Campo</h5>
+                        <p class="d-flex align-items-center">
+                            <span id="playerHcpDisplay">Adicionar HCP</span>
+                            <button type="button" class="btn btn-sm btn-outline-primary ms-2" 
+                                    onclick="toggleEditHcp()">
+                                <i class="fas fa-pencil-alt"></i> Editar
+                            </button>
+                        </p>
+                        
+                        <!-- Formulário para editar HCP (inicialmente oculto) -->
+                        <form id="editHcpForm" action="{{ url_for('update_player_hcp', player_id=player.id) }}" 
+                              method="post" class="d-none mb-3">
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="new_hcp" 
+                                       value="{{ player['hcp_index'] or '' }}">
+                                <button type="submit" class="btn btn-primary">Salvar</button>
+                                <button type="button" class="btn btn-secondary" 
+                                        onclick="toggleEditHcp()">Cancelar</button>
+                            </div>
+                            <div class="form-group mt-2">
+                                <label for="senha_hcp" class="small">Senha de Administrador:</label>
+                                <input type="password" class="form-control form-control-sm" 
+                                       id="senha_hcp" name="senha" required>
+                            </div>
+                        </form>
                     </div>
                 </div>
                 
@@ -306,6 +353,36 @@
 function toggleEditName() {
     const displayElement = document.getElementById('playerNameDisplay');
     const formElement = document.getElementById('editNameForm');
+    
+    if (formElement.classList.contains('d-none')) {
+        // Mostrar formulário, ocultar display
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        // Ocultar formulário, mostrar display
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
+}
+
+function toggleEditContact() {
+    const displayElement = document.getElementById('playerContactDisplay');
+    const formElement = document.getElementById('editContactForm');
+    
+    if (formElement.classList.contains('d-none')) {
+        // Mostrar formulário, ocultar display
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        // Ocultar formulário, mostrar display
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
+}
+
+function toggleEditHcp() {
+    const displayElement = document.getElementById('playerHcpDisplay');
+    const formElement = document.getElementById('editHcpForm');
     
     if (formElement.classList.contains('d-none')) {
         // Mostrar formulário, ocultar display
