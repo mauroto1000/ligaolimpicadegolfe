@@ -1352,7 +1352,7 @@ def update_player_contact(player_id):
 @app.route('/update_player_hcp/<int:player_id>', methods=['POST'])
 def update_player_hcp(player_id):
     """
-    Atualiza o HCP Campo de um jogador
+    Atualiza o HCP Campo de um jogador e calcula automaticamente o HCP OGC Tee Branco
     """
     conn = get_db_connection()
     
@@ -1395,6 +1395,103 @@ def update_player_hcp(player_id):
         # Atualizar o HCP do jogador
         conn.execute('UPDATE players SET hcp_index = ? WHERE id = ?', (hcp_value, player_id))
         
+        # Calcular e atualizar o HCP OGC Tee Branco se o HCP Index foi fornecido
+        if hcp_value is not None:
+            # Lista de conversão corrigida baseada na tabela
+            conversion_table = [
+                # HCP Index negativo (jogadores "plus")
+                (-5.0, -4.8, 7),
+                (-4.7, -3.9, 6),
+                (-3.8, -3.1, 5),
+                (-3.0, -2.2, 4),
+                (-2.1, -1.3, 3),
+                (-1.2, -0.4, 2),
+                (-0.3, 0.0, 1),
+                # HCP Index positivo
+                (0.1, 0.5, 0),
+                (0.6, 1.4, 1),
+                (1.5, 2.2, 2),
+                (2.3, 3.1, 3),
+                (3.2, 4.0, 4),
+                (4.1, 4.9, 5),
+                (5.0, 5.8, 6),
+                (5.9, 6.7, 7),
+                (6.8, 7.5, 8),
+                (7.6, 8.4, 9),
+                (8.5, 9.3, 10),
+                (9.4, 10.2, 11),
+                (10.3, 11.1, 12),
+                (11.2, 12.0, 13),
+                (12.1, 12.8, 14),
+                (12.9, 13.7, 15),
+                (13.8, 14.6, 16),
+                (14.7, 15.5, 17),
+                (15.6, 16.4, 18),
+                (16.5, 17.3, 19),
+                (17.4, 18.1, 20),
+                (18.2, 19.0, 21),
+                (19.1, 19.9, 22),
+                (20.0, 20.8, 23),
+                (20.9, 21.7, 24),
+                (21.8, 22.5, 25),
+                (22.6, 23.4, 26),
+                (23.5, 24.3, 27),
+                (24.4, 25.2, 28),
+                (25.3, 26.1, 29),
+                (26.2, 27.0, 30),
+                (27.1, 27.8, 31),
+                (27.9, 28.7, 32),
+                (28.8, 29.6, 33),
+                (29.7, 30.5, 34),
+                (30.6, 31.4, 35),
+                (31.5, 32.3, 36),
+                (32.4, 33.1, 37),
+                (33.2, 34.0, 38),
+                (34.1, 34.9, 39),
+                (35.0, 35.8, 40),
+                (35.9, 36.7, 41),
+                (36.8, 37.6, 42),
+                (37.7, 38.4, 43),
+                (38.5, 39.3, 44),
+                (39.4, 40.2, 45),
+                (40.3, 41.1, 46),
+                (41.2, 42.0, 47),
+                (42.1, 42.9, 48),
+                (43.0, 43.7, 49),
+                (43.8, 44.6, 50),
+                (44.7, 45.5, 50),  # Corrigido: esse intervalo dá 50, não 51
+                (45.6, 46.4, 51),
+                (46.5, 47.3, 52),
+                (47.4, 48.2, 53),
+                (48.3, 49.0, 54),
+                (49.1, 49.9, 55),
+                (50.0, 50.8, 56),
+                (50.9, 51.7, 57),
+                (51.8, 52.6, 58),
+                (52.7, 53.4, 59),
+                (53.5, 100.0, 60)  # Valores maiores que 53.5 recebem 60
+            ]
+            
+            # Encontrar o valor correspondente na tabela
+            hcp_ogc_white = None
+            for hcp_min, hcp_max, course_handicap in conversion_table:
+                if hcp_min <= hcp_value <= hcp_max:
+                    hcp_ogc_white = course_handicap
+                    break
+            
+            # Se não encontrar correspondência exata (pode acontecer com handicaps muito baixos ou altos)
+            if hcp_ogc_white is None:
+                if hcp_value < -5.0:  # Handicap muito negativo (jogador muito bom)
+                    hcp_ogc_white = 7  # O máximo para jogadores plus
+                else:
+                    hcp_ogc_white = 60  # O máximo para handicaps altos
+            
+            # Atualizar o HCP OGC Tee Branco
+            conn.execute('UPDATE players SET hcp_ogc_white = ? WHERE id = ?', (hcp_ogc_white, player_id))
+        else:
+            # Se o HCP Index foi removido, remover também o HCP OGC Tee Branco
+            conn.execute('UPDATE players SET hcp_ogc_white = NULL WHERE id = ?', (player_id,))
+        
         # Opcional: Registrar alteração nas notas
         notes = f"HCP Index alterado de '{old_hcp or 'não informado'}' para '{new_hcp or 'não informado'}' em {datetime.now().strftime('%d/%m/%Y')}"
         
@@ -1406,7 +1503,7 @@ def update_player_hcp(player_id):
         conn.execute('UPDATE players SET notes = ? WHERE id = ?', (notes, player_id))
         
         conn.commit()
-        flash(f'HCP Campo atualizado com sucesso.', 'success')
+        flash(f'HCP Index atualizado com sucesso.', 'success')
         
     except Exception as e:
         conn.rollback()
