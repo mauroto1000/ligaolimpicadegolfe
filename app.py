@@ -567,10 +567,27 @@ def pyramid_redirect():
     return redirect(url_for('pyramid_dynamic'))
 
 @app.route('/pyramid_dynamic')
+@app.route('/pyramid_dynamic')
 def pyramid_dynamic():
     conn = get_db_connection()
-    # Modificado para mostrar apenas jogadores ativos
+    
+    # Buscar jogadores ativos
     players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
+    
+    # Buscar jogadores com desafios pendentes ou aceitos
+    players_with_pending_challenges = conn.execute('''
+        SELECT DISTINCT p.id 
+        FROM players p
+        JOIN challenges c ON (p.id = c.challenger_id OR p.id = c.challenged_id)
+        WHERE c.status IN ('pending', 'accepted')
+          AND p.active = 1
+    ''').fetchall()
+    
+    # Converter lista de jogadores com desafios pendentes para um conjunto para facilitar a verificação
+    players_with_challenges = set()
+    for player in players_with_pending_challenges:
+        players_with_challenges.add(player['id'])
+    
     conn.close()
     
     # Organizar jogadores por tier
@@ -578,7 +595,11 @@ def pyramid_dynamic():
     for player in players:
         if player['tier'] not in tiers:
             tiers[player['tier']] = []
-        tiers[player['tier']].append(player)
+        
+        # Adicionar um atributo para indicar se o jogador tem desafios pendentes
+        player_dict = dict(player)
+        player_dict['has_pending_challenge'] = player['id'] in players_with_challenges
+        tiers[player['tier']].append(player_dict)
     
     # Ordenar tiers alfabeticamente (A, B, C, ...)
     sorted_tiers = sorted(tiers.items())
