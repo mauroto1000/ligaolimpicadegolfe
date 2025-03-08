@@ -1352,7 +1352,7 @@ def update_player_contact(player_id):
 @app.route('/update_player_hcp/<int:player_id>', methods=['POST'])
 def update_player_hcp(player_id):
     """
-    Atualiza o HCP Index de um jogador e calcula automaticamente o HCP OGC Tee Branco
+    Atualiza o HCP Index de um jogador e calcula automaticamente o HCP para diferentes tees
     """
     conn = get_db_connection()
     
@@ -1483,6 +1483,70 @@ def update_player_hcp(player_id):
         else:
             # Se o HCP Index foi removido, remover também o HCP OGC Tee Branco
             conn.execute('UPDATE players SET hcp_ogc_white = NULL WHERE id = ?', (player_id,))
+        
+        # Calcular o HCP OGC Tee Azul
+        if hcp_value is not None:
+            # Fórmula: Handicap Index × (Slope Rating ÷ 113) + (Course Rating - Par)
+            # Para o Tee Azul: Course Rating = 71.4, Slope Rating = 131, Par = 71
+            if hcp_value < 0:  # Handicap "plus"
+                # Adiciona um sinal '+' para handicaps plus
+                hcp_ogc_azul = '+' + str(round(abs(hcp_value) * (131.0 / 113.0) + (71.4 - 71.0)))
+            else:
+                hcp_ogc_azul = str(round(hcp_value * (131.0 / 113.0) + (71.4 - 71.0)))
+            
+            # Atualizar o HCP OGC Tee Azul
+            conn.execute('UPDATE players SET hcp_ogc_azul = ? WHERE id = ?', (hcp_ogc_azul, player_id))
+        else:
+            # Se o HCP Index foi removido, remover também o HCP OGC Tee Azul
+            conn.execute('UPDATE players SET hcp_ogc_azul = NULL WHERE id = ?', (player_id,))
+        
+        # Calcular o HCP OGC Tee Preto
+        if hcp_value is not None:
+            # Fórmula: Handicap Index × (Slope Rating ÷ 113) + (Course Rating - Par)
+            # Para o Tee Preto: Course Rating = 73.9, Slope Rating = 144, Par = 71
+            if hcp_value < 0:  # Handicap "plus"
+                # Adiciona um sinal '+' para handicaps plus
+                hcp_ogc_preto = '+' + str(round(abs(hcp_value) * (144.0 / 113.0) + (73.9 - 71.0)))
+            else:
+                hcp_ogc_preto = str(round(hcp_value * (144.0 / 113.0) + (73.9 - 71.0)))
+            
+            # Atualizar o HCP OGC Tee Preto
+            conn.execute('UPDATE players SET hcp_ogc_preto = ? WHERE id = ?', (hcp_ogc_preto, player_id))
+        else:
+            # Se o HCP Index foi removido, remover também o HCP OGC Tee Preto
+            conn.execute('UPDATE players SET hcp_ogc_preto = NULL WHERE id = ?', (player_id,))
+        
+        # Calcular o HCP OGC Tee Vermelho
+        if hcp_value is not None:
+            # Fórmula: Handicap Index × (Slope Rating ÷ 113) + (Course Rating - Par)
+            # Para o Tee Vermelho: Course Rating = 68.1, Slope Rating = 125, Par = 71
+            if hcp_value < 0:  # Handicap "plus"
+                # Adiciona um sinal '+' para handicaps plus
+                hcp_ogc_vermelho = '+' + str(round(abs(hcp_value) * (125.0 / 113.0) + (68.1 - 71.0)))
+            else:
+                hcp_ogc_vermelho = str(round(hcp_value * (125.0 / 113.0) + (68.1 - 71.0)))
+            
+            # Atualizar o HCP OGC Tee Vermelho
+            conn.execute('UPDATE players SET hcp_ogc_vermelho = ? WHERE id = ?', (hcp_ogc_vermelho, player_id))
+        else:
+            # Se o HCP Index foi removido, remover também o HCP OGC Tee Vermelho
+            conn.execute('UPDATE players SET hcp_ogc_vermelho = NULL WHERE id = ?', (player_id,))
+        
+        # Calcular o HCP OGC Tee Amarelo
+        if hcp_value is not None:
+            # Fórmula: Handicap Index × (Slope Rating ÷ 113) + (Course Rating - Par)
+            # Para o Tee Amarelo: Course Rating = 65.3, Slope Rating = 118, Par = 71
+            if hcp_value < 0:  # Handicap "plus"
+                # Adiciona um sinal '+' para handicaps plus
+                hcp_ogc_amarelo = '+' + str(round(abs(hcp_value) * (118.0 / 113.0) + (65.3 - 71.0)))
+            else:
+                hcp_ogc_amarelo = str(round(hcp_value * (118.0 / 113.0) + (65.3 - 71.0)))
+            
+            # Atualizar o HCP OGC Tee Amarelo
+            conn.execute('UPDATE players SET hcp_ogc_amarelo = ? WHERE id = ?', (hcp_ogc_amarelo, player_id))
+        else:
+            # Se o HCP Index foi removido, remover também o HCP OGC Tee Amarelo
+            conn.execute('UPDATE players SET hcp_ogc_amarelo = NULL WHERE id = ?', (player_id,))
         
         # Opcional: Registrar alteração nas notas
         notes = f"HCP Index alterado de '{old_hcp or 'não informado'}' para '{new_hcp or 'não informado'}' em {datetime.now().strftime('%d/%m/%Y')}"
