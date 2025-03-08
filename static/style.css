@@ -313,3 +313,16 @@ body {
       padding: 0.75rem;
     }
   }
+
+  /* Adicione esse código ao seu arquivo CSS existente */
+
+.player.pending-challenge {
+  background-color: #ffc107;  /* Amarelo */
+  color: #212529;  /* Texto escuro para melhor contraste com fundo amarelo */
+  border: 2px solid #e0a800;  /* Borda um pouco mais escura */
+}
+
+.player.pending-challenge:hover {
+  background-color: #e0a800;
+  transform: scale(1.05);
+}

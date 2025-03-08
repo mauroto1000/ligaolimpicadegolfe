@@ -50,12 +50,23 @@
         background-color: #002970; /* Azul escuro para primeira coluna */
     }
 
+    /* NOVO: Estilo para jogadores com desafios pendentes */
+    .pyramid-cell.pending-challenge {
+        background-color: #ffc107; /* Amarelo */
+        color: #212529; /* Texto escuro para melhor contraste */
+    }
+
     .player-position {
         position: absolute;
         top: 3px;
         left: 3px;
         font-size: 12px; /* Ligeiramente maior */
         color: #ffffff;
+    }
+
+    /* NOVO: Ajuste da cor do número da posição para jogadores com desafios pendentes */
+    .pending-challenge .player-position {
+        color: #212529; /* Texto escuro para jogadores com desafios */
     }
 
     .player-name {
@@ -108,6 +119,31 @@
             font-size: 10px;
         }
     }
+
+    /* NOVO: Legenda para as cores */
+    .legend-container {
+        display: flex;
+        margin-bottom: 15px;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-right: 20px;
+    }
+    .legend-color {
+        width: 20px;
+        height: 20px;
+        margin-right: 5px;
+    }
+    .legend-green {
+        background-color: #28a745;
+    }
+    .legend-yellow {
+        background-color: #ffc107;
+    }
+    .legend-blue {
+        background-color: #002970;
+    }
 </style>
 {% endblock %}
 
@@ -120,6 +156,22 @@
         <!-- Indicação de rolagem para dispositivos móveis -->
         <div class="scroll-hint d-md-none">
             <small>Deslize para o lado para ver toda a pirâmide</small>
+        </div>
+        
+        <!-- NOVO: Legenda -->
+        <div class="legend-container">
+            <div class="legend-item">
+                <div class="legend-color legend-green"></div>
+                <span>Jogador</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color legend-yellow"></div>
+                <span>Jogador com desafio pendente</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color legend-blue"></div>
+                <span>Tier</span>
+            </div>
         </div>
         
         <div class="d-flex justify-content-between mb-3">
@@ -137,7 +189,7 @@
                     
                     <!-- Célula para cada posição no tier -->
                     {% for player in players|sort(attribute='position') %}
-                        <div class="pyramid-cell" onclick="window.location='{{ url_for('player_detail', player_id=player['id']) }}'">
+                        <div class="pyramid-cell {% if player.has_pending_challenge %}pending-challenge{% endif %}" onclick="window.location='{{ url_for('player_detail', player_id=player['id']) }}'">
                             <span class="player-position">{{ player['position'] }}</span>
                             <!-- Mostrar nome completo -->
                             <span class="player-name">{{ player['name'] }}</span>
