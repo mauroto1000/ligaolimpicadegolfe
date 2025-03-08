@@ -53,7 +53,7 @@
                     <div class="col-md-6">
                         <h5>Contato (email/celular)</h5>
                         <p class="d-flex align-items-center">
-                            <span id="playerContactDisplay">Adicionar contato</span>
+                            <span id="playerContactDisplay">{{ player['email'] or 'Adicionar contato' }}</span>
                             <button type="button" class="btn btn-sm btn-outline-primary ms-2" 
                                     onclick="toggleEditContact()">
                                 <i class="fas fa-pencil-alt"></i> Editar
@@ -91,7 +91,7 @@
                     <div class="col-md-4">
                         <h5>HCP Index</h5>
                         <p class="d-flex align-items-center">
-                            <span id="playerHcpDisplay">Adicionar HCP</span>
+                            <span id="playerHcpDisplay">{{ player['hcp_index'] or 'Adicionar HCP' }}</span>
                             <button type="button" class="btn btn-sm btn-outline-primary ms-2" 
                                     onclick="toggleEditHcp()">
                                 <i class="fas fa-pencil-alt"></i> Editar
@@ -116,7 +116,7 @@
                         </form>
                     </div>
                 </div>
-                
+
                 <!-- Se houver jogadores disponíveis para desafiar -->
                 {% if player.active == 1 and potential_challenges %}
                 <div class="card mb-3">
