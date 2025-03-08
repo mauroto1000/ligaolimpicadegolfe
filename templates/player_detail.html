@@ -26,9 +26,9 @@
                         <h5>Nome</h5>
                         <p class="d-flex align-items-center">
                             <strong id="playerNameDisplay">{{ player['name'] }}</strong>
-                            <button type="button" class="btn btn-sm btn-outline-primary ms-2" 
-                                    onclick="toggleEditName()">
-                                <i class="fas fa-pencil-alt"></i> Editar
+                            <button type="button" class="btn btn-sm text-primary border-0 px-1" 
+                                    onclick="toggleEditName()" title="Editar nome">
+                                <i class="fas fa-pencil-alt fa-sm"></i>
                             </button>
                         </p>
                         
@@ -54,9 +54,9 @@
                         <h5>Contato (email/celular)</h5>
                         <p class="d-flex align-items-center">
                             <span id="playerContactDisplay">{{ player['email'] or 'Adicionar contato' }}</span>
-                            <button type="button" class="btn btn-sm btn-outline-primary ms-2" 
-                                    onclick="toggleEditContact()">
-                                <i class="fas fa-pencil-alt"></i> Editar
+                            <button type="button" class="btn btn-sm text-primary border-0 px-1" 
+                                    onclick="toggleEditContact()" title="Editar contato">
+                                <i class="fas fa-pencil-alt fa-sm"></i>
                             </button>
                         </p>
                         
@@ -92,9 +92,9 @@
                         <h5>HCP Index</h5>
                         <p class="d-flex align-items-center">
                             <span id="playerHcpDisplay">{{ player['hcp_index'] or 'Adicionar HCP' }}</span>
-                            <button type="button" class="btn btn-sm btn-outline-primary ms-2" 
-                                    onclick="toggleEditHcp()">
-                                <i class="fas fa-pencil-alt"></i> Editar
+                            <button type="button" class="btn btn-sm text-primary border-0 px-1" 
+                                    onclick="toggleEditHcp()" title="Editar HCP Index">
+                                <i class="fas fa-pencil-alt fa-sm"></i>
                             </button>
                         </p>
                         
