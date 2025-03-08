@@ -1352,7 +1352,7 @@ def update_player_contact(player_id):
 @app.route('/update_player_hcp/<int:player_id>', methods=['POST'])
 def update_player_hcp(player_id):
     """
-    Atualiza o HCP Campo de um jogador e calcula automaticamente o HCP OGC Tee Branco
+    Atualiza o HCP Index de um jogador e calcula automaticamente o HCP OGC Tee Branco
     """
     conn = get_db_connection()
     
@@ -1397,94 +1397,86 @@ def update_player_hcp(player_id):
         
         # Calcular e atualizar o HCP OGC Tee Branco se o HCP Index foi fornecido
         if hcp_value is not None:
-            # Lista de conversão corrigida baseada na tabela
-            conversion_table = [
-                # HCP Index negativo (jogadores "plus")
-                (-5.0, -4.8, 7),
-                (-4.7, -3.9, 6),
-                (-3.8, -3.1, 5),
-                (-3.0, -2.2, 4),
-                (-2.1, -1.3, 3),
-                (-1.2, -0.4, 2),
-                (-0.3, 0.0, 1),
-                # HCP Index positivo
-                (0.1, 0.5, 0),
-                (0.6, 1.4, 1),
-                (1.5, 2.2, 2),
-                (2.3, 3.1, 3),
-                (3.2, 4.0, 4),
-                (4.1, 4.9, 5),
-                (5.0, 5.8, 6),
-                (5.9, 6.7, 7),
-                (6.8, 7.5, 8),
-                (7.6, 8.4, 9),
-                (8.5, 9.3, 10),
-                (9.4, 10.2, 11),
-                (10.3, 11.1, 12),
-                (11.2, 12.0, 13),
-                (12.1, 12.8, 14),
-                (12.9, 13.7, 15),
-                (13.8, 14.6, 16),
-                (14.7, 15.5, 17),
-                (15.6, 16.4, 18),
-                (16.5, 17.3, 19),
-                (17.4, 18.1, 20),
-                (18.2, 19.0, 21),
-                (19.1, 19.9, 22),
-                (20.0, 20.8, 23),
-                (20.9, 21.7, 24),
-                (21.8, 22.5, 25),
-                (22.6, 23.4, 26),
-                (23.5, 24.3, 27),
-                (24.4, 25.2, 28),
-                (25.3, 26.1, 29),
-                (26.2, 27.0, 30),
-                (27.1, 27.8, 31),
-                (27.9, 28.7, 32),
-                (28.8, 29.6, 33),
-                (29.7, 30.5, 34),
-                (30.6, 31.4, 35),
-                (31.5, 32.3, 36),
-                (32.4, 33.1, 37),
-                (33.2, 34.0, 38),
-                (34.1, 34.9, 39),
-                (35.0, 35.8, 40),
-                (35.9, 36.7, 41),
-                (36.8, 37.6, 42),
-                (37.7, 38.4, 43),
-                (38.5, 39.3, 44),
-                (39.4, 40.2, 45),
-                (40.3, 41.1, 46),
-                (41.2, 42.0, 47),
-                (42.1, 42.9, 48),
-                (43.0, 43.7, 49),
-                (43.8, 44.6, 50),
-                (44.7, 45.5, 50),  # Corrigido: esse intervalo dá 50, não 51
-                (45.6, 46.4, 51),
-                (46.5, 47.3, 52),
-                (47.4, 48.2, 53),
-                (48.3, 49.0, 54),
-                (49.1, 49.9, 55),
-                (50.0, 50.8, 56),
-                (50.9, 51.7, 57),
-                (51.8, 52.6, 58),
-                (52.7, 53.4, 59),
-                (53.5, 100.0, 60)  # Valores maiores que 53.5 recebem 60
-            ]
+            # Função para determinar o HCP OGC Tee Branco com base no HCP Index
+            def get_hcp_ogc_white(hcp):
+                # Para handicaps "plus" (valores negativos no banco)
+                if hcp <= -0.3:
+                    if -5.0 <= hcp <= -4.8: return '+7'
+                    elif -4.7 <= hcp <= -3.9: return '+6'
+                    elif -3.8 <= hcp <= -3.1: return '+5'
+                    elif -3.0 <= hcp <= -2.2: return '+4'
+                    elif -2.1 <= hcp <= -1.3: return '+3'
+                    elif -1.2 <= hcp <= -0.4: return '+2'
+                    elif -0.3 <= hcp <= 0.5: return '+1'
+                
+                # Para handicaps regulares (valores positivos no banco)
+                if 0.6 <= hcp <= 1.4: return '0'
+                elif 1.5 <= hcp <= 2.2: return '1'
+                elif 2.3 <= hcp <= 3.1: return '2'
+                elif 3.2 <= hcp <= 4.0: return '3'
+                elif 4.1 <= hcp <= 4.9: return '4'
+                elif 5.0 <= hcp <= 5.8: return '5'
+                elif 5.9 <= hcp <= 6.7: return '6'
+                elif 6.8 <= hcp <= 7.5: return '7'
+                elif 7.6 <= hcp <= 8.4: return '8'
+                elif 8.5 <= hcp <= 9.3: return '9'
+                elif 9.4 <= hcp <= 10.2: return '10'
+                elif 10.3 <= hcp <= 11.1: return '11'
+                elif 11.2 <= hcp <= 12.0: return '12'
+                elif 12.1 <= hcp <= 12.8: return '13'
+                elif 12.9 <= hcp <= 13.7: return '14'
+                elif 13.8 <= hcp <= 14.6: return '15'
+                elif 14.7 <= hcp <= 15.5: return '16'
+                elif 15.6 <= hcp <= 16.4: return '17'
+                elif 16.5 <= hcp <= 17.3: return '18'
+                elif 17.4 <= hcp <= 18.1: return '19'
+                elif 18.2 <= hcp <= 19.0: return '20'
+                elif 19.1 <= hcp <= 19.9: return '21'
+                elif 20.0 <= hcp <= 20.8: return '22'
+                elif 20.9 <= hcp <= 21.7: return '23'
+                elif 21.8 <= hcp <= 22.5: return '24'
+                elif 22.6 <= hcp <= 23.4: return '25'
+                elif 23.5 <= hcp <= 24.3: return '26'
+                elif 24.4 <= hcp <= 25.2: return '27'
+                elif 25.3 <= hcp <= 26.1: return '28'
+                elif 26.2 <= hcp <= 27.0: return '29'
+                elif 27.1 <= hcp <= 27.8: return '30'
+                elif 27.9 <= hcp <= 28.7: return '31'
+                elif 28.8 <= hcp <= 29.6: return '32'
+                elif 29.7 <= hcp <= 30.5: return '33'
+                elif 30.6 <= hcp <= 31.4: return '34'
+                elif 31.5 <= hcp <= 32.3: return '35'
+                elif 32.4 <= hcp <= 33.1: return '36'
+                elif 33.2 <= hcp <= 34.0: return '37'
+                elif 34.1 <= hcp <= 34.9: return '38'
+                elif 35.0 <= hcp <= 35.8: return '39'
+                elif 35.9 <= hcp <= 36.7: return '40'
+                elif 36.8 <= hcp <= 37.6: return '41'
+                elif 37.7 <= hcp <= 38.4: return '42'
+                elif 38.5 <= hcp <= 39.3: return '43'
+                elif 39.4 <= hcp <= 40.2: return '44'
+                elif 40.3 <= hcp <= 41.1: return '45'
+                elif 41.2 <= hcp <= 42.0: return '46'
+                elif 42.1 <= hcp <= 42.9: return '47'
+                elif 43.0 <= hcp <= 43.7: return '48'
+                elif 43.8 <= hcp <= 44.6: return '49'
+                elif 44.7 <= hcp <= 45.5: return '50'
+                elif 45.6 <= hcp <= 46.4: return '51'
+                elif 46.5 <= hcp <= 47.3: return '52'
+                elif 47.4 <= hcp <= 48.2: return '53'
+                elif 48.3 <= hcp <= 49.0: return '54'
+                elif 49.1 <= hcp <= 49.9: return '55'
+                elif 50.0 <= hcp <= 50.8: return '56'
+                elif 50.9 <= hcp <= 51.7: return '57'
+                elif 51.8 <= hcp <= 52.6: return '58'
+                elif 52.7 <= hcp <= 53.4: return '59'
+                elif hcp >= 53.5: return '60'
+                
+                # Caso não encontre correspondência
+                return 'N/A'
             
-            # Encontrar o valor correspondente na tabela
-            hcp_ogc_white = None
-            for hcp_min, hcp_max, course_handicap in conversion_table:
-                if hcp_min <= hcp_value <= hcp_max:
-                    hcp_ogc_white = course_handicap
-                    break
-            
-            # Se não encontrar correspondência exata (pode acontecer com handicaps muito baixos ou altos)
-            if hcp_ogc_white is None:
-                if hcp_value < -5.0:  # Handicap muito negativo (jogador muito bom)
-                    hcp_ogc_white = 7  # O máximo para jogadores plus
-                else:
-                    hcp_ogc_white = 60  # O máximo para handicaps altos
+            # Calcular o HCP OGC Tee Branco
+            hcp_ogc_white = get_hcp_ogc_white(hcp_value)
             
             # Atualizar o HCP OGC Tee Branco
             conn.execute('UPDATE players SET hcp_ogc_white = ? WHERE id = ?', (hcp_ogc_white, player_id))
