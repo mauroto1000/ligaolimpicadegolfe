@@ -80,15 +80,15 @@
                 </div>
                 
                 <div class="row mb-3">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <h5>Posição Atual</h5>
                         <p>{{ player['position'] or 'N/A' }}</p>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <h5>Nível (Tier)</h5>
                         <p>{{ player['tier'] or 'N/A' }}</p>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <h5>HCP Index</h5>
                         <p class="d-flex align-items-center">
                             <span id="playerHcpDisplay">{{ player['hcp_index'] or 'Adicionar HCP' }}</span>
@@ -114,6 +114,10 @@
                                        id="senha_hcp" name="senha" required>
                             </div>
                         </form>
+                    </div>
+                    <div class="col-md-3">
+                        <h5>HCP OGC Tee Branco</h5>
+                        <p>{{ player['hcp_ogc_white'] or 'N/A' }}</p>
                     </div>
                 </div>
 
