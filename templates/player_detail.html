@@ -79,6 +79,7 @@
                     </div>
                 </div>
                 
+                <!-- Substitua a seção de HCP/Handicap por esta nova versão -->
                 <div class="row mb-3">
                     <div class="col-md-3">
                         <h5>Posição Atual</h5>
@@ -115,9 +116,39 @@
                             </div>
                         </form>
                     </div>
-                    <div class="col-md-3">
-                        <h5>HCP OGC Tee Branco</h5>
-                        <p>{{ player['hcp_ogc_white'] or 'N/A' }}</p>
+                </div>
+                <!-- Nova linha para os Course Handicaps dos diferentes tees -->
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h5 class="mb-0">Course Handicap por Tee</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4 mb-2">
+                                        <h6 class="text-muted">Tee Branco</h6>
+                                        <p>{{ player['hcp_ogc_white'] or 'N/A' }}</p>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <h6 class="text-muted">Tee Azul</h6>
+                                        <p>{{ player['hcp_ogc_azul'] or 'N/A' }}</p>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <h6 class="text-muted">Tee Preto</h6>
+                                        <p>{{ player['hcp_ogc_preto'] or 'N/A' }}</p>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <h6 class="text-muted">Tee Vermelho</h6>
+                                        <p>{{ player['hcp_ogc_vermelho'] or 'N/A' }}</p>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <h6 class="text-muted">Tee Amarelo</h6>
+                                        <p>{{ player['hcp_ogc_amarelo'] or 'N/A' }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
