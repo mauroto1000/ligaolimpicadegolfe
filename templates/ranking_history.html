@@ -46,11 +46,16 @@
             
             <div class="mb-3">
                 <label class="form-label">Jogadores:</label>
+                <div class="d-flex mb-2">
+                    <button id="selectTop10" class="btn btn-outline-primary me-2">Selecionar Top 10</button>
+                    <button id="selectAll" class="btn btn-outline-secondary me-2">Selecionar Todos</button>
+                    <button id="clearAll" class="btn btn-outline-secondary">Limpar Seleção</button>
+                </div>
                 <div class="players-select-container">
                     <div class="players-select">
                         {% for player in players %}
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input player-checkbox" type="checkbox" value="{{ player.id }}" id="player{{ player.id }}" {% if loop.index <= 5 %}checked{% endif %}>
+                            <input class="form-check-input player-checkbox" type="checkbox" value="{{ player.id }}" id="player{{ player.id }}" data-position="{{ player.position }}">
                             <label class="form-check-label" for="player{{ player.id }}">
                                 {{ player.name }}
                             </label>
@@ -79,9 +84,52 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     let chartInstance = null;
+    
+    // Restaurar seleção de jogadores do localStorage
+    function restorePlayerSelection() {
+        try {
+            const savedSelection = localStorage.getItem('selectedPlayers');
+            if (savedSelection) {
+                const selectedIds = JSON.parse(savedSelection);
+                
+                // Primeiro, desmarca todos
+                document.querySelectorAll('.player-checkbox').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                
+                // Depois marca os salvos
+                selectedIds.forEach(id => {
+                    const checkbox = document.getElementById(`player${id}`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+            } else {
+                // Se não houver seleção salva, selecionar os 5 primeiros por padrão
+                const checkboxes = document.querySelectorAll('.player-checkbox');
+                for (let i = 0; i < Math.min(5, checkboxes.length); i++) {
+                    checkboxes[i].checked = true;
+                }
+            }
+        } catch (e) {
+            console.error('Erro ao restaurar seleção:', e);
+        }
+    }
+    
+    // Salvar seleção de jogadores no localStorage
+    function savePlayerSelection() {
+        try {
+            const selectedPlayerIds = Array.from(document.querySelectorAll('.player-checkbox:checked'))
+                .map(checkbox => checkbox.value);
+            localStorage.setItem('selectedPlayers', JSON.stringify(selectedPlayerIds));
+        } catch (e) {
+            console.error('Erro ao salvar seleção:', e);
+        }
+    }
     
     async function loadChartData() {
         // Obter jogadores selecionados
@@ -92,6 +140,9 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Por favor, selecione pelo menos um jogador.');
             return;
         }
+        
+        // Salvar seleção atual
+        savePlayerSelection();
         
         // Construir URL para API
         const apiUrl = new URL('{{ url_for("api_ranking_history_data") }}', window.location.origin);
@@ -131,6 +182,9 @@ document.addEventListener('DOMContentLoaded', function() {
             chartInstance.destroy();
         }
         
+        // Registrar o plugin datalabels
+        Chart.register(ChartDataLabels);
+        
         // Gerar cores aleatórias para cada jogador
         const colors = generateColors(data.players.length);
         
@@ -143,7 +197,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 backgroundColor: colors[index] + '33', // Adiciona transparência
                 tension: 0.3,
                 pointRadius: 4,
-                pointHoverRadius: 6
+                pointHoverRadius: 6,
+                borderWidth: 2,
+                // Configuração para os rótulos de valores nas linhas
+                datalabels: {
+                    // Rótulos para os valores de posição em todos os pontos
+                    align: 'center',
+                    anchor: 'center',
+                    color: 'black', // Texto preto
+                    backgroundColor: 'white', // Fundo branco
+                    borderRadius: 10, // Formato circular
+                    borderWidth: 1, 
+                    borderColor: function(context) {
+                        return context.dataset.borderColor; // Mesma cor da linha
+                    },
+                    font: {
+                        weight: 'bold',
+                        size: 9
+                    },
+                    formatter: function(value, context) {
+                        // Exibir o valor da posição em cada ponto
+                        if (value !== null && value !== undefined) {
+                            return value;
+                        }
+                        return null;
+                    },
+                    padding: 3,
+                    offset: -15 // Colocar um pouco acima do ponto
+                }
             };
         });
         
@@ -164,25 +245,43 @@ document.addEventListener('DOMContentLoaded', function() {
                             display: true,
                             text: 'Posição'
                         },
+                        min: 0.5, // Começa um pouco acima do 1 para melhor visualização
+                        suggestedMax: 25, // Limite sugerido para evitar muitos valores
                         ticks: {
+                            stepSize: 1, // Garante que apenas posições inteiras sejam mostradas
+                            precision: 0, // Sem casas decimais
                             callback: function(value) {
-                                // Encontrar quais jogadores estão nesta posição na última data
-                                const lastIndex = data.dates.length - 1;
-                                let playersAtPosition = [];
-                                
-                                data.players.forEach(player => {
-                                    const lastPos = player.positions[lastIndex];
-                                    if (lastPos === value) {
-                                        playersAtPosition.push(player.name);
+                                // Apenas mostrar se for número inteiro
+                                if (Math.floor(value) === value) {
+                                    // Encontrar jogadores que têm essa posição no último ponto de dados válido
+                                    let playersAtPosition = [];
+                                    
+                                    data.players.forEach(player => {
+                                        // Encontrar a última posição válida para este jogador
+                                        let lastValidPosition = null;
+                                        for (let i = player.positions.length - 1; i >= 0; i--) {
+                                            if (player.positions[i] !== null && player.positions[i] !== undefined) {
+                                                lastValidPosition = player.positions[i];
+                                                break;
+                                            }
+                                        }
+                                        
+                                        // Se a última posição válida corresponde à marcação atual, adicionar o jogador
+                                        if (lastValidPosition === value) {
+                                            playersAtPosition.push(player.name);
+                                        }
+                                    });
+                                    
+                                    // Retornar a posição e os nomes dos jogadores
+                                    if (playersAtPosition.length > 0) {
+                                        return value + ' - ' + playersAtPosition.join(', ');
                                     }
-                                });
-                                
-                                // Retornar a posição e os nomes dos jogadores
-                                if (playersAtPosition.length > 0) {
-                                    return value + ' - ' + playersAtPosition.join(', ');
+                                    return value;
                                 }
-                                return value;
-                            }
+                                return ''; // Não mostrar valores não inteiros
+                            },
+                            // Garantir marcações para todas as posições relevantes
+                            count: 30 // Valor razoável para cobrir as posições normais
                         }
                     },
                     x: {
@@ -209,6 +308,49 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     legend: {
                         display: false // Ocultar as legendas tradicionais
+                    },
+                    // Configurações específicas para o plugin de rótulos de dados
+                    datalabels: {
+                        display: function(context) {
+                            // Controle condicional para não mostrar todos os rótulos de posição
+                            // Isso ajuda a reduzir a poluição visual
+                            const dataIndex = context.dataIndex;
+                            const datasetIndex = context.datasetIndex;
+                            const dataset = context.chart.data.datasets[datasetIndex];
+                            
+                            // Obter a data atual e anterior (se existir)
+                            const currentPos = dataset.data[dataIndex];
+                            const prevPos = dataIndex > 0 ? dataset.data[dataIndex - 1] : null;
+                            
+                            // Não mostrar se o valor é nulo
+                            if (currentPos === null || currentPos === undefined) {
+                                return false;
+                            }
+                            
+                            // Mostrar sempre no primeiro e último pontos
+                            if (dataIndex === 0 || dataIndex === dataset.data.length - 1) {
+                                return true;
+                            }
+                            
+                            // Mostrar quando há mudança de posição
+                            if (prevPos !== null && prevPos !== currentPos) {
+                                return true;
+                            }
+                            
+                            // Mostrar apenas alguns pontos para evitar poluição visual
+                            // (apenas a cada 2 pontos para gráficos com poucos dados)
+                            if (dataset.data.length <= 10 && dataIndex % 2 === 0) {
+                                return true;
+                            }
+                            
+                            // Para gráficos com mais pontos, mostrar a cada 3 pontos
+                            if (dataset.data.length > 10 && dataIndex % 3 === 0) {
+                                return true;
+                            }
+                            
+                            // Por padrão, não mostrar
+                            return false;
+                        }
                     }
                 }
             }
@@ -241,11 +383,37 @@ document.addEventListener('DOMContentLoaded', function() {
         return colors;
     }
     
-    // Inicializar gráfico
+    // Restaurar seleção salva e inicializar gráfico
+    restorePlayerSelection();
     loadChartData();
     
     // Atualizar gráfico quando o botão for clicado
     document.getElementById('updateChart').addEventListener('click', loadChartData);
+    
+    // Configurar botões de seleção
+    document.getElementById('selectTop10').addEventListener('click', function() {
+        const checkboxes = Array.from(document.querySelectorAll('.player-checkbox'));
+        // Primeiro, desmarca todos
+        checkboxes.forEach(cb => cb.checked = false);
+        
+        // Ordena os checkboxes por posição e marca os 10 primeiros
+        checkboxes
+            .sort((a, b) => parseInt(a.dataset.position) - parseInt(b.dataset.position))
+            .slice(0, 10)
+            .forEach(cb => cb.checked = true);
+        
+        // Atualiza o gráfico
+        loadChartData();
+    });
+    
+    document.getElementById('selectAll').addEventListener('click', function() {
+        document.querySelectorAll('.player-checkbox').forEach(cb => cb.checked = true);
+        loadChartData();
+    });
+    
+    document.getElementById('clearAll').addEventListener('click', function() {
+        document.querySelectorAll('.player-checkbox').forEach(cb => cb.checked = false);
+    });
 });
 </script>
 
