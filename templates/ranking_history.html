@@ -108,9 +108,17 @@
                     </div>
                 </div>
                 
-                <button type="button" id="updateChart" class="btn btn-primary mt-3">
-                    <i class="fas fa-sync-alt"></i> Atualizar Gráfico
-                </button>
+                <div class="mt-3">
+                    <button type="button" id="updateChart" class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i> Atualizar Gráfico
+                    </button>
+                    <a href="/force_record_daily" class="btn btn-warning ml-2">
+                        <i class="fas fa-history"></i> Forçar Atualização do Histórico
+                    </a>
+                    <a href="/fix_history" class="btn btn-info ml-2">
+                        <i class="fas fa-tools"></i> Corrigir Inconsistências
+                    </a>
+                </div>
             </div>
         </div>
         
@@ -249,10 +257,48 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Buscar os dados
-        fetch(`/api/ranking_history_data?days=${currentDays}&player_ids[]=${selectedPlayers.join('&player_ids[]=')}`)
-            .then(response => response.json())
+        // Adicionar timestamp para evitar cache
+        const timestamp = new Date().getTime();
+        
+        // Construir URL da API com prevenção de cache
+        let url = `/api/ranking_history_data?days=${currentDays}&t=${timestamp}`;
+        selectedPlayers.forEach(id => {
+            url += `&player_ids[]=${id}`;
+        });
+        
+        // Exibir indicador de carregamento
+        const chartContainer = document.querySelector('.chart-container');
+        const loadingIndicator = document.createElement('div');
+        loadingIndicator.className = 'text-center position-absolute top-50 start-50 translate-middle';
+        loadingIndicator.innerHTML = '<div class="spinner-border text-primary" role="status"></div><p class="mt-2">Carregando dados...</p>';
+        loadingIndicator.style.zIndex = '10';
+        loadingIndicator.id = 'loadingIndicator';
+        
+        // Remover indicador anterior se existir
+        const oldIndicator = document.getElementById('loadingIndicator');
+        if (oldIndicator) oldIndicator.remove();
+        
+        chartContainer.appendChild(loadingIndicator);
+        
+        // Buscar os dados com configurações anti-cache
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Erro ao carregar dados do gráfico');
+                }
+                return response.json();
+            })
             .then(data => {
+                // Remover indicador de carregamento
+                if (loadingIndicator) loadingIndicator.remove();
+                
                 // Formatar as datas para exibição
                 const formattedDates = data.dates.map(date => {
                     const parts = date.split('-');
@@ -346,6 +392,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 rankingChart.update();
+            })
+            .catch(error => {
+                // Remover indicador de carregamento
+                if (loadingIndicator) loadingIndicator.remove();
+                
+                console.error('Erro:', error);
+                alert('Não foi possível carregar os dados do gráfico. Por favor, tente novamente.');
             });
     }
     
@@ -391,7 +444,10 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Botão para atualizar o gráfico
-    updateChartButton.addEventListener('click', updateChart);
+    updateChartButton.addEventListener('click', function() {
+        // Forçar atualização sem cache
+        updateChart();
+    });
     
     // Inicializar o gráfico
     createChart();
