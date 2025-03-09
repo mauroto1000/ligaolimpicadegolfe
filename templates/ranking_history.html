@@ -4,7 +4,6 @@
 
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 <style>
     .history-card {
         margin-top: 20px;
@@ -37,34 +36,6 @@
     
     .form-check-label {
         cursor: pointer;
-    }
-    
-    .legend-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 20px;
-    }
-    
-    .legend-item {
-        display: flex;
-        align-items: center;
-        padding: 5px 10px;
-        border-radius: 4px;
-        margin-bottom: 5px;
-        background-color: #f8f9fa;
-        cursor: pointer;
-    }
-    
-    .legend-color {
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
-        margin-right: 8px;
-    }
-    
-    .legend-item.inactive {
-        opacity: 0.5;
     }
     
     @media (max-width: 767px) {
@@ -112,7 +83,7 @@
         
         <!-- Seletor de jogadores -->
         <div class="row">
-            <div class="col-md-8">
+            <div class="col-12">
                 <h5>Selecione os jogadores:</h5>
                 <div class="player-selector">
                     <div class="d-grid gap-2 mb-2">
@@ -123,7 +94,7 @@
                     
                     <div class="row">
                         {% for player in players %}
-                            <div class="col-md-6">
+                            <div class="col-md-3 col-sm-6">
                                 <div class="form-check">
                                     <input class="form-check-input player-checkbox" type="checkbox" 
                                            id="player_{{ player.id }}" value="{{ player.id }}" 
@@ -140,13 +111,6 @@
                 <button type="button" id="updateChart" class="btn btn-primary mt-3">
                     <i class="fas fa-sync-alt"></i> Atualizar Gráfico
                 </button>
-            </div>
-            
-            <div class="col-md-4">
-                <h5>Legenda:</h5>
-                <div id="dynamicLegend" class="legend-container">
-                    <!-- Legenda dinâmica será preenchida via JavaScript -->
-                </div>
             </div>
         </div>
         
@@ -177,7 +141,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectAllButton = document.getElementById('selectAll');
     const selectNoneButton = document.getElementById('selectNone');
     const selectTop10Button = document.getElementById('selectTop10');
-    const legendContainer = document.getElementById('dynamicLegend');
     
     // Variáveis de configuração
     let currentDays = {{ days }};
@@ -190,7 +153,9 @@ document.addEventListener('DOMContentLoaded', function() {
             '#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f',
             '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab',
             '#d37295', '#a6cee3', '#1f78b4', '#b2df8a', '#33a02c',
-            '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00', '#cab2d6'
+            '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00', '#cab2d6',
+            '#6a3d9a', '#ffff99', '#b15928', '#8dd3c7', '#bebada',
+            '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5'
         ];
         
         // Repetir as cores se houver mais jogadores que cores
@@ -207,7 +172,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const ctx = document.getElementById('rankingChart').getContext('2d');
         
         // Adicionar padding extra à esquerda para os nomes dos jogadores
-        Chart.defaults.layout.padding.left = 100;
+        Chart.defaults.layout.padding.left = 140;
         
         rankingChart = new Chart(ctx, {
             type: 'line',
@@ -246,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     },
                     legend: {
-                        display: false // Usaremos nossa própria legenda personalizada
+                        display: false // Sem legenda, já que temos os nomes nas linhas
                     }
                 },
                 scales: {
@@ -356,10 +321,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                 if (point && point.y) {
                                     ctx.save();
                                     ctx.fillStyle = dataset.borderColor;
-                                    ctx.font = '12px Arial';
+                                    ctx.font = 'bold 12px Arial';
                                     ctx.textAlign = 'right';
                                     ctx.textBaseline = 'middle';
-                                    ctx.fillText(dataset.label, point.x - 10, point.y);
+                                    ctx.fillText(dataset.label, point.x - 15, point.y);
                                     ctx.restore();
                                 }
                             }
@@ -381,52 +346,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 rankingChart.update();
-                
-                // Atualizar a legenda dinâmica
-                updateLegend(datasets, colors);
             });
-    }
-    
-    // Atualizar a legenda personalizada
-    function updateLegend(datasets, colors) {
-        // Limpar a legenda atual
-        legendContainer.innerHTML = '';
-        
-        // Criar itens da legenda para cada dataset
-        datasets.forEach((dataset, index) => {
-            const legendItem = document.createElement('div');
-            legendItem.className = 'legend-item';
-            legendItem.setAttribute('data-index', index);
-            
-            const colorBox = document.createElement('div');
-            colorBox.className = 'legend-color';
-            colorBox.style.backgroundColor = colors[index];
-            
-            const nameSpan = document.createElement('span');
-            nameSpan.textContent = dataset.label;
-            
-            legendItem.appendChild(colorBox);
-            legendItem.appendChild(nameSpan);
-            
-            // Adicionar evento de clique para mostrar/ocultar séries
-            legendItem.addEventListener('click', function() {
-                const index = parseInt(this.getAttribute('data-index'));
-                const isDatasetVisible = rankingChart.isDatasetVisible(index);
-                
-                if (isDatasetVisible) {
-                    rankingChart.hideDataset(index);
-                    this.classList.add('inactive');
-                } else {
-                    rankingChart.showDataset(index);
-                    this.classList.remove('inactive');
-                }
-                
-                // Redesenhar para atualizar os rótulos
-                rankingChart.update();
-            });
-            
-            legendContainer.appendChild(legendItem);
-        });
     }
     
     // Botões para filtrar por período
