@@ -8,141 +8,312 @@
     .pyramid-container {
         display: flex;
         flex-direction: column;
-        align-items: flex-start; /* Alinhamento à esquerda */
+        align-items: flex-start;
         margin: 30px 0;
         width: 100%;
-        overflow-x: auto; /* Permite rolar horizontalmente em telas pequenas */
+        overflow-x: auto;
+        position: relative; /* Para posicionamento absoluto do tooltip */
+        padding-bottom: 15px; /* Espaço para scrollbar */
     }
 
     .pyramid-row {
         display: flex;
-        justify-content: flex-start; /* Alinhamento à esquerda */
-        margin-bottom: 6px; /* Aumentado em 20% de 5px */
-        min-width: max-content; /* Garante que a linha não seja comprimida */
+        justify-content: flex-start;
+        margin-bottom: 6px;
+        min-width: max-content;
+        transition: transform 0.2s ease; /* Suaviza efeitos de hover */
     }
 
     .pyramid-cell {
-        width: 84px; /* Aumentado em 20% de 70px */
-        height: 84px; /* Aumentado em 20% de 70px */
-        margin: 0 6px 0 0; /* Aumentado a margem em 20% */
+        width: 84px;
+        height: 84px;
+        margin: 0 6px 0 0;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         color: white;
-        border-radius: 0; /* Remover arredondamento */
+        border-radius: 0;
         text-align: center;
-        font-size: 14px; /* Ligeiramente maior para combinar com o tamanho maior */
+        font-size: 14px;
         font-weight: bold;
         position: relative;
         cursor: pointer;
-        padding: 3px; /* Aumentado em proporção */
+        padding: 3px;
         box-sizing: border-box;
+        transition: transform 0.2s ease, box-shadow 0.2s ease; /* Transição suave para efeitos de hover */
     }
 
-    /* Cores das células */
+    /* Cores e efeitos de hover para células */
     .pyramid-cell {
-        background-color: #28a745; /* Verde para todos as células */
+        background-color: #28a745;
+        border: 1px solid rgba(0,0,0,0.1); /* Adiciona leve borda para definir melhor os limites */
+    }
+
+    /* Efeitos de hover para células de jogadores */
+    .pyramid-cell:not(.first-col):hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        z-index: 5; /* Garante que fique sobre outros elementos durante o hover */
     }
 
     /* Cor de fundo para a primeira coluna */
     .pyramid-cell.first-col {
-        background-color: #002970; /* Azul escuro para primeira coluna */
+        background-color: #002970;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2); /* Leve sombra para destaque */
     }
 
-    /* NOVO: Estilo para jogadores com desafios pendentes */
+    /* Estilo para jogadores com desafios pendentes */
     .pyramid-cell.pending-challenge {
-        background-color: #ffc107; /* Amarelo */
-        color: #212529; /* Texto escuro para melhor contraste */
+        background-color: #ffc107;
+        color: #212529;
     }
 
     .player-position {
         position: absolute;
         top: 3px;
         left: 3px;
-        font-size: 12px; /* Ligeiramente maior */
+        font-size: 12px;
         color: #ffffff;
+        background-color: rgba(0,0,0,0.2); /* Fundo levemente escuro para melhor legibilidade */
+        padding: 1px 3px;
+        border-radius: 3px;
     }
 
-    /* NOVO: Ajuste da cor do número da posição para jogadores com desafios pendentes */
+    /* Ajuste da cor do número da posição para jogadores com desafios pendentes */
     .pending-challenge .player-position {
-        color: #212529; /* Texto escuro para jogadores com desafios */
+        color: #212529;
+        background-color: rgba(0,0,0,0.1);
     }
 
     .player-name {
-        font-size: 12px; /* Aumentado para melhor legibilidade no espaço maior */
+        font-size: 12px;
         text-align: center;
-        margin-top: 15px; /* Ajustado proporcionalmente */
+        margin-top: 15px;
         line-height: 1.2;
         width: 90%;
         overflow: hidden;
-        word-break: break-word; /* Quebra palavras longas */
+        word-break: break-word;
         display: -webkit-box;
-        -webkit-line-clamp: 3; /* Limita a 3 linhas */
+        -webkit-line-clamp: 3;
         -webkit-box-orient: vertical;
-        max-height: 45px; /* Limita altura para não ultrapassar o quadrado */
+        max-height: 45px;
     }
 
-    /* Ajustes para dispositivos móveis */
+    /* Tooltip para mostrar mais informações ao passar o mouse */
+    .pyramid-tooltip {
+        visibility: hidden;
+        position: absolute;
+        z-index: 10;
+        bottom: 110%; /* Posiciona acima da célula */
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #333;
+        color: white;
+        text-align: center;
+        padding: 8px;
+        border-radius: 4px;
+        width: 160px;
+        opacity: 0;
+        transition: opacity 0.3s, visibility 0.3s;
+        pointer-events: none; /* Não interfere com cliques */
+        font-weight: normal;
+        font-size: 12px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    /* Seta para o tooltip */
+    .pyramid-tooltip::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #333 transparent transparent transparent;
+    }
+
+    /* Mostra o tooltip ao passar o mouse */
+    .pyramid-cell:hover .pyramid-tooltip {
+        visibility: visible;
+        opacity: 1;
+    }
+
+    /* Filtros e controles interativos */
+    .pyramid-controls {
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+    }
+
+    /* Legenda para as cores */
+    .legend-container {
+        display: flex;
+        flex-wrap: wrap;
+        margin-bottom: 15px;
+        gap: 10px;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-right: 20px;
+        white-space: nowrap;
+    }
+    
+    .legend-color {
+        width: 20px;
+        height: 20px;
+        margin-right: 5px;
+        border: 1px solid rgba(0,0,0,0.1);
+    }
+    
+    .legend-green {
+        background-color: #28a745;
+    }
+    
+    .legend-yellow {
+        background-color: #ffc107;
+    }
+    
+    .legend-blue {
+        background-color: #002970;
+    }
+
+    /* Estilos específicos para mobile */
     @media (max-width: 767px) {
         .pyramid-container {
-            padding-bottom: 10px; /* Espaço para o scrollbar */
+            padding-bottom: 20px;
         }
         
         .card-header h3 {
             font-size: 1.2rem;
         }
         
-        /* Instrução para indicar rolagem horizontal */
+        .pyramid-controls {
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 10px;
+        }
+        
         .scroll-hint {
             display: block;
             text-align: center;
             font-style: italic;
             color: #666;
             margin-bottom: 10px;
+            padding: 5px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+
+        /* Tooltip ajustado para mobile */
+        .pyramid-tooltip {
+            width: 140px;
+            font-size: 11px;
+            padding: 6px;
+        }
+        
+        /* Melhorar o toque em dispositivos móveis */
+        .pyramid-cell {
+            touch-action: manipulation; /* Melhora o desempenho de toque */
+        }
+        
+        /* Indicação visual para toques */
+        .pyramid-cell:active {
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
     }
 
     /* Para telas muito pequenas */
     @media (max-width: 480px) {
         .pyramid-cell {
-            width: 70px; /* Um pouco menor em telas muito pequenas */
+            width: 70px;
             height: 70px;
+            margin-right: 4px;
         }
         
         .player-name {
             font-size: 10px;
             max-height: 40px;
+            margin-top: 12px;
         }
         
         .player-position {
             font-size: 10px;
         }
+        
+        .legend-container {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+        }
+        
+        .legend-item {
+            margin-right: 0;
+        }
     }
 
-    /* NOVO: Legenda para as cores */
-    .legend-container {
-        display: flex;
-        margin-bottom: 15px;
-    }
-    .legend-item {
-        display: flex;
+    /* Botão de ação flutuante para mobile */
+    .mobile-action-btn {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background-color: #007bff;
+        color: white;
+        display: none;
+        justify-content: center;
         align-items: center;
-        margin-right: 20px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        z-index: 1000;
+        font-size: 24px;
     }
-    .legend-color {
-        width: 20px;
-        height: 20px;
-        margin-right: 5px;
+
+    @media (max-width: 767px) {
+        .mobile-action-btn {
+            display: flex;
+        }
     }
-    .legend-green {
-        background-color: #28a745;
+
+    /* Menu móvel expandido */
+    .mobile-menu {
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        padding: 10px;
+        z-index: 999;
+        display: none;
+        flex-direction: column;
+        gap: 5px;
+        min-width: 200px;
     }
-    .legend-yellow {
-        background-color: #ffc107;
+
+    .mobile-menu.show {
+        display: flex;
     }
-    .legend-blue {
-        background-color: #002970;
+
+    .mobile-menu a {
+        padding: 8px 12px;
+        border-radius: 5px;
+        text-decoration: none;
+        transition: background-color 0.2s;
+    }
+
+    .mobile-menu a:hover, .mobile-menu a:active {
+        background-color: #f0f0f0;
     }
 </style>
 {% endblock %}
@@ -155,10 +326,22 @@
     <div class="card-body">
         <!-- Indicação de rolagem para dispositivos móveis -->
         <div class="scroll-hint d-md-none">
-            <small>Deslize para o lado para ver toda a pirâmide</small>
+            <small><i class="fas fa-arrows-alt-h me-1"></i> Deslize para o lado para ver toda a pirâmide</small>
         </div>
         
-        <!-- NOVO: Legenda -->
+        <!-- Controles interativos -->
+        <div class="pyramid-controls">
+            <div class="input-group mb-0 me-2" style="max-width: 250px;">
+                <input type="text" id="playerSearch" class="form-control" placeholder="Buscar jogador...">
+                <button class="btn btn-outline-secondary" type="button" id="clearSearch">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">Voltar para Lista</a>
+        </div>
+        
+        <!-- Legenda -->
         <div class="legend-container">
             <div class="legend-item">
                 <div class="legend-color legend-green"></div>
@@ -166,7 +349,7 @@
             </div>
             <div class="legend-item">
                 <div class="legend-color legend-yellow"></div>
-                <span>Jogador com desafio pendente</span>
+                <span>Jogador com desafio</span>
             </div>
             <div class="legend-item">
                 <div class="legend-color legend-blue"></div>
@@ -174,14 +357,11 @@
             </div>
         </div>
         
-        <div class="d-flex justify-content-between mb-3">
-            <a href="{{ url_for('index') }}" class="btn btn-secondary">Voltar para Lista</a>
-            <a href="{{ url_for('fix_pyramid') }}" class="btn btn-warning">Verificar/Corrigir Estrutura</a>
-        </div>
-        
+        <!-- Container da pirâmide -->
         <div class="pyramid-container">
+            <!-- As linhas da pirâmide serão construídas aqui -->
             {% for tier_letter, players in tiers %}
-                <div class="pyramid-row">
+                <div class="pyramid-row" data-tier="{{ tier_letter }}">
                     <!-- Célula com a letra do tier -->
                     <div class="pyramid-cell first-col">
                         {{ tier_letter }}
@@ -189,17 +369,159 @@
                     
                     <!-- Célula para cada posição no tier -->
                     {% for player in players|sort(attribute='position') %}
-                        <div class="pyramid-cell {% if player.has_pending_challenge %}pending-challenge{% endif %}" onclick="window.location='{{ url_for('player_detail', player_id=player['id']) }}'">
-                            <span class="player-position">{{ player['position'] }}</span>
-                            <!-- Mostrar nome completo -->
-                            <span class="player-name">{{ player['name'] }}</span>
-                            <!-- HCP Index removido conforme solicitado anteriormente -->
+                        <div class="pyramid-cell {% if player.has_pending_challenge %}pending-challenge{% endif %}" 
+                             data-player-name="{{ player.name|lower }}"
+                             data-player-id="{{ player.id }}"
+                             data-position="{{ player.position }}"
+                             onclick="window.location='{{ url_for('player_detail', player_id=player.id) }}'">
+                            
+                            <span class="player-position">{{ player.position }}</span>
+                            
+                            <!-- Tooltip com informações adicionais -->
+                            <div class="pyramid-tooltip">
+                                <strong>{{ player.name }}</strong><br>
+                                Posição: #{{ player.position }}<br>
+                                Tier: {{ tier_letter }}<br>
+                                {% if player.hcp_index is not none %}
+                                HCP: {{ player.hcp_index }}<br>
+                                {% endif %}
+                                {% if player.has_pending_challenge %}
+                                <span class="text-warning">Tem desafio pendente</span><br>
+                                {% endif %}
+                                <small>Clique para detalhes</small>
+                            </div>
+                            
+                            <!-- Nome do jogador -->
+                            <span class="player-name">{{ player.name }}</span>
                         </div>
                     {% endfor %}
                 </div>
             {% endfor %}
         </div>
+        
+        <!-- Informação de resultados de busca -->
+        <div id="searchResults" class="alert alert-info mt-3" style="display: none;">
+            Nenhum jogador encontrado com o nome pesquisado.
+        </div>
     </div>
 </div>
 
+<!-- Botão de ação flutuante para mobile -->
+<div class="mobile-action-btn" id="mobileMenuToggle">
+    <i class="fas fa-bars"></i>
+</div>
+
+<!-- Menu móvel expandido -->
+<div class="mobile-menu" id="mobileMenu">
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+        <i class="fas fa-list me-2"></i>Lista de Jogadores
+    </a>
+    <a href="{{ url_for('challenges_calendar') }}" class="btn btn-outline-primary">
+        <i class="fas fa-calendar me-2"></i>Calendário de Desafios
+    </a>
+    <a href="{{ url_for('challenges_list') }}" class="btn btn-outline-info">
+        <i class="fas fa-trophy me-2"></i>Lista de Desafios
+    </a>
+    <a href="{{ url_for('fix_pyramid') }}" class="btn btn-outline-dark">
+        <i class="fas fa-wrench me-2"></i>Manutenção da Pirâmide
+    </a>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Elementos DOM
+    const playerSearch = document.getElementById('playerSearch');
+    const clearSearch = document.getElementById('clearSearch');
+    const searchResults = document.getElementById('searchResults');
+    const pyramidRows = document.querySelectorAll('.pyramid-row');
+    const playerCells = document.querySelectorAll('.pyramid-cell:not(.first-col)');
+    const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+    const mobileMenu = document.getElementById('mobileMenu');
+    
+    // Função para aplicar filtros
+    function applySearch() {
+        const searchTerm = playerSearch.value.trim().toLowerCase();
+        
+        let visiblePlayers = 0;
+        let visibleRows = new Set();
+        
+        // Esconder todas as linhas primeiro
+        pyramidRows.forEach(row => {
+            row.style.display = 'none';
+        });
+        
+        // Filtrar jogadores
+        playerCells.forEach(cell => {
+            const playerName = cell.getAttribute('data-player-name');
+            const playerTier = cell.closest('.pyramid-row').getAttribute('data-tier');
+            
+            // Verificar se atende o critério de busca
+            const matchesSearch = searchTerm === '' || playerName.includes(searchTerm);
+            
+            // Aplicar visibilidade
+            if (matchesSearch) {
+                cell.style.display = 'flex';
+                visiblePlayers++;
+                visibleRows.add(playerTier);
+                
+                // Destaque ao pesquisar
+                if (searchTerm !== '') {
+                    cell.style.transform = 'scale(1.05)';
+                    cell.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                    cell.style.zIndex = '5';
+                    
+                    // Remover destaque após 2 segundos
+                    setTimeout(() => {
+                        cell.style.transform = '';
+                        cell.style.boxShadow = '';
+                        cell.style.zIndex = '';
+                    }, 2000);
+                } else {
+                    cell.style.transform = '';
+                    cell.style.boxShadow = '';
+                    cell.style.zIndex = '';
+                }
+            } else {
+                cell.style.display = 'none';
+            }
+        });
+        
+        // Mostrar linhas com jogadores visíveis
+        pyramidRows.forEach(row => {
+            const tier = row.getAttribute('data-tier');
+            if (visibleRows.has(tier)) {
+                row.style.display = 'flex';
+            }
+        });
+        
+        // Atualizar mensagem de resultados
+        if (visiblePlayers === 0 && searchTerm !== '') {
+            searchResults.style.display = 'block';
+        } else {
+            searchResults.style.display = 'none';
+        }
+    }
+    
+    // Event listeners para busca
+    playerSearch.addEventListener('input', applySearch);
+    
+    // Limpar pesquisa
+    clearSearch.addEventListener('click', function() {
+        playerSearch.value = '';
+        applySearch();
+    });
+    
+    // Toggle do menu móvel
+    mobileMenuToggle.addEventListener('click', function() {
+        mobileMenu.classList.toggle('show');
+    });
+    
+    // Fechar menu móvel ao clicar fora dele
+    document.addEventListener('click', function(event) {
+        if (!mobileMenu.contains(event.target) && event.target !== mobileMenuToggle) {
+            mobileMenu.classList.remove('show');
+        }
+    });
+});
+</script>
 {% endblock %}
