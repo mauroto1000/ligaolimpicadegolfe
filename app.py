@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 # Removida a importação do APScheduler
 # from apscheduler.schedulers.background import BackgroundScheduler
@@ -31,6 +31,62 @@ def get_db_connection():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
+
+# Função para criar a tabela de histórico diário
+def create_daily_history_table():
+    conn = get_db_connection()
+    conn.execute('''
+    CREATE TABLE IF NOT EXISTS daily_ranking_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        player_id INTEGER NOT NULL,
+        position INTEGER NOT NULL,
+        tier TEXT NOT NULL,
+        date_recorded DATE NOT NULL,
+        FOREIGN KEY (player_id) REFERENCES players(id)
+    )
+    ''')
+    
+    # Criar um índice para melhorar a performance das consultas
+    conn.execute('''
+    CREATE INDEX IF NOT EXISTS idx_daily_history_player_date 
+    ON daily_ranking_history (player_id, date_recorded)
+    ''')
+    
+    conn.commit()
+    conn.close()
+    print("Tabela de histórico diário criada com sucesso.")
+
+# Função para registrar as posições diárias de todos os jogadores
+def record_daily_rankings():
+    conn = get_db_connection()
+    today = datetime.now().date()
+    
+    # Verificar se já temos registros para hoje
+    existing = conn.execute(
+        'SELECT COUNT(*) as count FROM daily_ranking_history WHERE date_recorded = ?', 
+        (today.strftime('%Y-%m-%d'),)
+    ).fetchone()
+    
+    if existing and existing['count'] > 0:
+        print(f"Já existem registros para {today}. Pulando...")
+        conn.close()
+        return False
+    
+    # Obter todos os jogadores ativos
+    players = conn.execute('SELECT id, position, tier FROM players WHERE active = 1 ORDER BY position').fetchall()
+    
+    # Registrar posição atual de cada jogador
+    for player in players:
+        conn.execute('''
+            INSERT INTO daily_ranking_history 
+            (player_id, position, tier, date_recorded)
+            VALUES (?, ?, ?, ?)
+        ''', (player['id'], player['position'], player['tier'], today.strftime('%Y-%m-%d')))
+    
+    conn.commit()
+    conn.close()
+    print(f"Registrados {len(players)} jogadores no histórico diário para {today}")
+    return True
 
 # Função para determinar o tier com base na posição
 def get_tier_from_position(position):
@@ -318,6 +374,101 @@ def revert_challenge_result(conn, challenge_id):
     conn.commit()
     print(f"Alterações do desafio ID {challenge_id} foram revertidas com sucesso.")
 
+# Rota para registrar posições diárias manualmente
+@app.route('/record_daily_rankings', methods=['GET', 'POST'])
+def record_daily_rankings_route():
+    if request.method == 'POST':
+        senha = request.form.get('senha', '')
+        
+        if senha != '123':
+            flash('Senha incorreta! Operação não autorizada.', 'error')
+            return redirect(url_for('index'))
+        
+        result = record_daily_rankings()
+        
+        if result:
+            flash('Posições registradas com sucesso no histórico diário!', 'success')
+        else:
+            flash('As posições de hoje já foram registradas anteriormente.', 'info')
+        
+        return redirect(url_for('index'))
+    
+    # Para método GET, mostrar o formulário
+    return render_template('record_daily_rankings.html')
+
+# Rota para visualizar o histórico de posições de um jogador
+@app.route('/player/<int:player_id>/ranking_history')
+def player_ranking_history(player_id):
+    conn = get_db_connection()
+    
+    # Verificar se o jogador existe
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Jogador não encontrado!', 'error')
+        return redirect(url_for('index'))
+    
+    # Obter o período desejado (padrão: últimos 30 dias)
+    days = request.args.get('days', 30, type=int)
+    
+    # Calcular a data limite
+    limit_date = (datetime.now() - timedelta(days=days)).date()
+    
+    # Buscar o histórico do jogador
+    history = conn.execute('''
+        SELECT date_recorded, position, tier
+        FROM daily_ranking_history
+        WHERE player_id = ? AND date_recorded >= ?
+        ORDER BY date_recorded
+    ''', (player_id, limit_date.strftime('%Y-%m-%d'))).fetchall()
+    
+    # Prepara os dados para o gráfico
+    dates = [item['date_recorded'] for item in history]
+    positions = [item['position'] for item in history]
+    tiers = [item['tier'] for item in history]
+    
+    conn.close()
+    
+    return render_template('player_ranking_history.html', 
+                          player=player, 
+                          dates=dates, 
+                          positions=positions,
+                          tiers=tiers,
+                          days=days)
+
+# API para obter dados filtrados para o gráfico
+@app.route('/api/player/<int:player_id>/ranking_history')
+def api_player_ranking_history(player_id):
+    conn = get_db_connection()
+    
+    # Obter o período desejado
+    days = request.args.get('days', 30, type=int)
+    
+    # Calcular a data limite
+    limit_date = (datetime.now() - timedelta(days=days)).date()
+    
+    # Buscar o histórico do jogador
+    history = conn.execute('''
+        SELECT date_recorded, position, tier
+        FROM daily_ranking_history
+        WHERE player_id = ? AND date_recorded >= ?
+        ORDER BY date_recorded
+    ''', (player_id, limit_date.strftime('%Y-%m-%d'))).fetchall()
+    
+    # Prepara os dados para o gráfico
+    dates = [item['date_recorded'] for item in history]
+    positions = [item['position'] for item in history]
+    tiers = [item['tier'] for item in history]
+    
+    conn.close()
+    
+    return jsonify({
+        'dates': dates,
+        'positions': positions,
+        'tiers': tiers
+    })
+
 @app.route('/deactivate_player/<int:player_id>', methods=['GET', 'POST'])
 def deactivate_player(player_id):
     """
@@ -567,7 +718,6 @@ def pyramid_redirect():
     return redirect(url_for('pyramid_dynamic'))
 
 @app.route('/pyramid_dynamic')
-@app.route('/pyramid_dynamic')
 def pyramid_dynamic():
     conn = get_db_connection()
     
@@ -606,7 +756,6 @@ def pyramid_dynamic():
     
     return render_template('pyramid_dynamic.html', tiers=sorted_tiers)
 
-# Rota original (mantida para compatibilidade ou redirecionamento)
 # Rota original (mantida para compatibilidade ou redirecionamento)
 @app.route('/challenges')
 def challenges():
@@ -1617,6 +1766,9 @@ if __name__ == '__main__':
     
     conn.commit()
     conn.close()
+    
+    # Criar a tabela de histórico diário se não existir
+    create_daily_history_table()
     
     # Criar pasta de templates se não existir
     if not os.path.exists('templates'):
