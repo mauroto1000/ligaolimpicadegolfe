@@ -32,6 +32,63 @@
         height: 500px;
         margin-bottom: 30px;
     }
+    
+    /* Ajuste para título do calendário (mês/ano) */
+    .fc-toolbar-title {
+        font-size: 1.25rem !important; /* Reduzir tamanho da fonte do título */
+    }
+    
+    /* Ajustes para visualização em dispositivos móveis */
+    @media (max-width: 767px) {
+        .fc-toolbar-title {
+            font-size: 1rem !important; /* Fonte ainda menor em dispositivos muito pequenos */
+        }
+        
+        /* Ajusta o layout da barra de ferramentas do calendário */
+        .fc-header-toolbar {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        /* Ajusta os botões de navegação (prev, next, today) */
+        .fc-button {
+            padding: 4px 8px !important;
+            font-size: 0.8rem !important;
+        }
+        
+        /* Ajusta posição do título (mês/ano) */
+        .fc-toolbar-chunk {
+            margin: 2px 0;
+        }
+        
+        /* Mais espaço para as células do calendário */
+        .fc-daygrid-day-frame {
+            min-height: 60px;
+        }
+        
+        /* Melhora o layout da barra de ferramentas */
+        .fc-toolbar.fc-header-toolbar {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .fc-toolbar-chunk:nth-child(2) {
+            order: -1;
+            margin-bottom: 10px;
+        }
+    }
+    
+    /* Ajustes para dispositivos muito pequenos */
+    @media (max-width: 480px) {
+        .fc-toolbar-title {
+            font-size: 0.9rem !important; /* Fonte ainda menor */
+        }
+        
+        /* Apresenta os botões de visualização em linha única */
+        .fc-button-group {
+            flex-wrap: wrap;
+        }
+    }
 </style>
 {% endblock %}
 
