@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 import sqlite3
 from datetime import datetime, timedelta
 import os
+
 # Removida a importação do APScheduler
 # from apscheduler.schedulers.background import BackgroundScheduler
 # import atexit
@@ -1739,6 +1740,127 @@ def update_player_hcp(player_id):
         conn.close()
     
     return redirect(url_for('player_detail', player_id=player_id))
+
+@app.route('/ranking_history')
+def ranking_history():
+    """Mostra o histórico de todas as posições em um gráfico"""
+    conn = get_db_connection()
+    
+    # Obter o período desejado (padrão: últimos 30 dias)
+    days = request.args.get('days', 30, type=int)
+    
+    # Calcular a data limite
+    limit_date = (datetime.now() - timedelta(days=days)).date()
+    
+    # Buscar as datas disponíveis no histórico
+    dates = conn.execute('''
+        SELECT DISTINCT date_recorded 
+        FROM daily_ranking_history 
+        WHERE date_recorded >= ?
+        ORDER BY date_recorded
+    ''', (limit_date.strftime('%Y-%m-%d'),)).fetchall()
+    
+    date_list = [d['date_recorded'] for d in dates]
+    
+    # Buscar os jogadores ativos
+    players = conn.execute('''
+        SELECT id, name, position 
+        FROM players 
+        WHERE active = 1 
+        ORDER BY position
+    ''').fetchall()
+    
+    # Limitar o número de jogadores para não sobrecarregar o gráfico
+    max_players = min(20, len(players))
+    top_players = players[:max_players]
+    
+    # Criar uma lista combinada de players para o template
+    players_list = [{'id': p['id'], 'name': p['name']} for p in top_players]
+    
+    conn.close()
+    
+    return render_template('ranking_history.html', 
+                           days=days, 
+                           dates=date_list,
+                           players=players_list)
+
+@app.route('/api/ranking_history_data')
+def api_ranking_history_data():
+    """API para obter os dados de histórico para o gráfico"""
+    conn = get_db_connection()
+    
+    # Obter os parâmetros
+    days = request.args.get('days', 30, type=int)
+    player_ids = request.args.getlist('player_ids[]', type=int)
+    
+    # Limitar o número de jogadores para performance
+    if len(player_ids) > 30:
+        player_ids = player_ids[:30]
+    
+    # Calcular a data limite
+    limit_date = (datetime.now() - timedelta(days=days)).date()
+    
+    # Buscar as datas disponíveis no histórico
+    dates = conn.execute('''
+        SELECT DISTINCT date_recorded 
+        FROM daily_ranking_history 
+        WHERE date_recorded >= ?
+        ORDER BY date_recorded
+    ''', (limit_date.strftime('%Y-%m-%d'),)).fetchall()
+    
+    date_list = [d['date_recorded'] for d in dates]
+    
+    # Preparar dados de cada jogador
+    players_data = []
+    
+    for player_id in player_ids:
+        # Buscar informações do jogador
+        player = conn.execute('SELECT name FROM players WHERE id = ?', (player_id,)).fetchone()
+        
+        if not player:
+            continue
+        
+        # Buscar histórico do jogador
+        history = conn.execute('''
+            SELECT date_recorded, position 
+            FROM daily_ranking_history 
+            WHERE player_id = ? AND date_recorded >= ?
+            ORDER BY date_recorded
+        ''', (player_id, limit_date.strftime('%Y-%m-%d'))).fetchall()
+        
+        # Criar um dicionário com as posições por data
+        positions_by_date = {h['date_recorded']: h['position'] for h in history}
+        
+        # Montar a série temporal completa, mantendo a última posição conhecida para datas sem registro
+        positions_series = []
+        last_known_position = None
+        
+        for date in date_list:
+            if date in positions_by_date:
+                position = positions_by_date[date]
+                last_known_position = position
+            else:
+                position = last_known_position
+            
+            if position is not None:
+                positions_series.append(position)
+            else:
+                positions_series.append(None)  # Usar None para datas sem posição
+        
+        # Adicionar dados deste jogador
+        players_data.append({
+            'name': player['name'],
+            'positions': positions_series
+        })
+    
+    conn.close()
+    
+    return jsonify({
+        'dates': date_list,
+        'players': players_data
+    })
+
+
 
 
 if __name__ == '__main__':
