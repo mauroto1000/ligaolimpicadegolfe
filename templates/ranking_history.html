@@ -1,237 +1,168 @@
 {% extends 'base.html' %}
 
-{% block title %}Histórico Geral de Posições - Liga Olímpica de Golfe{% endblock %}
-
-{% block head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-    .history-card {
-        margin-top: 20px;
-        margin-bottom: 30px;
-    }
-    
-    .chart-container {
-        position: relative;
-        height: 600px;
-        width: 100%;
-        margin-top: 20px;
-    }
-    
-    .time-filter {
-        margin-bottom: 20px;
-    }
-    
-    .player-selector {
-        margin-bottom: 20px;
-        max-height: 300px;
-        overflow-y: auto;
-    }
-    
-    .controls-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 20px;
-        margin-bottom: 20px;
-    }
-    
-    .form-check-label {
-        cursor: pointer;
-    }
-    
-    @media (max-width: 767px) {
-        .chart-container {
-            height: 400px;
-        }
-    }
-</style>
-{% endblock %}
+{% block title %}Histórico de Posições{% endblock %}
 
 {% block content %}
-<div class="card history-card">
-    <div class="card-header bg-primary text-white">
-        <h3 class="mb-0">Histórico Geral de Posições</h3>
-    </div>
-    <div class="card-body">
-        <div class="alert alert-info">
-            <p>Este gráfico mostra a evolução das posições de vários jogadores ao longo do tempo.</p>
-            <p>Selecione os jogadores que deseja visualizar e o período de tempo.</p>
+<div class="container mt-4">
+    <h1 class="mb-4">Histórico de Posições</h1>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0">Filtros</h5>
         </div>
-        
-        <div class="controls-container">
-            <!-- Filtros de tempo -->
-            <div class="time-filter">
-                <h5>Período</h5>
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-outline-secondary time-btn {% if days == 7 %}active{% endif %}" data-days="7">7 dias</button>
-                    <button type="button" class="btn btn-outline-secondary time-btn {% if days == 30 or not days %}active{% endif %}" data-days="30">30 dias</button>
-                    <button type="button" class="btn btn-outline-secondary time-btn {% if days == 90 %}active{% endif %}" data-days="90">90 dias</button>
-                    <button type="button" class="btn btn-outline-secondary time-btn {% if days == 180 %}active{% endif %}" data-days="180">6 meses</button>
-                    <button type="button" class="btn btn-outline-secondary time-btn {% if days == 365 %}active{% endif %}" data-days="365">1 ano</button>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="dateRange" class="form-label">Período:</label>
+                        <div class="btn-group" role="group" aria-label="Período">
+                            <a href="{{ url_for('ranking_history', days=7) }}" class="btn btn-outline-primary {% if days == 7 %}active{% endif %}">Últimos 7 dias</a>
+                            <a href="{{ url_for('ranking_history', days=30) }}" class="btn btn-outline-primary {% if days == 30 %}active{% endif %}">Últimos 30 dias</a>
+                            <a href="{{ url_for('ranking_history', days=90) }}" class="btn btn-outline-primary {% if days == 90 %}active{% endif %}">Últimos 90 dias</a>
+                            <a href="{{ url_for('ranking_history', days=365) }}" class="btn btn-outline-primary {% if days == 365 %}active{% endif %}">Último ano</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <form action="{{ url_for('ranking_history') }}" method="GET" class="mb-3">
+                        <div class="row">
+                            <div class="col-md-5">
+                                <label for="start_date" class="form-label">De:</label>
+                                <input type="date" id="start_date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
+                            </div>
+                            <div class="col-md-5">
+                                <label for="end_date" class="form-label">Até:</label>
+                                <input type="date" id="end_date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                            </div>
+                        </div>
+                    </form>
                 </div>
             </div>
             
-            <!-- Seleção de visualização -->
-            <div>
-                <h5>Visualização</h5>
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-outline-primary view-btn active" data-view="normal">Normal</button>
-                    <button type="button" class="btn btn-outline-primary view-btn" data-view="relative">Relativa</button>
-                </div>
-                <small class="d-block text-muted mt-1">Relativa: mostra a variação ao invés da posição absoluta</small>
-            </div>
-        </div>
-        
-        <!-- Seletor de jogadores -->
-        <div class="row">
-            <div class="col-12">
-                <h5>Selecione os jogadores:</h5>
-                <div class="player-selector">
-                    <div class="d-grid gap-2 mb-2">
-                        <button type="button" id="selectAll" class="btn btn-sm btn-outline-secondary">Selecionar Todos</button>
-                        <button type="button" id="selectNone" class="btn btn-sm btn-outline-secondary">Desmarcar Todos</button>
-                        <button type="button" id="selectTop10" class="btn btn-sm btn-outline-primary">Top 10</button>
-                    </div>
-                    
-                    <div class="row">
+            <hr>
+            
+            <div class="mb-3">
+                <label class="form-label">Jogadores:</label>
+                <div class="players-select-container">
+                    <div class="players-select">
                         {% for player in players %}
-                            <div class="col-md-3 col-sm-6">
-                                <div class="form-check">
-                                    <input class="form-check-input player-checkbox" type="checkbox" 
-                                           id="player_{{ player.id }}" value="{{ player.id }}" 
-                                           {% if loop.index <= 10 %}checked{% endif %}>
-                                    <label class="form-check-label" for="player_{{ player.id }}">
-                                        {{ player.name }}
-                                    </label>
-                                </div>
-                            </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input player-checkbox" type="checkbox" value="{{ player.id }}" id="player{{ player.id }}" {% if loop.index <= 5 %}checked{% endif %}>
+                            <label class="form-check-label" for="player{{ player.id }}">
+                                {{ player.name }}
+                            </label>
+                        </div>
                         {% endfor %}
                     </div>
                 </div>
-                
-                <div class="mt-3">
-                    <button type="button" id="updateChart" class="btn btn-primary">
-                        <i class="fas fa-sync-alt"></i> Atualizar Gráfico
-                    </button>
-                    <a href="/force_record_daily" class="btn btn-warning ml-2">
-                        <i class="fas fa-history"></i> Forçar Atualização do Histórico
-                    </a>
-                    <a href="/fix_history" class="btn btn-info ml-2">
-                        <i class="fas fa-tools"></i> Corrigir Inconsistências
-                    </a>
-                </div>
+            </div>
+            
+            <div class="d-flex justify-content-end">
+                <button id="updateChart" class="btn btn-success">Atualizar Gráfico</button>
             </div>
         </div>
-        
-        <!-- Container do gráfico -->
-        <div class="chart-container mt-4">
-            <canvas id="rankingChart"></canvas>
+    </div>
+
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Evolução de Posições</h5>
         </div>
-        
-        <!-- Botões de navegação -->
-        <div class="mt-4">
-            <a href="{{ url_for('index') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left me-2"></i>Voltar para Ranking
-            </a>
-            <a href="{{ url_for('pyramid_dynamic') }}" class="btn btn-primary">
-                <i class="fas fa-sitemap me-2"></i>Ver Pirâmide
-            </a>
+        <div class="card-body">
+            <div class="chart-container" style="position: relative; height:600px;">
+                <canvas id="rankingChart"></canvas>
+            </div>
         </div>
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Elementos do DOM
-    const timeButtons = document.querySelectorAll('.time-btn');
-    const viewButtons = document.querySelectorAll('.view-btn');
-    const playerCheckboxes = document.querySelectorAll('.player-checkbox');
-    const updateChartButton = document.getElementById('updateChart');
-    const selectAllButton = document.getElementById('selectAll');
-    const selectNoneButton = document.getElementById('selectNone');
-    const selectTop10Button = document.getElementById('selectTop10');
+    let chartInstance = null;
     
-    // Variáveis de configuração
-    let currentDays = {{ days }};
-    let currentView = 'normal'; // 'normal' ou 'relative'
-    let rankingChart = null;
-    
-    // Gerar cores únicas para cada jogador
-    function generateColors(count) {
-        const baseColors = [
-            '#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f',
-            '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab',
-            '#d37295', '#a6cee3', '#1f78b4', '#b2df8a', '#33a02c',
-            '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00', '#cab2d6',
-            '#6a3d9a', '#ffff99', '#b15928', '#8dd3c7', '#bebada',
-            '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5'
-        ];
+    async function loadChartData() {
+        // Obter jogadores selecionados
+        const selectedPlayerIds = Array.from(document.querySelectorAll('.player-checkbox:checked'))
+            .map(checkbox => checkbox.value);
         
-        // Repetir as cores se houver mais jogadores que cores
-        const colors = [];
-        for (let i = 0; i < count; i++) {
-            colors.push(baseColors[i % baseColors.length]);
+        if (selectedPlayerIds.length === 0) {
+            alert('Por favor, selecione pelo menos um jogador.');
+            return;
         }
         
-        return colors;
+        // Construir URL para API
+        const apiUrl = new URL('{{ url_for("api_ranking_history_data") }}', window.location.origin);
+        
+        // Adicionar parâmetros de data
+        {% if request.args.get('start_date') and request.args.get('end_date') %}
+            apiUrl.searchParams.append('start_date', '{{ request.args.get("start_date") }}');
+            apiUrl.searchParams.append('end_date', '{{ request.args.get("end_date") }}');
+        {% else %}
+            apiUrl.searchParams.append('days', '{{ days }}');
+        {% endif %}
+        
+        // Adicionar jogadores selecionados
+        selectedPlayerIds.forEach(id => {
+            apiUrl.searchParams.append('player_ids[]', id);
+        });
+        
+        try {
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+                throw new Error('Erro ao carregar dados');
+            }
+            
+            const data = await response.json();
+            renderChart(data);
+        } catch (error) {
+            console.error('Erro:', error);
+            alert('Erro ao carregar dados do gráfico');
+        }
     }
     
-    // Criar o gráfico inicialmente
-    function createChart() {
+    function renderChart(data) {
         const ctx = document.getElementById('rankingChart').getContext('2d');
         
-        // Adicionar padding extra à esquerda para os nomes dos jogadores
-        Chart.defaults.layout.padding.left = 140;
+        // Destruir gráfico existente se houver
+        if (chartInstance) {
+            chartInstance.destroy();
+        }
         
-        rankingChart = new Chart(ctx, {
+        // Gerar cores aleatórias para cada jogador
+        const colors = generateColors(data.players.length);
+        
+        // Preparar datasets
+        const datasets = data.players.map((player, index) => {
+            return {
+                label: player.name,
+                data: player.positions,
+                borderColor: colors[index],
+                backgroundColor: colors[index] + '33', // Adiciona transparência
+                tension: 0.3,
+                pointRadius: 4,
+                pointHoverRadius: 6
+            };
+        });
+        
+        // Configurar o gráfico
+        chartInstance = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: [],
-                datasets: []
+                labels: data.dates,
+                datasets: datasets
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: {
-                    mode: 'nearest',
-                    axis: 'x',
-                    intersect: false
-                },
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            title: function(tooltipItems) {
-                                return 'Data: ' + tooltipItems[0].label;
-                            },
-                            label: function(context) {
-                                const playerName = context.dataset.label;
-                                const position = context.raw;
-                                if (position === null) return null;
-                                
-                                if (currentView === 'normal') {
-                                    return `${playerName}: ${position}º lugar`;
-                                } else {
-                                    // Para visualização relativa, mostrar se melhorou ou piorou
-                                    const sign = position < 0 ? '+' : (position > 0 ? '-' : '');
-                                    const change = Math.abs(position);
-                                    return `${playerName}: ${sign}${change} posições`;
-                                }
-                            }
-                        }
-                    },
-                    legend: {
-                        display: false // Sem legenda, já que temos os nomes nas linhas
-                    }
-                },
                 scales: {
                     y: {
-                        reverse: true, // Posições menores (melhores) ficam mais altas
-                        beginAtZero: false,
+                        reverse: true, // Inverte o eixo Y (posição 1 no topo)
                         title: {
                             display: true,
                             text: 'Posição'
-                        },
-                        ticks: {
-                            precision: 0 // Mostrar apenas números inteiros
                         }
                     },
                     x: {
@@ -240,220 +171,74 @@ document.addEventListener('DOMContentLoaded', function() {
                             text: 'Data'
                         }
                     }
-                }
-            }
-        });
-    }
-    
-    // Atualizar o gráfico com novos dados
-    function updateChart() {
-        // Obter jogadores selecionados
-        const selectedPlayers = Array.from(playerCheckboxes)
-            .filter(checkbox => checkbox.checked)
-            .map(checkbox => parseInt(checkbox.value));
-        
-        if (selectedPlayers.length === 0) {
-            alert('Por favor, selecione pelo menos um jogador.');
-            return;
-        }
-        
-        // Adicionar timestamp para evitar cache
-        const timestamp = new Date().getTime();
-        
-        // Construir URL da API com prevenção de cache
-        let url = `/api/ranking_history_data?days=${currentDays}&t=${timestamp}`;
-        selectedPlayers.forEach(id => {
-            url += `&player_ids[]=${id}`;
-        });
-        
-        // Exibir indicador de carregamento
-        const chartContainer = document.querySelector('.chart-container');
-        const loadingIndicator = document.createElement('div');
-        loadingIndicator.className = 'text-center position-absolute top-50 start-50 translate-middle';
-        loadingIndicator.innerHTML = '<div class="spinner-border text-primary" role="status"></div><p class="mt-2">Carregando dados...</p>';
-        loadingIndicator.style.zIndex = '10';
-        loadingIndicator.id = 'loadingIndicator';
-        
-        // Remover indicador anterior se existir
-        const oldIndicator = document.getElementById('loadingIndicator');
-        if (oldIndicator) oldIndicator.remove();
-        
-        chartContainer.appendChild(loadingIndicator);
-        
-        // Buscar os dados com configurações anti-cache
-        fetch(url, {
-            method: 'GET',
-            headers: {
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0'
-            }
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Erro ao carregar dados do gráfico');
-                }
-                return response.json();
-            })
-            .then(data => {
-                // Remover indicador de carregamento
-                if (loadingIndicator) loadingIndicator.remove();
-                
-                // Formatar as datas para exibição
-                const formattedDates = data.dates.map(date => {
-                    const parts = date.split('-');
-                    return `${parts[2]}/${parts[1]}`;
-                });
-                
-                // Preparar datasets para o gráfico
-                const colors = generateColors(data.players.length);
-                const datasets = [];
-                
-                data.players.forEach((player, index) => {
-                    let positions = [];
-                    
-                    if (currentView === 'normal') {
-                        // Usar posições absolutas
-                        positions = player.positions;
-                    } else {
-                        // Calcular variação relativa à primeira posição
-                        const firstValidPosition = player.positions.find(p => p !== null);
-                        if (firstValidPosition !== undefined) {
-                            positions = player.positions.map(p => {
-                                if (p === null) return null;
-                                return p - firstValidPosition; // Variação em relação à primeira posição
-                            });
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Evolução de Posições ao Longo do Tempo'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                return 'Data: ' + tooltipItems[0].label;
+                            },
+                            label: function(context) {
+                                return context.dataset.label + ': ' + context.raw + 'ª posição';
+                            }
                         }
                     }
-                    
-                    datasets.push({
-                        label: player.name,
-                        data: positions,
-                        borderColor: colors[index],
-                        backgroundColor: colors[index] + '33', // Adiciona transparência
-                        borderWidth: 2.5,
-                        pointBackgroundColor: colors[index],
-                        pointBorderColor: '#fff',
-                        pointRadius: 4,
-                        pointHoverRadius: 6,
-                        fill: false,
-                        tension: 0.1,
-                        spanGaps: true, // Conectar pontos mesmo com dados ausentes
-                        lineTension: 0.3 // Suaviza a linha
-                    });
-                });
-                
-                // Adicionar nomes dos jogadores no início do gráfico
-                const originalDraw = rankingChart.draw;
-                rankingChart.draw = function() {
-                    originalDraw.apply(this, arguments);
-                    
-                    const chart = this;
-                    const ctx = chart.ctx;
-                    const datasets = chart.data.datasets;
-                    
-                    datasets.forEach((dataset, i) => {
-                        if (!dataset.hidden && dataset.data.length > 0) {
-                            // Encontrar o primeiro ponto válido
-                            let firstValidIndex = 0;
-                            while (firstValidIndex < dataset.data.length && dataset.data[firstValidIndex] === null) {
-                                firstValidIndex++;
-                            }
-                            
-                            if (firstValidIndex < dataset.data.length) {
-                                const meta = chart.getDatasetMeta(i);
-                                const point = meta.data[firstValidIndex];
-                                
-                                if (point && point.y) {
-                                    ctx.save();
-                                    ctx.fillStyle = dataset.borderColor;
-                                    ctx.font = 'bold 12px Arial';
-                                    ctx.textAlign = 'right';
-                                    ctx.textBaseline = 'middle';
-                                    ctx.fillText(dataset.label, point.x - 15, point.y);
-                                    ctx.restore();
-                                }
-                            }
-                        }
-                    });
-                };
-                
-                // Atualizar o gráfico
-                rankingChart.data.labels = formattedDates;
-                rankingChart.data.datasets = datasets;
-                
-                // Ajustar a escala Y para visualização relativa
-                if (currentView === 'relative') {
-                    rankingChart.options.scales.y.reverse = false; // Valores negativos = melhoria
-                    rankingChart.options.scales.y.title.text = 'Variação de Posição';
-                } else {
-                    rankingChart.options.scales.y.reverse = true; // Posições menores são melhores
-                    rankingChart.options.scales.y.title.text = 'Posição';
                 }
-                
-                rankingChart.update();
-            })
-            .catch(error => {
-                // Remover indicador de carregamento
-                if (loadingIndicator) loadingIndicator.remove();
-                
-                console.error('Erro:', error);
-                alert('Não foi possível carregar os dados do gráfico. Por favor, tente novamente.');
-            });
+            }
+        });
     }
     
-    // Botões para filtrar por período
-    timeButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            timeButtons.forEach(btn => btn.classList.remove('active'));
-            this.classList.add('active');
-            
-            currentDays = parseInt(this.getAttribute('data-days'));
-            updateChart();
-        });
-    });
+    function generateColors(count) {
+        const colors = [];
+        const baseColors = [
+            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+            '#FF9F40', '#2E5BFF', '#5AD8A6', '#F53794', '#FF8373'
+        ];
+        
+        // Usar cores base se houver suficientes
+        if (count <= baseColors.length) {
+            return baseColors.slice(0, count);
+        }
+        
+        // Adicionar cores base
+        colors.push(...baseColors);
+        
+        // Gerar cores adicionais aleatórias
+        for (let i = baseColors.length; i < count; i++) {
+            const r = Math.floor(Math.random() * 255);
+            const g = Math.floor(Math.random() * 255);
+            const b = Math.floor(Math.random() * 255);
+            colors.push(`rgb(${r}, ${g}, ${b})`);
+        }
+        
+        return colors;
+    }
     
-    // Botões para alternar entre visualização normal e relativa
-    viewButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            viewButtons.forEach(btn => btn.classList.remove('active'));
-            this.classList.add('active');
-            
-            currentView = this.getAttribute('data-view');
-            updateChart();
-        });
-    });
+    // Inicializar gráfico
+    loadChartData();
     
-    // Botões para seleção de jogadores
-    selectAllButton.addEventListener('click', function() {
-        playerCheckboxes.forEach(checkbox => {
-            checkbox.checked = true;
-        });
-    });
-    
-    selectNoneButton.addEventListener('click', function() {
-        playerCheckboxes.forEach(checkbox => {
-            checkbox.checked = false;
-        });
-    });
-    
-    selectTop10Button.addEventListener('click', function() {
-        playerCheckboxes.forEach((checkbox, index) => {
-            checkbox.checked = index < 10;
-        });
-    });
-    
-    // Botão para atualizar o gráfico
-    updateChartButton.addEventListener('click', function() {
-        // Forçar atualização sem cache
-        updateChart();
-    });
-    
-    // Inicializar o gráfico
-    createChart();
-    
-    // Carregar dados iniciais
-    updateChart();
+    // Atualizar gráfico quando o botão for clicado
+    document.getElementById('updateChart').addEventListener('click', loadChartData);
 });
 </script>
+
+<style>
+.players-select-container {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+}
+
+.players-select {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+</style>
 {% endblock %}
