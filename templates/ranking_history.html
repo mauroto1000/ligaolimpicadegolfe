@@ -163,6 +163,26 @@ document.addEventListener('DOMContentLoaded', function() {
                         title: {
                             display: true,
                             text: 'Posição'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                // Encontrar quais jogadores estão nesta posição na última data
+                                const lastIndex = data.dates.length - 1;
+                                let playersAtPosition = [];
+                                
+                                data.players.forEach(player => {
+                                    const lastPos = player.positions[lastIndex];
+                                    if (lastPos === value) {
+                                        playersAtPosition.push(player.name);
+                                    }
+                                });
+                                
+                                // Retornar a posição e os nomes dos jogadores
+                                if (playersAtPosition.length > 0) {
+                                    return value + ' - ' + playersAtPosition.join(', ');
+                                }
+                                return value;
+                            }
                         }
                     },
                     x: {
@@ -186,6 +206,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                 return context.dataset.label + ': ' + context.raw + 'ª posição';
                             }
                         }
+                    },
+                    legend: {
+                        display: false // Ocultar as legendas tradicionais
                     }
                 }
             }
