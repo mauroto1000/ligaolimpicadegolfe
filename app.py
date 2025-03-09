@@ -57,8 +57,12 @@ def create_daily_history_table():
     conn.close()
     print("Tabela de histórico diário criada com sucesso.")
 
-# Função para registrar as posições diárias de todos os jogadores
-def record_daily_rankings():
+# MODIFICAÇÃO: Melhoria na função record_daily_rankings para permitir sobrescrever registros
+def record_daily_rankings(force_update=False):
+    """
+    Registra as posições diárias de todos os jogadores.
+    Se force_update=True, registros existentes serão substituídos.
+    """
     conn = get_db_connection()
     today = datetime.now().date()
     
@@ -68,26 +72,277 @@ def record_daily_rankings():
         (today.strftime('%Y-%m-%d'),)
     ).fetchone()
     
-    if existing and existing['count'] > 0:
+    if existing and existing['count'] > 0 and not force_update:
         print(f"Já existem registros para {today}. Pulando...")
         conn.close()
         return False
     
-    # Obter todos os jogadores ativos
-    players = conn.execute('SELECT id, position, tier FROM players WHERE active = 1 ORDER BY position').fetchall()
+    # Se existem registros e force_update=True, remover registros existentes
+    if existing and existing['count'] > 0 and force_update:
+        conn.execute('DELETE FROM daily_ranking_history WHERE date_recorded = ?', 
+                    (today.strftime('%Y-%m-%d'),))
+        print(f"Removidos registros existentes de {today} para atualização forçada")
     
-    # Registrar posição atual de cada jogador
-    for player in players:
-        conn.execute('''
-            INSERT INTO daily_ranking_history 
-            (player_id, position, tier, date_recorded)
-            VALUES (?, ?, ?, ?)
-        ''', (player['id'], player['position'], player['tier'], today.strftime('%Y-%m-%d')))
+    try:
+        # Obter todos os jogadores ativos
+        players = conn.execute('SELECT id, position, tier FROM players WHERE active = 1 ORDER BY position').fetchall()
+        
+        # Registrar posição atual de cada jogador
+        for player in players:
+            conn.execute('''
+                INSERT INTO daily_ranking_history 
+                (player_id, position, tier, date_recorded)
+                VALUES (?, ?, ?, ?)
+            ''', (player['id'], player['position'], player['tier'], today.strftime('%Y-%m-%d')))
+        
+        conn.commit()
+        print(f"Registrados {len(players)} jogadores no histórico diário para {today}")
+        return True
+    except Exception as e:
+        conn.rollback()
+        print(f"Erro ao registrar histórico diário: {str(e)}")
+        return False
+    finally:
+        conn.close()
+
+
+def sync_ranking_history_tables(conn=None, specific_date=None):
+    """
+    Sincroniza as tabelas ranking_history e daily_ranking_history.
+    Se uma data específica for fornecida, sincroniza apenas para essa data.
+    Caso contrário, sincroniza para a data atual.
     
-    conn.commit()
-    conn.close()
-    print(f"Registrados {len(players)} jogadores no histórico diário para {today}")
-    return True
+    Args:
+        conn: Conexão com o banco de dados (opcional)
+        specific_date: Data específica para sincronização (opcional)
+    """
+    # Determinar se precisamos criar e fechar a conexão
+    connection_provided = conn is not None
+    if not connection_provided:
+        conn = get_db_connection()
+    
+    try:
+        # Determinar a data para sincronização
+        if specific_date:
+            target_date = specific_date
+        else:
+            target_date = datetime.now().date()
+        
+        target_date_str = target_date.strftime('%Y-%m-%d')
+        
+        # Verificar se existem registros no daily_ranking_history para a data alvo
+        existing = conn.execute(
+            'SELECT COUNT(*) as count FROM daily_ranking_history WHERE date_recorded = ?', 
+            (target_date_str,)
+        ).fetchone()
+        
+        # Obter todas as alterações de ranking para a data alvo
+        ranking_changes = conn.execute('''
+            SELECT player_id, new_position, new_tier, change_date 
+            FROM ranking_history 
+            WHERE date(change_date) = ? 
+            ORDER BY change_date DESC
+        ''', (target_date_str,)).fetchall()
+        
+        # Se existem alterações para hoje, vamos usar as informações mais recentes
+        # para atualizar ou criar o registro diário
+        if ranking_changes:
+            # Remover registros existentes para a data alvo
+            conn.execute('DELETE FROM daily_ranking_history WHERE date_recorded = ?', 
+                       (target_date_str,))
+            
+            # Mapear as posições mais recentes para cada jogador alterado hoje
+            player_latest_positions = {}
+            for change in ranking_changes:
+                player_id = change['player_id']
+                if player_id not in player_latest_positions:
+                    player_latest_positions[player_id] = {
+                        'position': change['new_position'],
+                        'tier': change['new_tier']
+                    }
+            
+            # Obter todos os jogadores ativos
+            all_players = conn.execute('SELECT id, position, tier FROM players WHERE active = 1').fetchall()
+            
+            # Inserir registros diários atualizados
+            for player in all_players:
+                player_id = player['id']
+                
+                # Se o jogador teve alteração hoje, use a posição da alteração
+                if player_id in player_latest_positions:
+                    position = player_latest_positions[player_id]['position']
+                    tier = player_latest_positions[player_id]['tier']
+                # Caso contrário, use a posição atual
+                else:
+                    position = player['position']
+                    tier = player['tier']
+                
+                # Inserir registro diário
+                conn.execute('''
+                    INSERT INTO daily_ranking_history 
+                    (player_id, position, tier, date_recorded)
+                    VALUES (?, ?, ?, ?)
+                ''', (player_id, position, tier, target_date_str))
+            
+            print(f"Sincronizado histórico diário para {target_date_str} com base em {len(ranking_changes)} alterações")
+        # Se não existem alterações para a data alvo e não existem registros diários
+        elif not existing or existing['count'] == 0:
+            # Registrar snapshot das posições atuais
+            record_daily_rankings(force_update=True)
+            print(f"Criado novo snapshot para {target_date_str} por não existirem alterações ou registros")
+        
+        # Se não chegamos aqui, é porque já existem registros diários e não há alterações
+        # para a data alvo, então não precisamos fazer nada
+        
+        if not connection_provided:
+            conn.commit()
+        
+    except Exception as e:
+        print(f"Erro ao sincronizar histórico: {str(e)}")
+        if not connection_provided:
+            conn.rollback()
+    finally:
+        if not connection_provided:
+            conn.close()
+
+
+@app.route('/force_record_daily', methods=['GET'])
+def force_record_daily():
+    conn = get_db_connection()
+    today = datetime.now().date()
+    
+    try:
+        # Remover registros existentes para hoje
+        conn.execute(
+            'DELETE FROM daily_ranking_history WHERE date_recorded = ?', 
+            (today.strftime('%Y-%m-%d'),)
+        )
+        
+        # Obter todos os jogadores ativos
+        players = conn.execute('SELECT id, position, tier FROM players WHERE active = 1 ORDER BY position').fetchall()
+        
+        # Registrar posição atual de cada jogador
+        for player in players:
+            conn.execute('''
+                INSERT INTO daily_ranking_history 
+                (player_id, position, tier, date_recorded)
+                VALUES (?, ?, ?, ?)
+            ''', (player['id'], player['position'], player['tier'], today.strftime('%Y-%m-%d')))
+        
+        conn.commit()
+        flash(f'Posições atualizadas com sucesso no histórico para {today.strftime("%d/%m/%Y")}!', 'success')
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao atualizar histórico: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('index'))
+
+# Rota para diagnosticar e corrigir o histórico
+@app.route('/fix_history', methods=['GET'])
+def fix_history():
+    """
+    Verifica e corrige problemas no histórico diário:
+    - Remove posições duplicadas para a mesma data
+    - Garante que não há lacunas nas posições para cada data
+    """
+    conn = get_db_connection()
+    
+    try:
+        # Buscar todas as datas distintas no histórico
+        dates = conn.execute(
+            'SELECT DISTINCT date_recorded FROM daily_ranking_history ORDER BY date_recorded'
+        ).fetchall()
+        
+        total_fixed = 0
+        
+        for date_record in dates:
+            date = date_record['date_recorded']
+            
+            # Verificar posições duplicadas na mesma data
+            duplicates = conn.execute('''
+                SELECT position, COUNT(*) as count
+                FROM daily_ranking_history
+                WHERE date_recorded = ?
+                GROUP BY position
+                HAVING COUNT(*) > 1
+            ''', (date,)).fetchall()
+            
+            # Se encontrar duplicatas, corrigir
+            if duplicates:
+                for dup in duplicates:
+                    position = dup['position']
+                    
+                    # Buscar jogadores com esta posição duplicada
+                    players_with_dup = conn.execute('''
+                        SELECT h.id, h.player_id, p.name
+                        FROM daily_ranking_history h
+                        JOIN players p ON h.player_id = p.id
+                        WHERE h.date_recorded = ? AND h.position = ?
+                        ORDER BY h.id
+                    ''', (date, position)).fetchall()
+                    
+                    # Manter apenas o primeiro registro (o mais antigo) e remover os outros
+                    if len(players_with_dup) > 1:
+                        for player in players_with_dup[1:]:
+                            conn.execute('DELETE FROM daily_ranking_history WHERE id = ?', (player['id'],))
+                            total_fixed += 1
+            
+            # Verificar se há lacunas nas posições sequenciais para esta data
+            positions = conn.execute('''
+                SELECT position 
+                FROM daily_ranking_history
+                WHERE date_recorded = ?
+                ORDER BY position
+            ''', (date,)).fetchall()
+            
+            positions_list = [p['position'] for p in positions]
+            expected_positions = list(range(1, len(positions_list) + 1))
+            
+            if positions_list != expected_positions:
+                # Há uma discrepância - recalcular posições
+                records = conn.execute('''
+                    SELECT id, player_id
+                    FROM daily_ranking_history
+                    WHERE date_recorded = ?
+                    ORDER BY position
+                ''', (date,)).fetchall()
+                
+                # Atualizar posições para serem sequenciais
+                for i, record in enumerate(records, 1):
+                    conn.execute('''
+                        UPDATE daily_ranking_history
+                        SET position = ?
+                        WHERE id = ?
+                    ''', (i, record['id']))
+                    
+                    # Também atualizar o tier com base na nova posição
+                    tier = get_tier_from_position(i)
+                    conn.execute('''
+                        UPDATE daily_ranking_history
+                        SET tier = ?
+                        WHERE id = ?
+                    ''', (tier, record['id']))
+                    
+                    total_fixed += 1
+        
+        conn.commit()
+        
+        if total_fixed > 0:
+            flash(f'Histórico corrigido: {total_fixed} problemas resolvidos.', 'success')
+        else:
+            flash('Nenhum problema encontrado no histórico.', 'info')
+            
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao corrigir o histórico: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('ranking_history'))
+
+
 
 # Função para determinar o tier com base na posição
 def get_tier_from_position(position):
@@ -322,34 +577,8 @@ def process_challenge_result(conn, challenge_id, status, result):
                      challenged_old_tier, new_challenged['tier'], 
                      'challenge_loss' if result == 'challenger_win' else 'no_change', challenge_id))
             
-            # NOVA ADIÇÃO: Registrar automaticamente as posições atuais de todos os jogadores
-            # no histórico diário após um desafio concluído
-            today = datetime.now().date()
-            
-            # Verificar se já existem registros para hoje
-            existing = conn.execute(
-                'SELECT COUNT(*) as count FROM daily_ranking_history WHERE date_recorded = ?', 
-                (today.strftime('%Y-%m-%d'),)
-            ).fetchone()
-            
-            # Se já existem registros para hoje, removê-los antes de adicionar os novos
-            if existing and existing['count'] > 0:
-                conn.execute('DELETE FROM daily_ranking_history WHERE date_recorded = ?', 
-                            (today.strftime('%Y-%m-%d'),))
-                print(f"Removidos registros existentes de {today} para atualização após desafio")
-            
-            # Obter todos os jogadores ativos com suas posições atuais
-            players = conn.execute('SELECT id, position, tier FROM players WHERE active = 1 ORDER BY position').fetchall()
-            
-            # Registrar posição atual de cada jogador
-            for player in players:
-                conn.execute('''
-                    INSERT INTO daily_ranking_history 
-                    (player_id, position, tier, date_recorded)
-                    VALUES (?, ?, ?, ?)
-                ''', (player['id'], player['position'], player['tier'], today.strftime('%Y-%m-%d')))
-            
-            print(f"Registrados {len(players)} jogadores no histórico diário para {today} após conclusão de desafio")
+            # NOVA ADIÇÃO: Sincronizar as tabelas de histórico para garantir consistência
+            sync_ranking_history_tables(conn)
             
         except Exception as e:
             print(f"Erro ao processar resultado do desafio: {e}")
@@ -406,33 +635,8 @@ def revert_challenge_result(conn, challenge_id):
     # Atualizar o desafio para remover o resultado
     conn.execute('UPDATE challenges SET result = NULL WHERE id = ?', (challenge_id,))
     
-    # NOVA ADIÇÃO: Atualizar o histórico diário após reverter um desafio
-    today = datetime.now().date()
-    
-    # Verificar se já existem registros para hoje
-    existing = conn.execute(
-        'SELECT COUNT(*) as count FROM daily_ranking_history WHERE date_recorded = ?', 
-        (today.strftime('%Y-%m-%d'),)
-    ).fetchone()
-    
-    # Se já existem registros para hoje, removê-los antes de adicionar os novos
-    if existing and existing['count'] > 0:
-        conn.execute('DELETE FROM daily_ranking_history WHERE date_recorded = ?', 
-                    (today.strftime('%Y-%m-%d'),))
-        print(f"Removidos registros existentes de {today} para atualização após reverter desafio")
-    
-    # Obter todos os jogadores ativos com suas posições atuais
-    players = conn.execute('SELECT id, position, tier FROM players WHERE active = 1 ORDER BY position').fetchall()
-    
-    # Registrar posição atual de cada jogador
-    for player in players:
-        conn.execute('''
-            INSERT INTO daily_ranking_history 
-            (player_id, position, tier, date_recorded)
-            VALUES (?, ?, ?, ?)
-        ''', (player['id'], player['position'], player['tier'], today.strftime('%Y-%m-%d')))
-    
-    print(f"Registrados {len(players)} jogadores no histórico diário para {today} após reverter desafio")
+    # NOVA ADIÇÃO: Sincronizar as tabelas de histórico após reverter um desafio
+    sync_ranking_history_tables(conn)
     
     conn.commit()
     print(f"Alterações do desafio ID {challenge_id} foram revertidas com sucesso.")
@@ -478,18 +682,75 @@ def player_ranking_history(player_id):
     # Calcular a data limite
     limit_date = (datetime.now() - timedelta(days=days)).date()
     
-    # Buscar o histórico do jogador
-    history = conn.execute('''
+    # Buscar o histórico diário do jogador
+    daily_history = conn.execute('''
         SELECT date_recorded, position, tier
         FROM daily_ranking_history
         WHERE player_id = ? AND date_recorded >= ?
         ORDER BY date_recorded
     ''', (player_id, limit_date.strftime('%Y-%m-%d'))).fetchall()
     
-    # Prepara os dados para o gráfico
-    dates = [item['date_recorded'] for item in history]
-    positions = [item['position'] for item in history]
-    tiers = [item['tier'] for item in history]
+    # Buscar eventos específicos do ranking_history
+    specific_changes = conn.execute('''
+        SELECT date(change_date) as event_date, old_position, new_position, old_tier, new_tier, reason
+        FROM ranking_history
+        WHERE player_id = ? AND date(change_date) >= ?
+        ORDER BY change_date
+    ''', (player_id, limit_date.strftime('%Y-%m-%d'))).fetchall()
+    
+    # Combinar dados para visualização
+    dates = []
+    positions = []
+    tiers = []
+    events = []
+    
+    # Converter daily_history para um dicionário para fácil acesso
+    daily_dict = {item['date_recorded']: {'position': item['position'], 'tier': item['tier']} for item in daily_history}
+    
+    # Converter specific_changes para um dicionário
+    changes_dict = {}
+    for change in specific_changes:
+        if change['event_date'] not in changes_dict:
+            changes_dict[change['event_date']] = []
+        changes_dict[change['event_date']].append(change)
+    
+    # Criar série temporal contínua
+    current_date = limit_date
+    end_date = datetime.now().date()
+    
+    while current_date <= end_date:
+        current_date_str = current_date.strftime('%Y-%m-%d')
+        
+        # Adicionar data
+        dates.append(current_date_str)
+        
+        # Verificar se temos um registro diário para esta data
+        if current_date_str in daily_dict:
+            positions.append(daily_dict[current_date_str]['position'])
+            tiers.append(daily_dict[current_date_str]['tier'])
+        else:
+            # Se não temos registro para esta data, usar valor anterior ou None
+            if positions:
+                positions.append(positions[-1])
+                tiers.append(tiers[-1])
+            else:
+                positions.append(None)
+                tiers.append(None)
+        
+        # Verificar se temos eventos específicos para esta data
+        if current_date_str in changes_dict:
+            # Usar o último evento do dia para esta posição
+            latest_change = changes_dict[current_date_str][-1]
+            positions[-1] = latest_change['new_position']
+            tiers[-1] = latest_change['new_tier']
+            events.append({
+                'date': current_date_str,
+                'reason': latest_change['reason'],
+                'old_position': latest_change['old_position'],
+                'new_position': latest_change['new_position']
+            })
+        
+        current_date += timedelta(days=1)
     
     conn.close()
     
@@ -498,7 +759,9 @@ def player_ranking_history(player_id):
                           dates=dates, 
                           positions=positions,
                           tiers=tiers,
+                          events=events,
                           days=days)
+
 
 # API para obter dados filtrados para o gráfico
 @app.route('/api/player/<int:player_id>/ranking_history')
@@ -1923,7 +2186,20 @@ def api_ranking_history_data():
     })
 
 
+@app.route('/sync_history', methods=['GET'])
+def sync_history_route():
+    """
+    Sincroniza manualmente as tabelas de histórico para a data atual.
+    """
+    try:
+        sync_ranking_history_tables()
+        flash('Histórico sincronizado com sucesso!', 'success')
+    except Exception as e:
+        flash(f'Erro ao sincronizar histórico: {str(e)}', 'error')
+    
+    return redirect(url_for('ranking_history'))
 
+# Atualização da parte relacionada à inicialização da aplicação
 
 # Atualização da parte relacionada à inicialização da aplicação
 
@@ -1956,20 +2232,17 @@ if __name__ == '__main__':
     # Criar a tabela de histórico diário se não existir
     create_daily_history_table()
     
-    # Verificar se existem registros para o dia atual
-    today = datetime.now().date()
+    # Verificar e corrigir a estrutura da pirâmide
+    print("Realizando verificação inicial da pirâmide...")
     conn = get_db_connection()
-    existing = conn.execute(
-        'SELECT COUNT(*) as count FROM daily_ranking_history WHERE date_recorded = ?', 
-        (today.strftime('%Y-%m-%d'),)
-    ).fetchone()
+    fix_position_gaps(conn)
+    update_all_tiers(conn)
+    conn.commit()
+    conn.close()
     
-    # Se não existem registros para hoje, registrar a situação atual
-    if not existing or existing['count'] == 0:
-        print(f"Registrando posições iniciais para {today}...")
-        record_daily_rankings()
-    else:
-        print(f"Já existem {existing['count']} registros para {today}. Mantendo registros existentes.")
+    # Sincronizar o histórico diário com o histórico de ranking
+    print("Sincronizando histórico para o dia atual...")
+    sync_ranking_history_tables()
     
     # Criar pasta de templates se não existir
     if not os.path.exists('templates'):
@@ -1978,14 +2251,6 @@ if __name__ == '__main__':
     # Criar pasta static se não existir
     if not os.path.exists('static'):
         os.makedirs('static')
-    
-    # Executar uma verificação inicial da pirâmide
-    print("Realizando verificação inicial da pirâmide...")
-    conn = get_db_connection()
-    fix_position_gaps(conn)
-    update_all_tiers(conn)
-    conn.commit()
-    conn.close()
     
     # Modificação: adicionado argumento host='0.0.0.0' para permitir acesso externo
     app.run(debug=True, host='0.0.0.0')
