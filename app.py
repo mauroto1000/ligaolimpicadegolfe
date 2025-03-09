@@ -2066,16 +2066,28 @@ def update_player_hcp(player_id):
     
     return redirect(url_for('player_detail', player_id=player_id))
 
+
 @app.route('/ranking_history')
 def ranking_history():
     """Mostra o histórico de todas as posições em um gráfico"""
     conn = get_db_connection()
     
-    # Obter o período desejado (padrão: últimos 30 dias)
-    days = request.args.get('days', 30, type=int)
+    # Verificar se foi fornecido um intervalo de datas personalizado
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
     
-    # Calcular a data limite
-    limit_date = (datetime.now() - timedelta(days=days)).date()
+    # Se intervalo personalizado não foi fornecido, usar período em dias
+    if not (start_date and end_date):
+        # Obter o período desejado (padrão: últimos 30 dias)
+        days = request.args.get('days', 30, type=int)
+        
+        # Calcular a data limite
+        limit_date = (datetime.now() - timedelta(days=days)).date()
+        end_date = datetime.now().date().strftime('%Y-%m-%d')
+    else:
+        # Usar intervalo de datas personalizado
+        limit_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        days = None  # Não usamos days quando temos start_date e end_date
     
     # Buscar as datas disponíveis no histórico
     dates = conn.execute('''
@@ -2095,43 +2107,59 @@ def ranking_history():
         ORDER BY position
     ''').fetchall()
     
-    # Limitar o número de jogadores para não sobrecarregar o gráfico
-    max_players = min(20, len(players))
-    top_players = players[:max_players]
-    
     # Criar uma lista combinada de players para o template
-    players_list = [{'id': p['id'], 'name': p['name']} for p in top_players]
+    players_list = [{'id': p['id'], 'name': p['name']} for p in players]
     
     conn.close()
     
     return render_template('ranking_history.html', 
                            days=days, 
                            dates=date_list,
-                           players=players_list)
+                           players=players_list,
+                           start_date=start_date,
+                           end_date=end_date)
+
 
 @app.route('/api/ranking_history_data')
 def api_ranking_history_data():
     """API para obter os dados de histórico para o gráfico"""
     conn = get_db_connection()
     
-    # Obter os parâmetros
-    days = request.args.get('days', 30, type=int)
+    # Verificar se foi fornecido um intervalo de datas personalizado
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    
+    # Se intervalo personalizado não foi fornecido, usar período em dias
+    if not (start_date and end_date):
+        # Obter os parâmetros
+        days = request.args.get('days', 30, type=int)
+        
+        # Calcular a data limite
+        limit_date = (datetime.now() - timedelta(days=days)).date()
+        end_date = datetime.now().date().strftime('%Y-%m-%d')
+    else:
+        # Usar intervalo de datas personalizado
+        limit_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date, '%Y-%m-%d').date().strftime('%Y-%m-%d')
+    
+    # Converter limit_date para string no formato correto para SQL
+    limit_date_str = limit_date.strftime('%Y-%m-%d')
+    
+    # Obter os IDs dos jogadores selecionados
     player_ids = request.args.getlist('player_ids[]', type=int)
     
     # Limitar o número de jogadores para performance
     if len(player_ids) > 30:
         player_ids = player_ids[:30]
     
-    # Calcular a data limite
-    limit_date = (datetime.now() - timedelta(days=days)).date()
-    
     # Buscar as datas disponíveis no histórico
-    dates = conn.execute('''
+    date_query = '''
         SELECT DISTINCT date_recorded 
         FROM daily_ranking_history 
-        WHERE date_recorded >= ?
+        WHERE date_recorded >= ? AND date_recorded <= ?
         ORDER BY date_recorded
-    ''', (limit_date.strftime('%Y-%m-%d'),)).fetchall()
+    '''
+    dates = conn.execute(date_query, (limit_date_str, end_date)).fetchall()
     
     date_list = [d['date_recorded'] for d in dates]
     
@@ -2146,12 +2174,13 @@ def api_ranking_history_data():
             continue
         
         # Buscar histórico do jogador
-        history = conn.execute('''
+        history_query = '''
             SELECT date_recorded, position 
             FROM daily_ranking_history 
-            WHERE player_id = ? AND date_recorded >= ?
+            WHERE player_id = ? AND date_recorded >= ? AND date_recorded <= ?
             ORDER BY date_recorded
-        ''', (player_id, limit_date.strftime('%Y-%m-%d'))).fetchall()
+        '''
+        history = conn.execute(history_query, (player_id, limit_date_str, end_date)).fetchall()
         
         # Criar um dicionário com as posições por data
         positions_by_date = {h['date_recorded']: h['position'] for h in history}
