@@ -241,10 +241,12 @@ def rebalance_positions_after_challenge(conn, winner_id, loser_id, winner_new_po
     print("Posições e tiers rebalanceados após o desafio.")
 
 # Função aprimorada para processar o resultado de um desafio
+# Adição de código para função existente process_challenge_result
+
 def process_challenge_result(conn, challenge_id, status, result):
     """
     Processa o resultado de um desafio, atualizando posições e tiers conforme necessário.
-    Versão melhorada que garante a consistência da pirâmide.
+    Versão melhorada que garante a consistência da pirâmide e registra o histórico diário.
     """
     # Atualizar o status e resultado do desafio
     conn.execute('UPDATE challenges SET status = ?, result = ? WHERE id = ?', 
@@ -320,6 +322,35 @@ def process_challenge_result(conn, challenge_id, status, result):
                      challenged_old_tier, new_challenged['tier'], 
                      'challenge_loss' if result == 'challenger_win' else 'no_change', challenge_id))
             
+            # NOVA ADIÇÃO: Registrar automaticamente as posições atuais de todos os jogadores
+            # no histórico diário após um desafio concluído
+            today = datetime.now().date()
+            
+            # Verificar se já existem registros para hoje
+            existing = conn.execute(
+                'SELECT COUNT(*) as count FROM daily_ranking_history WHERE date_recorded = ?', 
+                (today.strftime('%Y-%m-%d'),)
+            ).fetchone()
+            
+            # Se já existem registros para hoje, removê-los antes de adicionar os novos
+            if existing and existing['count'] > 0:
+                conn.execute('DELETE FROM daily_ranking_history WHERE date_recorded = ?', 
+                            (today.strftime('%Y-%m-%d'),))
+                print(f"Removidos registros existentes de {today} para atualização após desafio")
+            
+            # Obter todos os jogadores ativos com suas posições atuais
+            players = conn.execute('SELECT id, position, tier FROM players WHERE active = 1 ORDER BY position').fetchall()
+            
+            # Registrar posição atual de cada jogador
+            for player in players:
+                conn.execute('''
+                    INSERT INTO daily_ranking_history 
+                    (player_id, position, tier, date_recorded)
+                    VALUES (?, ?, ?, ?)
+                ''', (player['id'], player['position'], player['tier'], today.strftime('%Y-%m-%d')))
+            
+            print(f"Registrados {len(players)} jogadores no histórico diário para {today} após conclusão de desafio")
+            
         except Exception as e:
             print(f"Erro ao processar resultado do desafio: {e}")
             conn.rollback()
@@ -337,10 +368,13 @@ def process_challenge_result(conn, challenge_id, status, result):
         print("Tiers corrigidos automaticamente.")
 
 # Função para reverter os efeitos de um desafio no ranking
+# Atualização da função revert_challenge_result para atualizar o histórico diário
+
 def revert_challenge_result(conn, challenge_id):
     """
     Reverte as alterações feitas por um desafio no ranking.
-    Restaura as posições anteriores dos jogadores e remove os registros de histórico.
+    Restaura as posições anteriores dos jogadores, remove os registros de histórico
+    e atualiza o histórico diário.
     """
     # Buscar registros de histórico para este desafio
     history_records = conn.execute('''
@@ -371,6 +405,34 @@ def revert_challenge_result(conn, challenge_id):
     
     # Atualizar o desafio para remover o resultado
     conn.execute('UPDATE challenges SET result = NULL WHERE id = ?', (challenge_id,))
+    
+    # NOVA ADIÇÃO: Atualizar o histórico diário após reverter um desafio
+    today = datetime.now().date()
+    
+    # Verificar se já existem registros para hoje
+    existing = conn.execute(
+        'SELECT COUNT(*) as count FROM daily_ranking_history WHERE date_recorded = ?', 
+        (today.strftime('%Y-%m-%d'),)
+    ).fetchone()
+    
+    # Se já existem registros para hoje, removê-los antes de adicionar os novos
+    if existing and existing['count'] > 0:
+        conn.execute('DELETE FROM daily_ranking_history WHERE date_recorded = ?', 
+                    (today.strftime('%Y-%m-%d'),))
+        print(f"Removidos registros existentes de {today} para atualização após reverter desafio")
+    
+    # Obter todos os jogadores ativos com suas posições atuais
+    players = conn.execute('SELECT id, position, tier FROM players WHERE active = 1 ORDER BY position').fetchall()
+    
+    # Registrar posição atual de cada jogador
+    for player in players:
+        conn.execute('''
+            INSERT INTO daily_ranking_history 
+            (player_id, position, tier, date_recorded)
+            VALUES (?, ?, ?, ?)
+        ''', (player['id'], player['position'], player['tier'], today.strftime('%Y-%m-%d')))
+    
+    print(f"Registrados {len(players)} jogadores no histórico diário para {today} após reverter desafio")
     
     conn.commit()
     print(f"Alterações do desafio ID {challenge_id} foram revertidas com sucesso.")
@@ -1863,6 +1925,8 @@ def api_ranking_history_data():
 
 
 
+# Atualização da parte relacionada à inicialização da aplicação
+
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
     if not os.path.exists(DATABASE):
@@ -1892,6 +1956,21 @@ if __name__ == '__main__':
     # Criar a tabela de histórico diário se não existir
     create_daily_history_table()
     
+    # Verificar se existem registros para o dia atual
+    today = datetime.now().date()
+    conn = get_db_connection()
+    existing = conn.execute(
+        'SELECT COUNT(*) as count FROM daily_ranking_history WHERE date_recorded = ?', 
+        (today.strftime('%Y-%m-%d'),)
+    ).fetchone()
+    
+    # Se não existem registros para hoje, registrar a situação atual
+    if not existing or existing['count'] == 0:
+        print(f"Registrando posições iniciais para {today}...")
+        record_daily_rankings()
+    else:
+        print(f"Já existem {existing['count']} registros para {today}. Mantendo registros existentes.")
+    
     # Criar pasta de templates se não existir
     if not os.path.exists('templates'):
         os.makedirs('templates')
@@ -1908,4 +1987,5 @@ if __name__ == '__main__':
     conn.commit()
     conn.close()
     
-    app.run(debug=True)
+    # Modificação: adicionado argumento host='0.0.0.0' para permitir acesso externo
+    app.run(debug=True, host='0.0.0.0')
