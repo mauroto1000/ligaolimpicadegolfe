@@ -199,31 +199,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 pointRadius: 4,
                 pointHoverRadius: 6,
                 borderWidth: 2,
-                // Configuração para os rótulos de valores nas linhas
+                // Adicionar rótulos de texto para os jogadores
                 datalabels: {
-                    // Rótulos para os valores de posição em todos os pontos
-                    align: 'center',
-                    anchor: 'center',
-                    color: 'black', // Texto preto
-                    backgroundColor: 'white', // Fundo branco
-                    borderRadius: 10, // Formato circular
-                    borderWidth: 1, 
-                    borderColor: function(context) {
-                        return context.dataset.borderColor; // Mesma cor da linha
-                    },
+                    align: 'left',
+                    anchor: 'start',
+                    color: colors[index],
                     font: {
                         weight: 'bold',
-                        size: 9
+                        size: 11
                     },
                     formatter: function(value, context) {
-                        // Exibir o valor da posição em cada ponto
-                        if (value !== null && value !== undefined) {
-                            return value;
+                        const datasetIndex = context.datasetIndex;
+                        const dataIndex = context.dataIndex;
+                        
+                        // Exibir o nome apenas no primeiro ponto válido da série (lado esquerdo)
+                        if (dataIndex === 0 && value !== null && value !== undefined) {
+                            return player.name;
                         }
                         return null;
                     },
-                    padding: 3,
-                    offset: -15 // Colocar um pouco acima do ponto
+                    padding: {
+                        right: 5
+                    },
+                    textAlign: 'right',
+                    offset: 5
                 }
             };
         });
@@ -308,49 +307,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     legend: {
                         display: false // Ocultar as legendas tradicionais
-                    },
-                    // Configurações específicas para o plugin de rótulos de dados
-                    datalabels: {
-                        display: function(context) {
-                            // Controle condicional para não mostrar todos os rótulos de posição
-                            // Isso ajuda a reduzir a poluição visual
-                            const dataIndex = context.dataIndex;
-                            const datasetIndex = context.datasetIndex;
-                            const dataset = context.chart.data.datasets[datasetIndex];
-                            
-                            // Obter a data atual e anterior (se existir)
-                            const currentPos = dataset.data[dataIndex];
-                            const prevPos = dataIndex > 0 ? dataset.data[dataIndex - 1] : null;
-                            
-                            // Não mostrar se o valor é nulo
-                            if (currentPos === null || currentPos === undefined) {
-                                return false;
-                            }
-                            
-                            // Mostrar sempre no primeiro e último pontos
-                            if (dataIndex === 0 || dataIndex === dataset.data.length - 1) {
-                                return true;
-                            }
-                            
-                            // Mostrar quando há mudança de posição
-                            if (prevPos !== null && prevPos !== currentPos) {
-                                return true;
-                            }
-                            
-                            // Mostrar apenas alguns pontos para evitar poluição visual
-                            // (apenas a cada 2 pontos para gráficos com poucos dados)
-                            if (dataset.data.length <= 10 && dataIndex % 2 === 0) {
-                                return true;
-                            }
-                            
-                            // Para gráficos com mais pontos, mostrar a cada 3 pontos
-                            if (dataset.data.length > 10 && dataIndex % 3 === 0) {
-                                return true;
-                            }
-                            
-                            // Por padrão, não mostrar
-                            return false;
-                        }
                     }
                 }
             }
