@@ -67,6 +67,13 @@
         background-color: #ffc107;
         color: #212529;
     }
+    
+    /* Estilo para jogadores com desafios concluídos com pendência */
+    .pyramid-cell.completed-pending-challenge {
+        background-color: #28a745;
+        border: 3px solid #dc3545;
+        color: white;
+    }
 
     .player-position {
         position: absolute;
@@ -184,6 +191,11 @@
     .legend-blue {
         background-color: #002970;
     }
+    
+    .legend-green-red-border {
+        background-color: #28a745;
+        border: 3px solid #dc3545;
+    }
 
     /* Classes para dispositivos móveis */
     @media (max-width: 767px) {
@@ -290,7 +302,7 @@
             <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">Voltar para Lista</a>
         </div>
         
-        <!-- Legenda - MODIFICADA: removida a legenda "Nível" -->
+        <!-- Legenda - Adicionado o novo item de legenda -->
         <div class="legend-container">
             <div class="legend-item">
                 <div class="legend-color legend-green"></div>
@@ -299,6 +311,10 @@
             <div class="legend-item">
                 <div class="legend-color legend-yellow"></div>
                 <span>Jogador com desafio</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color legend-green-red-border"></div>
+                <span>Desafio concluído (c/ pendência)</span>
             </div>
         </div>
         
@@ -314,7 +330,9 @@
                     
                     <!-- Célula para cada posição no tier -->
                     {% for player in players|sort(attribute='position') %}
-                        <div class="pyramid-cell {% if player.has_pending_challenge %}pending-challenge{% endif %}" 
+                        <div class="pyramid-cell 
+                             {% if player.has_pending_challenge %}pending-challenge{% endif %}
+                             {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}"
                              data-player-name="{{ player.name|lower }}"
                              data-player-id="{{ player.id }}"
                              data-position="{{ player.position }}"
@@ -332,6 +350,9 @@
                                 {% endif %}
                                 {% if player.has_pending_challenge %}
                                 <span class="text-warning">Tem desafio pendente</span><br>
+                                {% endif %}
+                                {% if player.challenge_status == 'completed_pending' %}
+                                <span class="text-danger">Desafio concluído (c/ pendência)</span><br>
                                 {% endif %}
                                 <small>Clique para detalhes</small>
                             </div>

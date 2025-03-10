@@ -502,10 +502,16 @@ def process_challenge_result(conn, challenge_id, status, result):
     """
     Processa o resultado de um desafio, atualizando posições e tiers conforme necessário.
     Versão melhorada que garante a consistência da pirâmide e registra o histórico diário.
+    Agora suporta o status "completed_pending" que finaliza o desafio sem alterar o ranking.
     """
     # Atualizar o status e resultado do desafio
     conn.execute('UPDATE challenges SET status = ?, result = ? WHERE id = ?', 
                 (status, result, challenge_id))
+    
+    # Se for "Concluído (com pendência)", apenas registramos o resultado sem alterar posições
+    if status == 'completed_pending':
+        conn.commit()
+        return
     
     if status == 'completed' and result:
         # Buscar informações detalhadas do desafio
@@ -577,7 +583,7 @@ def process_challenge_result(conn, challenge_id, status, result):
                      challenged_old_tier, new_challenged['tier'], 
                      'challenge_loss' if result == 'challenger_win' else 'no_change', challenge_id))
             
-            # NOVA ADIÇÃO: Sincronizar as tabelas de histórico para garantir consistência
+            # Sincronizar as tabelas de histórico para garantir consistência
             sync_ranking_history_tables(conn)
             
         except Exception as e:
@@ -595,9 +601,6 @@ def process_challenge_result(conn, challenge_id, status, result):
         update_all_tiers(conn)
         conn.commit()
         print("Tiers corrigidos automaticamente.")
-
-# Função para reverter os efeitos de um desafio no ranking
-# Atualização da função revert_challenge_result para atualizar o histórico diário
 
 def revert_challenge_result(conn, challenge_id):
     """
@@ -1050,21 +1053,24 @@ def pyramid_dynamic():
     # Buscar jogadores ativos
     players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
     
-    # Buscar jogadores com desafios pendentes ou aceitos
-    players_with_pending_challenges = conn.execute('''
-        SELECT DISTINCT p.id 
-        FROM players p
-        JOIN challenges c ON (p.id = c.challenger_id OR p.id = c.challenged_id)
-        WHERE c.status IN ('pending', 'accepted')
-          AND p.active = 1
+    # Buscar jogadores com desafios
+    challenges = conn.execute('''
+        SELECT DISTINCT c.challenger_id, c.challenged_id, c.status
+        FROM challenges c
+        WHERE c.status IN ('pending', 'accepted', 'completed_pending')
     ''').fetchall()
     
-    # Converter lista de jogadores com desafios pendentes para um conjunto para facilitar a verificação
+    # Converter listas para conjuntos para busca eficiente
     players_with_challenges = set()
-    for player in players_with_pending_challenges:
-        players_with_challenges.add(player['id'])
+    players_with_completed_pending = {}
     
-    conn.close()
+    for challenge in challenges:
+        if challenge['status'] == 'completed_pending':
+            players_with_completed_pending[challenge['challenger_id']] = 'completed_pending'
+            players_with_completed_pending[challenge['challenged_id']] = 'completed_pending'
+        else:
+            players_with_challenges.add(challenge['challenger_id'])
+            players_with_challenges.add(challenge['challenged_id'])
     
     # Organizar jogadores por tier
     tiers = {}
@@ -1072,14 +1078,16 @@ def pyramid_dynamic():
         if player['tier'] not in tiers:
             tiers[player['tier']] = []
         
-        # Adicionar um atributo para indicar se o jogador tem desafios pendentes
+        # Adicionar informações sobre desafios
         player_dict = dict(player)
         player_dict['has_pending_challenge'] = player['id'] in players_with_challenges
+        player_dict['challenge_status'] = players_with_completed_pending.get(player['id'], None)
         tiers[player['tier']].append(player_dict)
     
-    # Ordenar tiers alfabeticamente (A, B, C, ...)
+    # Ordenar tiers alfabeticamente
     sorted_tiers = sorted(tiers.items())
     
+    conn.close()
     return render_template('pyramid_dynamic.html', tiers=sorted_tiers)
 
 # Rota original (mantida para compatibilidade ou redirecionamento)
@@ -1301,8 +1309,8 @@ def delete_challenge(challenge_id):
         flash('Desafio não encontrado!', 'error')
         return redirect(url_for('challenges_calendar'))
     
-    # Verificar se o desafio está concluído
-    if challenge['status'] == 'completed':
+    # Verificar se o desafio está concluído (normal ou com pendência)
+    if challenge['status'] == 'completed' or challenge['status'] == 'completed_pending':
         # Verificar se a senha foi fornecida e está correta
         senha = request.form.get('senha', '')
         if senha != '123':
@@ -1310,7 +1318,7 @@ def delete_challenge(challenge_id):
             flash('Senha incorreta! Desafios concluídos só podem ser excluídos com a senha correta.', 'error')
             return redirect(url_for('challenge_detail', challenge_id=challenge_id))
     
-    # Verificar se o desafio já afetou o ranking
+    # Verificar se o desafio já afetou o ranking (apenas para status 'completed', não 'completed_pending')
     if challenge['status'] == 'completed' and challenge['result']:
         # Buscar histórico relacionado a este desafio
         history = conn.execute('SELECT * FROM ranking_history WHERE challenge_id = ?', (challenge_id,)).fetchall()
@@ -1355,7 +1363,7 @@ def edit_challenge(challenge_id):
         flash('Desafio não encontrado!', 'error')
         return redirect(url_for('challenges_calendar'))
     
-    # Verificar se o desafio já afetou o ranking (mantemos a verificação, mas adicionamos suporte para reverter)
+    # Verificar se o desafio já afetou o ranking
     ranking_affected = False
     if challenge['status'] == 'completed' and challenge['result']:
         # Buscar histórico relacionado a este desafio
@@ -1364,8 +1372,8 @@ def edit_challenge(challenge_id):
             ranking_affected = True
     
     if request.method == 'POST':
-        # Se o desafio está concluído, verificar a senha
-        if challenge['status'] == 'completed':
+        # Se o desafio está concluído (normal ou com pendência), verificar a senha
+        if challenge['status'] == 'completed' or challenge['status'] == 'completed_pending':
             senha = request.form.get('senha', '')
             if senha != '123':
                 conn.close()
@@ -1383,9 +1391,14 @@ def edit_challenge(challenge_id):
                 revert_challenge_result(conn, challenge_id)
                 flash('Alterações no ranking foram revertidas.', 'info')
                 
-                # Se o novo status ainda for completed, processar o novo resultado
+                # Se o novo status for completed, processar o novo resultado
                 if status == 'completed' and result:
                     process_challenge_result(conn, challenge_id, status, result)
+                    flash('Ranking atualizado com o novo resultado.', 'success')
+                # Se o novo status for completed_pending, processar sem alterar o ranking
+                elif status == 'completed_pending' and result:
+                    process_challenge_result(conn, challenge_id, status, result)
+                    flash('Desafio marcado como Concluído (com pendência). O ranking não foi alterado.', 'success')
                 else:
                     # Apenas atualizar o status e resultado
                     conn.execute('UPDATE challenges SET status = ?, result = ? WHERE id = ?', 
@@ -1413,35 +1426,54 @@ def edit_challenge(challenge_id):
     return render_template('edit_challenge.html', challenge=challenge, ranking_affected=ranking_affected)
 
 # Alteração na rota update_challenge (opcional, caso a atualização de status também deva ter restrição)
+# Modificação na rota update_challenge
 @app.route('/update_challenge/<int:challenge_id>', methods=['POST'])
 def update_challenge(challenge_id):
     status = request.form['status']
     result = request.form.get('result', None)
+    senha = request.form.get('senha', '')
     
     conn = get_db_connection()
     
     # Verificar se o desafio existe
     challenge = conn.execute('SELECT * FROM challenges WHERE id = ?', (challenge_id,)).fetchone()
     
+    if not challenge:
+        conn.close()
+        flash('Desafio não encontrado!', 'error')
+        return redirect(url_for('challenges_calendar'))
+    
     # Se o desafio está concluído e estamos modificando-o, verificar a senha
-    if challenge and challenge['status'] == 'completed':
-        senha = request.form.get('senha', '')
+    if challenge and (challenge['status'] == 'completed' or challenge['status'] == 'completed_pending'):
         if senha != '123':
             conn.close()
             flash('Senha incorreta! Desafios concluídos só podem ser modificados com a senha correta.', 'error')
             return redirect(url_for('challenge_detail', challenge_id=challenge_id))
     
+    # Para qualquer mudança de status para 'completed' ou 'completed_pending', também requer senha
+    if (status == 'completed' or status == 'completed_pending') and challenge['status'] != 'completed' and challenge['status'] != 'completed_pending':
+        if senha != '123':
+            conn.close()
+            flash('Senha incorreta! Para marcar um desafio como concluído, é necessário informar a senha.', 'error')
+            return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+    
+    # Processar o desafio conforme o status
     if status == 'completed' and result:
-        # Processar o resultado do desafio com a nova função
+        # Processar o resultado do desafio (alterando a pirâmide)
         process_challenge_result(conn, challenge_id, status, result)
+        flash('Status do desafio atualizado para Concluído e ranking atualizado.', 'success')
+    elif status == 'completed_pending' and result:
+        # Processar como concluído com pendência (sem alterar a pirâmide)
+        process_challenge_result(conn, challenge_id, status, result)
+        flash('Status do desafio atualizado para Concluído (com pendência). O ranking não foi alterado.', 'success')
     else:
         # Apenas atualizar o status
         conn.execute('UPDATE challenges SET status = ? WHERE id = ?', (status, challenge_id))
         conn.commit()
+        flash('Status do desafio atualizado com sucesso!', 'success')
     
     conn.close()
     
-    flash('Status do desafio atualizado com sucesso!', 'success')
     return redirect(url_for('challenge_detail', challenge_id=challenge_id))
 
 @app.route('/history')
