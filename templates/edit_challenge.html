@@ -42,8 +42,12 @@
                             <option value="pending" {% if challenge['status'] == 'pending' %}selected{% endif %}>Pendente</option>
                             <option value="accepted" {% if challenge['status'] == 'accepted' %}selected{% endif %}>Aceito</option>
                             <option value="completed" {% if challenge['status'] == 'completed' %}selected{% endif %}>Concluído</option>
+                            <option value="completed_pending" {% if challenge['status'] == 'completed_pending' %}selected{% endif %}>Concluído (com pendência)</option>
                             <option value="rejected" {% if challenge['status'] == 'rejected' %}selected{% endif %}>Rejeitado</option>
                         </select>
+                        <small class="form-text text-muted">
+                            "Concluído" altera o ranking se o desafiante vencer. "Concluído (com pendência)" finaliza o desafio sem alterar o ranking.
+                        </small>
                     </div>
                     
                     <div class="mb-3" id="resultDiv" style="display: none;">
@@ -53,6 +57,14 @@
                             <option value="challenger_win" {% if challenge['result'] == 'challenger_win' %}selected{% endif %}>Vitória de {{ challenge['challenger_name'] }}</option>
                             <option value="challenged_win" {% if challenge['result'] == 'challenged_win' %}selected{% endif %}>Vitória de {{ challenge['challenged_name'] }}</option>
                         </select>
+                    </div>
+                    
+                    <!-- Campo de senha adicionado -->
+                    <div class="mb-3" id="senhaDiv">
+                        <label for="senha" class="form-label">Senha (necessária para alterações em desafios concluídos)</label>
+                        <input type="password" class="form-control" id="senha" name="senha" 
+                               {% if challenge['status'] == 'completed' or challenge['status'] == 'completed_pending' %}required{% endif %}>
+                        <div class="form-text">Informe a senha para confirmar alterações em desafios já concluídos.</div>
                     </div>
                     
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -72,21 +84,29 @@
         var status = document.getElementById('status');
         var resultDiv = document.getElementById('resultDiv');
         var result = document.getElementById('result');
+        var senha = document.getElementById('senha');
         
         // Verificar status inicial
-        if (status.value === 'completed') {
+        if (status.value === 'completed' || status.value === 'completed_pending') {
             resultDiv.style.display = 'block';
             result.setAttribute('required', '');
+            senha.setAttribute('required', '');
         }
         
         // Adicionar listener para mudanças
         status.addEventListener('change', function() {
-            if (this.value === 'completed') {
+            if (this.value === 'completed' || this.value === 'completed_pending') {
                 resultDiv.style.display = 'block';
                 result.setAttribute('required', '');
+                senha.setAttribute('required', '');  // Senha obrigatória se status for concluído
             } else {
                 resultDiv.style.display = 'none';
                 result.removeAttribute('required');
+                
+                // Se o status original não era completed nem completed_pending, a senha não é obrigatória
+                if ('{{ challenge["status"] }}' !== 'completed' && '{{ challenge["status"] }}' !== 'completed_pending') {
+                    senha.removeAttribute('required');
+                }
             }
         });
     });

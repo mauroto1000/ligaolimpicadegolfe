@@ -60,6 +60,8 @@
                             <span class="badge bg-info">Aceito</span>
                             {% elif challenge['status'] == 'completed' %}
                             <span class="badge bg-success">Concluído</span>
+                            {% elif challenge['status'] == 'completed_pending' %}
+                            <span class="badge bg-warning">Concluído (com pendência)</span>
                             {% elif challenge['status'] == 'rejected' %}
                             <span class="badge bg-danger">Rejeitado</span>
                             {% endif %}
@@ -84,7 +86,18 @@
                 <div class="row">
                     <div class="col-md-6">
                         <h5>Data de Criação</h5>
-                        <p>{{ challenge['created_at'] }}</p>
+                        <!-- Corrigido o problema da formatação de data -->
+                        <p>
+                            {% if challenge['created_at'] %}
+                                {% if challenge['created_at'] is string %}
+                                    {{ challenge['created_at'] }}
+                                {% else %}
+                                    {{ challenge['created_at'].strftime('%d/%m/%Y') }}
+                                {% endif %}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -115,7 +128,7 @@
                 <h4 class="mb-0">Ações Rápidas</h4>
             </div>
             <div class="card-body">
-                {% if challenge['status'] == 'completed' %}
+                {% if challenge['status'] == 'completed' or challenge['status'] == 'completed_pending' %}
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle"></i> Este desafio está concluído. 
                     {% if challenge['result'] %}
@@ -171,6 +184,7 @@
                             <option value="pending" {% if challenge['status'] == 'pending' %}selected{% endif %}>Pendente</option>
                             <option value="accepted" {% if challenge['status'] == 'accepted' %}selected{% endif %}>Aceito</option>
                             <option value="completed" {% if challenge['status'] == 'completed' %}selected{% endif %}>Concluído</option>
+                            <option value="completed_pending" {% if challenge['status'] == 'completed_pending' %}selected{% endif %}>Concluído (com pendência)</option>
                             <option value="rejected" {% if challenge['status'] == 'rejected' %}selected{% endif %}>Rejeitado</option>
                         </select>
                     </div>
@@ -182,6 +196,13 @@
                             <option value="challenger_win" {% if challenge['result'] == 'challenger_win' %}selected{% endif %}>Vitória de {{ challenge['challenger_name'] }}</option>
                             <option value="challenged_win" {% if challenge['result'] == 'challenged_win' %}selected{% endif %}>Vitória de {{ challenge['challenged_name'] }}</option>
                         </select>
+                    </div>
+                    
+                    <!-- Adicionado o campo de senha -->
+                    <div class="mb-3">
+                        <label for="senha" class="form-label">Senha (necessária para alterações em desafios concluídos)</label>
+                        <input type="password" class="form-control" id="senha" name="senha" 
+                               {% if challenge['status'] == 'completed' or challenge['status'] == 'completed_pending' %}required{% endif %}>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -208,11 +229,21 @@
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle"></i> <strong>Atenção:</strong> Excluir este desafio irá reverter suas alterações no ranking.
                 </div>
+                
+                <!-- Adicionado o campo de senha para exclusão de desafios concluídos -->
+                <div class="mb-3">
+                    <label for="senha-exclusao" class="form-label">Senha (necessária para excluir desafios concluídos)</label>
+                    <input type="password" class="form-control" id="senha-exclusao" name="senha" required>
+                </div>
                 {% endif %}
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <form action="{{ url_for('delete_challenge', challenge_id=challenge['id']) }}" method="post">
+                    <!-- Campo oculto para a senha, se não for preenchido no modal -->
+                    {% if challenge['status'] != 'completed' or not challenge['result'] %}
+                    <input type="hidden" name="senha" value="">
+                    {% endif %}
                     <button type="submit" class="btn btn-danger">Excluir</button>
                 </form>
             </div>
@@ -228,23 +259,57 @@
         var status = document.getElementById('status');
         var resultDiv = document.getElementById('resultDiv');
         var result = document.getElementById('result');
+        var senha = document.getElementById('senha');
         
         // Verificar status inicial
-        if (status.value === 'completed') {
+        if (status.value === 'completed' || status.value === 'completed_pending') {
             resultDiv.style.display = 'block';
             result.setAttribute('required', '');
         }
         
         // Adicionar listener para mudanças
         status.addEventListener('change', function() {
-            if (this.value === 'completed') {
+            if (this.value === 'completed' || this.value === 'completed_pending') {
                 resultDiv.style.display = 'block';
                 result.setAttribute('required', '');
+                senha.setAttribute('required', '');  // Senha obrigatória se status for completed
             } else {
                 resultDiv.style.display = 'none';
                 result.removeAttribute('required');
+                
+                // Se o status original não era completed ou completed_pending, a senha não é obrigatória
+                if ('{{ challenge["status"] }}' !== 'completed' && '{{ challenge["status"] }}' !== 'completed_pending') {
+                    senha.removeAttribute('required');
+                }
             }
         });
+        
+        // Configurar o formulário de exclusão para transferir a senha
+        var deleteModal = document.getElementById('deleteModal');
+        if (deleteModal) {
+            var senhaExclusao = document.getElementById('senha-exclusao');
+            var deleteForm = deleteModal.querySelector('form');
+            
+            if (senhaExclusao && deleteForm) {
+                deleteForm.addEventListener('submit', function(e) {
+                    // Se o campo de senha existe e tem um valor
+                    if (senhaExclusao && senhaExclusao.value) {
+                        // Verificar se já existe um campo de senha oculto
+                        var hiddenInput = this.querySelector('input[name="senha"]');
+                        if (hiddenInput) {
+                            hiddenInput.value = senhaExclusao.value;
+                        } else {
+                            // Criar um novo campo oculto
+                            var input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'senha';
+                            input.value = senhaExclusao.value;
+                            this.appendChild(input);
+                        }
+                    }
+                });
+            }
+        }
     });
 </script>
 {% endblock %}

@@ -147,6 +147,7 @@
                         <option value="pending">Pendentes</option>
                         <option value="accepted">Aceitos</option>
                         <option value="completed">Concluídos</option>
+                        <option value="completed_pending">Concluídos (com pendência)</option>
                         <option value="rejected">Rejeitados</option>
                     </select>
                 </div>
@@ -222,6 +223,10 @@
                                     <span class="badge bg-success">
                                         <i class="fas fa-trophy"></i> Concluído
                                     </span>
+                                    {% elif challenge['status'] == 'completed_pending' %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-exclamation-circle"></i> Concluído (P)
+                                    </span>
                                     {% elif challenge['status'] == 'rejected' %}
                                     <span class="badge bg-danger">
                                         <i class="fas fa-times-circle"></i> Rejeitado
@@ -249,7 +254,7 @@
                                             <i class="fas fa-eye"></i>
                                         </a>
 
-                                        {% if challenge['status'] != 'completed' %}
+                                        {% if challenge['status'] != 'completed' and challenge['status'] != 'completed_pending' %}
                                         <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#updateModal{{ challenge['id'] }}" title="Atualizar status">
                                             <i class="fas fa-edit"></i>
                                         </button>
@@ -272,8 +277,12 @@
                                                                 <option value="pending" {% if challenge['status'] == 'pending' %}selected{% endif %}>Pendente</option>
                                                                 <option value="accepted" {% if challenge['status'] == 'accepted' %}selected{% endif %}>Aceito</option>
                                                                 <option value="completed" {% if challenge['status'] == 'completed' %}selected{% endif %}>Concluído</option>
+                                                                <option value="completed_pending" {% if challenge['status'] == 'completed_pending' %}selected{% endif %}>Concluído (com pendência)</option>
                                                                 <option value="rejected" {% if challenge['status'] == 'rejected' %}selected{% endif %}>Rejeitado</option>
                                                             </select>
+                                                            <div class="form-text">
+                                                                "Concluído (com pendência)" finaliza o desafio sem alterar o ranking.
+                                                            </div>
                                                         </div>
                                                         
                                                         <div class="mb-3" id="resultDiv{{ challenge['id'] }}" style="display: none;">
@@ -283,6 +292,14 @@
                                                                 <option value="challenger_win" {% if challenge['result'] == 'challenger_win' %}selected{% endif %}>Vitória do Desafiante</option>
                                                                 <option value="challenged_win" {% if challenge['result'] == 'challenged_win' %}selected{% endif %}>Vitória do Desafiado</option>
                                                             </select>
+                                                        </div>
+
+                                                        <div class="mb-3" id="senhaDiv{{ challenge['id'] }}" style="display: none;">
+                                                            <label for="senha{{ challenge['id'] }}" class="form-label">Senha</label>
+                                                            <input type="password" class="form-control" id="senha{{ challenge['id'] }}" name="senha" placeholder="Necessária para concluir o desafio">
+                                                            <div class="form-text">
+                                                                Senha necessária para marcar como concluído
+                                                            </div>
                                                         </div>
                                                     </div>
                                                     <div class="modal-footer">
@@ -299,14 +316,20 @@
                                             var status = document.getElementById('status{{ challenge['id'] }}');
                                             var resultDiv = document.getElementById('resultDiv{{ challenge['id'] }}');
                                             var result = document.getElementById('result{{ challenge['id'] }}');
+                                            var senhaDiv = document.getElementById('senhaDiv{{ challenge['id'] }}');
+                                            var senha = document.getElementById('senha{{ challenge['id'] }}');
                                             
                                             function toggleResultVisibility() {
-                                                if (status.value === 'completed') {
+                                                if (status.value === 'completed' || status.value === 'completed_pending') {
                                                     resultDiv.style.display = 'block';
                                                     result.setAttribute('required', '');
+                                                    senhaDiv.style.display = 'block';
+                                                    senha.setAttribute('required', '');
                                                 } else {
                                                     resultDiv.style.display = 'none';
                                                     result.removeAttribute('required');
+                                                    senhaDiv.style.display = 'none';
+                                                    senha.removeAttribute('required');
                                                 }
                                             }
                                             
