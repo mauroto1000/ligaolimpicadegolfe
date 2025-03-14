@@ -197,6 +197,31 @@
         border: 3px solid #dc3545;
     }
 
+    /* Estilos para setas de desafio - Base comum */
+    .challenge-arrow {
+        position: absolute;
+        font-size: 10px;
+        padding: 1px 3px;
+        border-radius: 3px;
+        z-index: 3;
+        white-space: nowrap;
+        top: 3px;
+        right: 3px;
+    }
+
+    /* Estilo para seta de desafiado (quem está sendo desafiado) - fundo preto, texto branco */
+    .arrow-challenged {
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+    }
+
+    /* Estilo para seta de desafiante (quem está desafiando) - fundo branco, texto preto */
+    .arrow-challenger {
+        background-color: rgba(255, 255, 255, 0.9);
+        color: black;
+        border: 1px solid rgba(0, 0, 0, 0.2);
+    }
+
     /* Classes para dispositivos móveis */
     @media (max-width: 767px) {
         .pyramid-container {
@@ -246,6 +271,12 @@
         .legend-item.tier-legend {
             display: none;
         }
+
+        /* Ajustar setas de desafio em mobile */
+        .challenge-arrow {
+            font-size: 9px;
+            padding: 1px 2px;
+        }
     }
 
     /* Para telas muito pequenas */
@@ -275,6 +306,11 @@
         .legend-item {
             margin-right: 0;
         }
+
+        /* Ajustar setas para telas muito pequenas */
+        .challenge-arrow {
+            font-size: 8px;
+        }
     }
 </style>
 {% endblock %}
@@ -302,7 +338,7 @@
             <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">Voltar para Lista</a>
         </div>
         
-        <!-- Legenda - Adicionado o novo item de legenda -->
+        <!-- Legenda - Com explicação das cores das setas -->
         <div class="legend-container">
             <div class="legend-item">
                 <div class="legend-color legend-green"></div>
@@ -316,8 +352,16 @@
                 <div class="legend-color legend-green-red-border"></div>
                 <span>Desafio concluído (c/ pendência)</span>
             </div>
+            <div class="legend-item">
+                <span style="font-size: 12px; padding: 3px 5px; background-color: rgba(255, 255, 255, 0.95); color: black; border: 2px solid rgba(0, 0, 0, 0.3); border-radius: 3px; font-weight: bold;">18 → 13</span>
+                <span style="margin-left: 5px;">Desafiante (quem está desafiando)</span>
+            </div>
+            <div class="legend-item">
+                <span style="font-size: 12px; padding: 3px 5px; background-color: rgba(0, 0, 0, 0.8); color: white; border-radius: 3px; font-weight: bold;">13 → 18</span>
+                <span style="margin-left: 5px;">Desafiado (quem está sendo desafiado)</span>
+            </div>
         </div>
-        
+                
         <!-- Container da pirâmide -->
         <div class="pyramid-container">
             <!-- As linhas da pirâmide serão construídas aqui -->
@@ -340,6 +384,19 @@
                             
                             <span class="player-position">{{ player.position }}</span>
                             
+                            <!-- Setas de desafio - VERSÃO PADRONIZADA COM CORES DIFERENTES -->
+                            {% if player.challenging_positions %}
+                                <!-- Se o jogador está desafiando alguém - fundo branco, texto preto -->
+                                <span class="challenge-arrow arrow-challenger">
+                                    {{ player.position }} → {% for pos in player.challenging_positions %}{{ pos }}{% if not loop.last %}, {% endif %}{% endfor %}
+                                </span>
+                            {% elif player.challenged_by_positions %}
+                                <!-- Se o jogador está sendo desafiado por alguém - fundo preto, texto branco -->
+                                <span class="challenge-arrow arrow-challenged">
+                                    {% for pos in player.challenged_by_positions %}{{ pos }}{% if not loop.last %}, {% endif %}{% endfor %} → {{ player.position }}
+                                </span>
+                            {% endif %}
+                            
                             <!-- Tooltip com informações adicionais -->
                             <div class="pyramid-tooltip">
                                 <strong>{{ player.name }}</strong><br>
@@ -353,6 +410,12 @@
                                 {% endif %}
                                 {% if player.challenge_status == 'completed_pending' %}
                                 <span class="text-danger">Desafio concluído (c/ pendência)</span><br>
+                                {% endif %}
+                                {% if player.challenging_positions %}
+                                <span class="text-info">Desafiando: {% for pos in player.challenging_positions %}{{ pos }}{% if not loop.last %}, {% endif %}{% endfor %}</span><br>
+                                {% endif %}
+                                {% if player.challenged_by_positions %}
+                                <span class="text-info">Desafiado por: {% for pos in player.challenged_by_positions %}{{ pos }}{% if not loop.last %}, {% endif %}{% endfor %}</span><br>
                                 {% endif %}
                                 <small>Clique para detalhes</small>
                             </div>
@@ -418,76 +481,76 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Filtrar jogadores
         playerCells.forEach(cell => {
-            const playerName = cell.getAttribute('data-player-name');
-            const playerTier = cell.closest('.pyramid-row').getAttribute('data-tier');
-            
-            // Verificar se atende o critério de busca
-            const matchesSearch = searchTerm === '' || playerName.includes(searchTerm);
-            
-            // Aplicar visibilidade
-            if (matchesSearch) {
-                cell.style.display = 'flex';
-                visiblePlayers++;
-                visibleRows.add(playerTier);
-                
-                // Destaque ao pesquisar
-                if (searchTerm !== '') {
-                    cell.style.transform = 'scale(1.05)';
-                    cell.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
-                    cell.style.zIndex = '5';
+                    const playerName = cell.getAttribute('data-player-name');
+                    const playerTier = cell.closest('.pyramid-row').getAttribute('data-tier');
                     
-                    // Remover destaque após 2 segundos
-                    setTimeout(() => {
-                        cell.style.transform = '';
-                        cell.style.boxShadow = '';
-                        cell.style.zIndex = '';
-                    }, 2000);
+                    // Verificar se atende o critério de busca
+                    const matchesSearch = searchTerm === '' || playerName.includes(searchTerm);
+                    
+                    // Aplicar visibilidade
+                    if (matchesSearch) {
+                        cell.style.display = 'flex';
+                        visiblePlayers++;
+                        visibleRows.add(playerTier);
+                        
+                        // Destaque ao pesquisar
+                        if (searchTerm !== '') {
+                            cell.style.transform = 'scale(1.05)';
+                            cell.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                            cell.style.zIndex = '5';
+                            
+                            // Remover destaque após 2 segundos
+                            setTimeout(() => {
+                                cell.style.transform = '';
+                                cell.style.boxShadow = '';
+                                cell.style.zIndex = '';
+                            }, 2000);
+                        } else {
+                            cell.style.transform = '';
+                            cell.style.boxShadow = '';
+                            cell.style.zIndex = '';
+                        }
+                    } else {
+                        cell.style.display = 'none';
+                    }
+                });
+                
+                // Mostrar linhas com jogadores visíveis
+                pyramidRows.forEach(row => {
+                    const tier = row.getAttribute('data-tier');
+                    if (visibleRows.has(tier)) {
+                        row.style.display = 'flex';
+                    }
+                });
+                
+                // Atualizar mensagem de resultados
+                if (visiblePlayers === 0 && searchTerm !== '') {
+                    searchResults.style.display = 'block';
                 } else {
-                    cell.style.transform = '';
-                    cell.style.boxShadow = '';
-                    cell.style.zIndex = '';
+                    searchResults.style.display = 'none';
                 }
-            } else {
-                cell.style.display = 'none';
             }
+            
+            // Event listeners para busca
+            playerSearch.addEventListener('input', applySearch);
+            
+            // Limpar pesquisa
+            clearSearch.addEventListener('click', function() {
+                playerSearch.value = '';
+                applySearch();
+            });
+            
+            // Toggle do menu móvel
+            mobileMenuToggle.addEventListener('click', function() {
+                mobileMenu.classList.toggle('show');
+            });
+            
+            // Fechar menu móvel ao clicar fora dele
+            document.addEventListener('click', function(event) {
+                if (!mobileMenu.contains(event.target) && event.target !== mobileMenuToggle) {
+                    mobileMenu.classList.remove('show');
+                }
+            });
         });
-        
-        // Mostrar linhas com jogadores visíveis
-        pyramidRows.forEach(row => {
-            const tier = row.getAttribute('data-tier');
-            if (visibleRows.has(tier)) {
-                row.style.display = 'flex';
-            }
-        });
-        
-        // Atualizar mensagem de resultados
-        if (visiblePlayers === 0 && searchTerm !== '') {
-            searchResults.style.display = 'block';
-        } else {
-            searchResults.style.display = 'none';
-        }
-    }
-    
-    // Event listeners para busca
-    playerSearch.addEventListener('input', applySearch);
-    
-    // Limpar pesquisa
-    clearSearch.addEventListener('click', function() {
-        playerSearch.value = '';
-        applySearch();
-    });
-    
-    // Toggle do menu móvel
-    mobileMenuToggle.addEventListener('click', function() {
-        mobileMenu.classList.toggle('show');
-    });
-    
-    // Fechar menu móvel ao clicar fora dele
-    document.addEventListener('click', function(event) {
-        if (!mobileMenu.contains(event.target) && event.target !== mobileMenuToggle) {
-            mobileMenu.classList.remove('show');
-        }
-    });
-});
-</script>
+        </script>
 {% endblock %}

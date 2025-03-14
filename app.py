@@ -1055,8 +1055,11 @@ def pyramid_dynamic():
     
     # Buscar jogadores com desafios
     challenges = conn.execute('''
-        SELECT DISTINCT c.challenger_id, c.challenged_id, c.status
+        SELECT DISTINCT c.challenger_id, c.challenged_id, c.status, 
+               p1.position as challenger_position, p2.position as challenged_position
         FROM challenges c
+        JOIN players p1 ON c.challenger_id = p1.id
+        JOIN players p2 ON c.challenged_id = p2.id
         WHERE c.status IN ('pending', 'accepted', 'completed_pending')
     ''').fetchall()
     
@@ -1064,13 +1067,33 @@ def pyramid_dynamic():
     players_with_challenges = set()
     players_with_completed_pending = {}
     
+    # Mapear desafios por jogador
+    player_challenges = {}
+    for player in players:
+        player_id = player['id']
+        player_challenges[player_id] = {
+            'challenging_positions': [],
+            'challenged_by_positions': []
+        }
+    
+    # Processar desafios
     for challenge in challenges:
+        challenger_id = challenge['challenger_id']
+        challenged_id = challenge['challenged_id']
+        
+        # Marcar jogadores envolvidos em desafios
         if challenge['status'] == 'completed_pending':
-            players_with_completed_pending[challenge['challenger_id']] = 'completed_pending'
-            players_with_completed_pending[challenge['challenged_id']] = 'completed_pending'
+            players_with_completed_pending[challenger_id] = 'completed_pending'
+            players_with_completed_pending[challenged_id] = 'completed_pending'
         else:
-            players_with_challenges.add(challenge['challenger_id'])
-            players_with_challenges.add(challenge['challenged_id'])
+            players_with_challenges.add(challenger_id)
+            players_with_challenges.add(challenged_id)
+        
+        # Registrar posições envolvidas nos desafios
+        if challenger_id in player_challenges:
+            player_challenges[challenger_id]['challenging_positions'].append(challenge['challenged_position'])
+        if challenged_id in player_challenges:
+            player_challenges[challenged_id]['challenged_by_positions'].append(challenge['challenger_position'])
     
     # Organizar jogadores por tier
     tiers = {}
@@ -1082,6 +1105,11 @@ def pyramid_dynamic():
         player_dict = dict(player)
         player_dict['has_pending_challenge'] = player['id'] in players_with_challenges
         player_dict['challenge_status'] = players_with_completed_pending.get(player['id'], None)
+        
+        # Adicionar informações sobre as posições envolvidas nos desafios
+        player_dict['challenging_positions'] = player_challenges[player['id']]['challenging_positions']
+        player_dict['challenged_by_positions'] = player_challenges[player['id']]['challenged_by_positions']
+        
         tiers[player['tier']].append(player_dict)
     
     # Ordenar tiers alfabeticamente

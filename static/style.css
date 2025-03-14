@@ -338,3 +338,44 @@ body {
     padding: 0.75rem;
   }
 }
+
+/* Estilos para setas de desafio - Base comum */
+.challenge-arrow {
+  position: absolute;
+  font-size: 10px;
+  padding: 3px 5px; /* Padding aumentado (era 1px 3px) */
+  border-radius: 3px;
+  z-index: 3;
+  white-space: nowrap;
+  top: 3px;
+  right: 3px;
+  font-weight: bold; /* Adicionado negrito */
+}
+
+/* Estilo para seta de desafiado (quem está sendo desafiado) - fundo preto, texto branco */
+.arrow-challenged {
+  background-color: rgba(0, 0, 0, 0.8); /* Escurecido um pouco */
+  color: white;
+}
+
+/* Estilo para seta de desafiante (quem está desafiando) - fundo branco, texto preto */
+.arrow-challenger {
+  background-color: rgba(255, 255, 255, 0.95); /* Clareado um pouco */
+  color: black;
+  border: 2px solid rgba(0, 0, 0, 0.3); /* Borda mais grossa e escura */
+}
+
+/* Ajustes para dispositivos móveis */
+@media (max-width: 768px) {
+  .challenge-arrow {
+      font-size: 9px;
+      padding: 2px 4px; /* Também aumentado para mobile */
+  }
+}
+
+@media (max-width: 480px) {
+  .challenge-arrow {
+      font-size: 8px;
+      padding: 2px 3px;
+  }
+}
