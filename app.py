@@ -1214,10 +1214,12 @@ def pyramid_dynamic():
     return render_template('pyramid_dynamic.html', tiers=sorted_tiers)
 
 # Rota original (mantida para compatibilidade ou redirecionamento)
+# Altere estas rotas no seu arquivo app.py:
+
 @app.route('/challenges')
 def challenges():
-    """Redireciona para a página de calendário de desafios (nova interface principal)"""
-    return redirect(url_for('challenges_calendar'))
+    """Redireciona para a página de lista de desafios (nova interface principal)"""
+    return redirect(url_for('challenges_list'))
 
 # Rota para o calendário de desafios
 @app.route('/challenges/calendar')
@@ -1240,7 +1242,7 @@ def challenges_calendar():
     conn.close()
     return render_template('calendar_challenges.html', challenges=challenges)
 
-# Rota para a lista de desafios
+# Rota para a lista de desafios (agora a padrão)
 @app.route('/challenges/list')
 def challenges_list():
     conn = get_db_connection()
