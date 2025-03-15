@@ -68,12 +68,13 @@
         color: #212529;
     }
     
-    /* Estilo para jogadores com desafios concluídos com pendência */
+/* Estilo para jogadores com desafios concluídos com pendência */
     .pyramid-cell.completed-pending-challenge {
-        background-color: #28a745;
-        border: 3px solid #dc3545;
-        color: white;
-    }
+    background-color: #ffc107;  /* Amarelo */
+    border: 5px solid #dc3545;  /* Borda vermelha MUITO grossa */
+    color: #212529;  /* Texto escuro para melhor contraste com fundo amarelo */
+    box-sizing: border-box; /* Garante que a borda não aumente o tamanho total */
+}
 
     .player-position {
         position: absolute;
@@ -192,9 +193,9 @@
         background-color: #002970;
     }
     
-    .legend-green-red-border {
-        background-color: #28a745;
-        border: 3px solid #dc3545;
+    .legend-yellow-red-border {
+    background-color: #ffc107;  /* Amarelo */
+    border: 6px solid #dc3545;  /* Borda vermelha */
     }
 
     /* Estilos para setas de desafio - Base comum */
@@ -340,6 +341,7 @@
         
         <!-- Legenda - Com explicação das cores das setas -->
         <!-- Legenda - Com apenas as labels Desafiante e Desafiado -->
+        <!-- Legenda - Versão final -->
         <div class="legend-container">
             <div class="legend-item">
                 <div class="legend-color legend-green"></div>
@@ -350,7 +352,7 @@
                 <span>Jogador com desafio</span>
             </div>
             <div class="legend-item">
-                <div class="legend-color legend-green-red-border"></div>
+                <div class="legend-color legend-yellow-red-border"></div>
                 <span>Desafio concluído (c/ pendência)</span>
             </div>
             <div class="legend-item">
