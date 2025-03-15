@@ -20,6 +20,34 @@
         padding: 2px 0;
     }
     
+    /* Melhorias específicas para visualização de lista */
+    .fc-list-day-cushion {
+        background-color: #f8f9fa !important;
+    }
+    
+    .fc-list-event {
+        padding: 4px 0 !important;
+    }
+    
+    .fc-list-event-dot {
+        display: none !important;
+    }
+    
+    .fc-list-event-title {
+        font-weight: 500 !important;
+    }
+    
+    /* Estilos para indicadores de status coloridos na visualização de lista */
+    .fc-list-event-status {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        margin-right: 6px;
+        border-radius: 50%;
+        position: relative;
+        top: 1px;
+    }
+    
     .fc-daygrid-event-dot {
         display: none !important;
     }
@@ -172,7 +200,7 @@
             <h2>Calendário de Desafios</h2>
             <div>
                 <a href="{{ url_for('challenges_list') }}" class="btn btn-outline-primary me-2">
-                    <i class="fas fa-list"></i> Ver como Lista
+                    <i class="fas fa-table"></i> Ver como Tabela
                 </a>
                 <a href="{{ url_for('new_challenge') }}" class="btn btn-success">
                     <i class="fas fa-plus-circle"></i> Novo Desafio
@@ -266,9 +294,9 @@
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
-                right: 'dayGridMonth,timeGridWeek,listMonth'
+                right: 'listMonth,dayGridMonth,timeGridWeek'
             },
-            initialView: 'dayGridMonth',
+            initialView: 'listMonth',  // Definindo a visualização de lista como padrão
             locale: 'pt-br',
             buttonText: {
                 today: 'Hoje',
@@ -284,7 +312,7 @@
                 {% for challenge in challenges %}
                 {
                     id: '{{ challenge["id"] }}',
-                    title: '{{ challenge["challenger_name"][:15] }}{% if challenge["challenger_name"]|length > 15 %}...{% endif %} vs {{ challenge["challenged_name"][:15] }}{% if challenge["challenged_name"]|length > 15 %}...{% endif %}',
+                    title: '{{ challenge["challenger_name"] }} vs {{ challenge["challenged_name"] }}',
                     start: '{{ challenge["scheduled_date"] }}',
                     allDay: true,
                     backgroundColor: getEventColor('{{ challenge["status"] }}'),
@@ -331,36 +359,77 @@
                 modal.show();
             },
             eventDidMount: function(info) {
-                // Adicionar badges de status
-                var statusBadge = document.createElement('span');
-                statusBadge.className = 'badge ';
-                
-                // Adicionar classe de cor conforme o status
-                if (info.event.extendedProps.status === 'pending') {
-                    statusBadge.className += 'bg-warning text-dark';
-                    statusBadge.innerText = 'Pendente';
-                } else if (info.event.extendedProps.status === 'accepted') {
-                    statusBadge.className += 'bg-info';
-                    statusBadge.innerText = 'Aceito';
-                } else if (info.event.extendedProps.status === 'completed') {
-                    statusBadge.className += 'bg-success';
-                    statusBadge.innerText = 'Concluído';
-                } else if (info.event.extendedProps.status === 'completed_pending') {
-                    statusBadge.className += 'bg-warning text-dark';
-                    statusBadge.innerText = 'Concluído (P)';
-                } else if (info.event.extendedProps.status === 'rejected') {
-                    statusBadge.className += 'bg-danger';
-                    statusBadge.innerText = 'Rejeitado';
-                } else if (info.event.extendedProps.status === 'cancelled') {
-                    statusBadge.className += 'bg-secondary';
-                    statusBadge.innerText = 'Cancelado';
-                }
-                
-                // Adicionar o badge ao evento
-                var titleEl = info.el.querySelector('.fc-event-title');
-                if (titleEl) {
-                    titleEl.appendChild(document.createElement('br'));
-                    titleEl.appendChild(statusBadge);
+                // Verificar se estamos na visualização de lista
+                if (info.view.type === 'listMonth') {
+                    // Para visualização de lista, adicionar indicador de status colorido
+                    var eventContent = info.el.querySelector('.fc-list-event-title');
+                    if (eventContent) {
+                        var statusDot = document.createElement('span');
+                        statusDot.className = 'fc-list-event-status';
+                        statusDot.style.backgroundColor = getEventColor(info.event.extendedProps.status);
+                        
+                        // Adicionar antes do título
+                        eventContent.insertBefore(statusDot, eventContent.firstChild);
+                        
+                        // Adicionar status como badge
+                        var statusBadge = document.createElement('span');
+                        statusBadge.className = 'badge ms-2';
+                        
+                        // Adicionar classe de cor conforme o status
+                        if (info.event.extendedProps.status === 'pending') {
+                            statusBadge.className += ' bg-warning text-dark';
+                            statusBadge.innerText = 'Pendente';
+                        } else if (info.event.extendedProps.status === 'accepted') {
+                            statusBadge.className += ' bg-info';
+                            statusBadge.innerText = 'Aceito';
+                        } else if (info.event.extendedProps.status === 'completed') {
+                            statusBadge.className += ' bg-success';
+                            statusBadge.innerText = 'Concluído';
+                        } else if (info.event.extendedProps.status === 'completed_pending') {
+                            statusBadge.className += ' bg-warning text-dark';
+                            statusBadge.innerText = 'Concluído (P)';
+                        } else if (info.event.extendedProps.status === 'rejected') {
+                            statusBadge.className += ' bg-danger';
+                            statusBadge.innerText = 'Rejeitado';
+                        } else if (info.event.extendedProps.status === 'cancelled') {
+                            statusBadge.className += ' bg-secondary';
+                            statusBadge.innerText = 'Cancelado';
+                        }
+                        
+                        eventContent.appendChild(statusBadge);
+                    }
+                } else {
+                    // Para outras visualizações, adicionar badges de status
+                    var statusBadge = document.createElement('span');
+                    statusBadge.className = 'badge ';
+                    
+                    // Adicionar classe de cor conforme o status
+                    if (info.event.extendedProps.status === 'pending') {
+                        statusBadge.className += 'bg-warning text-dark';
+                        statusBadge.innerText = 'Pendente';
+                    } else if (info.event.extendedProps.status === 'accepted') {
+                        statusBadge.className += 'bg-info';
+                        statusBadge.innerText = 'Aceito';
+                    } else if (info.event.extendedProps.status === 'completed') {
+                        statusBadge.className += 'bg-success';
+                        statusBadge.innerText = 'Concluído';
+                    } else if (info.event.extendedProps.status === 'completed_pending') {
+                        statusBadge.className += 'bg-warning text-dark';
+                        statusBadge.innerText = 'Concluído (P)';
+                    } else if (info.event.extendedProps.status === 'rejected') {
+                        statusBadge.className += 'bg-danger';
+                        statusBadge.innerText = 'Rejeitado';
+                    } else if (info.event.extendedProps.status === 'cancelled') {
+                        statusBadge.className += 'bg-secondary';
+                        statusBadge.innerText = 'Cancelado';
+                    }
+                    
+                    // Adicionar o badge ao evento
+                    var titleEl = info.el.querySelector('.fc-event-title');
+                    if (titleEl) {
+                        titleEl.appendChild(document.createElement('br'));
+                        titleEl.appendChild(statusBadge);
+                    }
                 }
             },
             // Configurar altura do calendário para ser responsivo
