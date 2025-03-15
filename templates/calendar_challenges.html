@@ -96,6 +96,47 @@
         padding: 8px 10px !important;
     }
     
+    /* Estilos para área deslizante */
+    .calendar-scroll-container {
+        position: relative;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch; /* Para rolagem suave em iOS */
+        scrollbar-width: thin;             /* Firefox */
+        margin-left: -5px;
+        margin-right: -5px;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+    
+    .calendar-scroll-container::-webkit-scrollbar {
+        height: 8px;
+    }
+    
+    .calendar-scroll-container::-webkit-scrollbar-thumb {
+        background-color: #ccc; 
+        border-radius: 4px;
+    }
+    
+    .calendar-scroll-container::-webkit-scrollbar-track {
+        background-color: #f1f1f1;
+        border-radius: 4px;
+    }
+    
+    .scroll-hint {
+        animation: fadeInOut 2s ease-in-out infinite;
+        padding: 5px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        display: inline-block;
+        margin-top: 5px;
+    }
+    
+    @keyframes fadeInOut {
+        0% { opacity: 0.5; }
+        50% { opacity: 1; }
+        100% { opacity: 0.5; }
+    }
+    
     /* Responsividade do calendário */
     @media (max-width: 768px) {
         .fc .fc-toolbar {
@@ -113,6 +154,12 @@
         
         .fc-event-title {
             font-size: 12px;
+        }
+        
+        /* Garantir que o controle de rolagem seja claro em dispositivos móveis */
+        .calendar-scroll-container {
+            border-left: 2px solid #f1f1f1;
+            border-right: 2px solid #f1f1f1;
         }
     }
 </style>
@@ -164,7 +211,17 @@
                     </div>
                 </div>
                 
-                <div id="calendar"></div>
+                <!-- Área deslizante para o calendário -->
+                <div class="calendar-scroll-container" style="overflow-x: auto; padding-bottom: 15px;">
+                    <div style="min-width: 768px;">
+                        <div id="calendar"></div>
+                    </div>
+                </div>
+                
+                <!-- Dica de rolagem para visualização mobile -->
+                <div class="d-sm-none text-center mt-2 mb-1 scroll-hint">
+                    <small class="text-muted"><i class="fas fa-arrows-left-right"></i> Deslize horizontalmente para ver todo o calendário</small>
+                </div>
             </div>
         </div>
     </div>
@@ -309,7 +366,9 @@
             // Configurar altura do calendário para ser responsivo
             height: 'auto',
             // Aumentar as células dos dias
-            aspectRatio: 1.35
+            aspectRatio: 1.5,
+            // Garantir largura mínima adequada quando em scroll horizontal
+            contentWidth: 768
         });
         
         calendar.render();
