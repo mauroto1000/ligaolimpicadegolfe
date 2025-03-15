@@ -966,6 +966,101 @@ def reactivate_player(player_id):
     
     return redirect(url_for('player_detail', player_id=player_id))
 
+
+@app.route('/delete_player/<int:player_id>', methods=['GET', 'POST'])
+def delete_player(player_id):
+    """
+    Exclui permanentemente um jogador do sistema.
+    O jogador deve estar inativo para ser excluído.
+    GET: Mostra formulário de confirmação
+    POST: Processa a exclusão
+    """
+    conn = get_db_connection()
+    
+    # Buscar jogador
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Jogador não encontrado!', 'error')
+        return redirect(url_for('index'))
+    
+    # Verificar se o jogador está inativo (requisito para exclusão)
+    if player['active'] == 1:
+        conn.close()
+        flash('O jogador deve estar inativo antes de ser excluído. Por favor, inative o jogador primeiro.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    # Para requisição GET, mostrar tela de confirmação
+    if request.method == 'GET':
+        # Verificar se existem desafios associados ao jogador
+        challenges_count = conn.execute('''
+            SELECT COUNT(*) AS count FROM challenges 
+            WHERE challenger_id = ? OR challenged_id = ?
+        ''', (player_id, player_id)).fetchone()['count']
+        
+        # Verificar se existem registros de histórico
+        history_count = conn.execute('''
+            SELECT COUNT(*) AS count FROM ranking_history 
+            WHERE player_id = ?
+        ''', (player_id,)).fetchone()['count']
+        
+        daily_history_count = conn.execute('''
+            SELECT COUNT(*) AS count FROM daily_ranking_history 
+            WHERE player_id = ?
+        ''', (player_id,)).fetchone()['count']
+        
+        conn.close()
+        
+        return render_template('delete_player.html', 
+                              player=player, 
+                              challenges_count=challenges_count,
+                              history_count=history_count + daily_history_count)
+    
+    # Para requisição POST, processar a exclusão
+    senha = request.form.get('senha', '')
+    confirm_delete = request.form.get('confirm_delete', 'no') == 'yes'
+    
+    if senha != '123':
+        conn.close()
+        flash('Senha incorreta! Operação não autorizada.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    if not confirm_delete:
+        conn.close()
+        flash('Você precisa confirmar a exclusão marcando a caixa de confirmação.', 'error')
+        return redirect(url_for('delete_player', player_id=player_id))
+    
+    try:
+        # 1. Excluir registros relacionados na tabela daily_ranking_history
+        conn.execute('DELETE FROM daily_ranking_history WHERE player_id = ?', (player_id,))
+        
+        # 2. Excluir registros relacionados na tabela ranking_history
+        conn.execute('DELETE FROM ranking_history WHERE player_id = ?', (player_id,))
+        
+        # 3. Excluir ou atualizar desafios relacionados
+        # Como os desafios possuem foreign keys, podemos definir a estratégia:
+        # Opção 1: Excluir todos os desafios relacionados
+        conn.execute('''
+            DELETE FROM challenges 
+            WHERE challenger_id = ? OR challenged_id = ?
+        ''', (player_id, player_id))
+        
+        # 4. Finalmente, excluir o jogador
+        conn.execute('DELETE FROM players WHERE id = ?', (player_id,))
+        
+        conn.commit()
+        flash(f'Jogador "{player["name"]}" foi excluído permanentemente.', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao excluir jogador: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('index'))
+
+
 @app.route('/update_player_name/<int:player_id>', methods=['POST'])
 def update_player_name(player_id):
     """

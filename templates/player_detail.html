@@ -209,6 +209,22 @@
                         </a>
                     </div>
                 </div>
+                
+                <!-- Zona de perigo - Para jogadores inativos mostrar opção de exclusão definitiva -->
+                <div class="mt-4">
+                    <div class="card border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <h5 class="mb-0">Zona de Perigo</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Este jogador está inativo.</strong> Se você deseja removê-lo permanentemente do sistema:</p>
+                            <a href="{{ url_for('delete_player', player_id=player.id) }}" class="btn btn-danger">
+                                <i class="fas fa-trash-alt me-2"></i>Excluir permanentemente
+                            </a>
+                            <p class="text-muted mt-2"><small>Atenção: Esta ação não pode ser desfeita. Todos os registros relacionados a este jogador, incluindo histórico e desafios, serão excluídos.</small></p>
+                        </div>
+                    </div>
+                </div>
                 {% endif %}
                 
                 <!-- Seção para Histórico de Posições (NOVA SEÇÃO) -->
