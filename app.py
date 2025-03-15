@@ -1383,8 +1383,26 @@ def new_challenge():
     # Verificar se há um challenger_id na query string
     preselected_challenger_id = request.args.get('challenger_id', None)
     
+    # Buscar jogadores com desafios pendentes ou aceitos
+    players_with_challenges = set()
+    pending_challenges = conn.execute('''
+        SELECT challenger_id, challenged_id 
+        FROM challenges 
+        WHERE status IN ('pending', 'accepted')
+    ''').fetchall()
+    
+    for challenge in pending_challenges:
+        players_with_challenges.add(challenge['challenger_id'])
+        players_with_challenges.add(challenge['challenged_id'])
+    
     # Se temos um desafiante pré-selecionado, obter apenas os jogadores que podem ser desafiados
     if preselected_challenger_id:
+        # Verificar se o desafiante já tem desafios pendentes
+        if int(preselected_challenger_id) in players_with_challenges:
+            conn.close()
+            flash('Este jogador já está envolvido em um desafio pendente ou aceito.', 'warning')
+            return redirect(url_for('challenges_calendar'))
+        
         # Buscar informações do desafiante
         challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', (preselected_challenger_id,)).fetchone()
         
@@ -1394,6 +1412,7 @@ def new_challenge():
             
             # Buscar apenas jogadores que podem ser desafiados (mesmo nível ou um nível acima)
             # e que tenham posição melhor que o desafiante
+            # e que NÃO estejam envolvidos em desafios pendentes
             eligible_challenged = conn.execute('''
                 SELECT * FROM players 
                 WHERE active = 1
@@ -1402,6 +1421,10 @@ def new_challenge():
                 ORDER BY position
             ''', (challenger['position'], challenger['tier'], chr(ord(challenger['tier'])-1))).fetchall()
             
+            # Filtrar os jogadores que já têm desafios pendentes
+            eligible_challenged = [player for player in eligible_challenged 
+                                  if player['id'] not in players_with_challenges]
+            
             conn.close()
             return render_template('new_challenge.html', 
                                 all_players=all_players,
@@ -1409,13 +1432,18 @@ def new_challenge():
                                 preselected_challenger=preselected_challenger_id,
                                 challenger_info=challenger)
     
-    # Se não houver um desafiante pré-selecionado ou o desafiante não for encontrado,
-    # mostrar todos os jogadores (comportamento padrão)
-    players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
+    # Se não houver um desafiante pré-selecionado, mostrar todos os jogadores disponíveis
+    # (sem desafios pendentes) para seleção como desafiante
+    all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
+    
+    # Filtrar jogadores sem desafios pendentes para a lista de desafiantes
+    available_players = [player for player in all_players 
+                        if player['id'] not in players_with_challenges]
+    
     conn.close()
     
     return render_template('new_challenge.html', 
-                         all_players=players, 
+                         all_players=available_players, 
                          eligible_challenged=[],
                          preselected_challenger=preselected_challenger_id)
 
