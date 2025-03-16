@@ -1967,6 +1967,7 @@ def new_challenge():
     conn = get_db_connection()
     
     # MODIFICAÇÃO: Verificar se o usuário está logado e não é admin
+    # MODIFICAÇÃO: Verificar se o usuário está logado e não é admin
     preselected_challenger_id = None
     if 'user_id' in session and not session.get('is_admin', False):
         # Se o usuário está logado e não é admin, usar seu ID como challenger_id pré-selecionado
