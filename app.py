@@ -1730,6 +1730,7 @@ def challenges_list():
     return render_template('challenges_list.html', challenges=challenges)
 
 @app.route('/new_challenge', methods=['GET', 'POST'])
+@login_required
 def new_challenge():
     if request.method == 'POST':
         challenger_id = request.form['challenger_id']
