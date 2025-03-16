@@ -91,32 +91,54 @@
                 {% if 'user_id' in session %}
                     <h4>Ações</h4>
                     {% if challenge.status in ['pending', 'accepted'] %}
-                        <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post" class="mb-2">
-                            <div class="input-group">
-                                <select name="status" class="form-select" required>
-                                    <option value="">-- Selecione uma ação --</option>
-                                    {% if challenge.status == 'pending' %}
-                                        <option value="accepted">Aceitar Desafio</option>
-                                        <option value="cancelled">Rejeitar/Cancelar Desafio</option>
-                                    {% endif %}
-                                    {% if challenge.status in ['pending', 'accepted'] %}
-                                        <option value="completed">Marcar como Concluído</option>
-                                        <option value="completed_pending">Concluído (com pendência)</option>
-                                    {% endif %}
-                                </select>
-                                
-                                <div id="resultOptions" style="display: none;" class="input-group-append">
-                                    <select name="result" class="form-select">
-                                        <option value="">-- Selecione o resultado --</option>
-                                        <option value="challenger_win">Vitória do Desafiante</option>
-                                        <option value="challenged_win">Vitória do Desafiado</option>
+                        {% set is_admin = session.get('is_admin', False) %}
+                        {% set is_challenger = challenge.challenger_id|int == session.user_id|int %}
+                        {% set is_challenged = challenge.challenged_id|int == session.user_id|int %}
+                        
+                        <!-- Verifica se o usuário é participante do desafio ou admin -->
+                        {% if is_admin or is_challenger or is_challenged %}
+                            <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post" class="mb-2">
+                                <div class="input-group">
+                                    <select name="status" class="form-select" required>
+                                        <option value="">-- Selecione uma ação --</option>
+                                        {% if challenge.status == 'pending' and is_challenged %}
+                                            <option value="accepted">Aceitar Desafio</option>
+                                            <option value="cancelled">Rejeitar/Cancelar Desafio</option>
+                                        {% endif %}
+                                        
+                                        <!-- Opções disponíveis para todos os participantes ou admin -->
+                                        {% if challenge.status in ['pending', 'accepted'] and (is_admin or is_challenger or is_challenged) %}
+                                            <option value="completed">Marcar como Concluído</option>
+                                            <option value="completed_pending">Concluído (com pendência)</option>
+                                        {% endif %}
+                                        
+                                        <!-- Para admins, mostrar todas as opções -->
+                                        {% if is_admin %}
+                                            {% if challenge.status == 'pending' and not is_challenged %}
+                                                <option value="accepted">Aceitar Desafio</option>
+                                                <option value="cancelled">Rejeitar/Cancelar Desafio</option>
+                                            {% endif %}
+                                        {% endif %}
                                     </select>
+                                    
+                                    <div id="resultOptions" style="display: none;" class="input-group-append">
+                                        <select name="result" class="form-select">
+                                            <option value="">-- Selecione o resultado --</option>
+                                            <option value="challenger_win">Vitória do Desafiante</option>
+                                            <option value="challenged_win">Vitória do Desafiado</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Campo para observações do administrador -->
+                                    {% if is_admin %}
+                                    <input type="text" name="admin_notes" class="form-control" placeholder="Observações (opcional)" id="adminNotesInput" style="display: none;">
+                                    <input type="hidden" name="modified_by_admin" value="true">
+                                    {% endif %}
+                                    
+                                    <button type="submit" class="btn btn-primary">Executar</button>
                                 </div>
-                                
-                                <input type="password" name="senha" class="form-control" placeholder="Senha para concluir" id="senhaInput" style="display: none;">
-                                <button type="submit" class="btn btn-primary">Executar</button>
-                            </div>
-                        </form>
+                            </form>
+                        {% endif %}
                     {% endif %}
                     
                     <div class="btn-group mb-3">
@@ -153,6 +175,66 @@
                 </p>
             </div>
         {% endif %}
+        
+        <!-- Bloco para ações do desafiado -->
+        {% if challenge.status == 'pending' and challenge.challenged_id|int == session.user_id|int %}
+        <div class="card mb-4 border-warning">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0">Responder ao Desafio</h5>
+            </div>
+            <div class="card-body">
+                <p>Você foi desafiado por <strong>{{ challenge.challenger_name }}</strong>. Selecione uma das opções abaixo:</p>
+                
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post">
+                            <input type="hidden" name="status" value="accepted">
+                            <button type="submit" class="btn btn-success w-100">Aceitar Desafio</button>
+                        </form>
+                    </div>
+                    <div class="col-md-4">
+                        <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post" onsubmit="return confirm('Tem certeza que deseja rejeitar o desafio? Isto será considerado uma vitória para o desafiante.');">
+                            <input type="hidden" name="status" value="completed">
+                            <input type="hidden" name="result" value="challenger_win">
+                            <button type="submit" class="btn btn-danger w-100">Rejeitar Desafio</button>
+                        </form>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#proposeDateModal">
+                            Propor Nova Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal para propor nova data -->
+        <div class="modal fade" id="proposeDateModal" tabindex="-1" aria-labelledby="proposeDateModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="proposeDateModalLabel">Propor Nova Data para o Desafio</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form action="{{ url_for('edit_challenge', challenge_id=challenge.id) }}" method="post">
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="new_scheduled_date" class="form-label">Nova Data do Desafio</label>
+                                <input type="date" class="form-control" id="new_scheduled_date" name="scheduled_date" required>
+                                <div class="form-text">A nova data deve estar dentro dos próximos 7 dias a partir de hoje.</div>
+                                <div id="modal-date-error" class="text-danger mt-1"></div>
+                            </div>
+                            <input type="hidden" name="status" value="pending">
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">Propor Data</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -174,22 +256,15 @@
                         <strong>Aviso!</strong> Este desafio já foi concluído e pode ter afetado o ranking. 
                         A exclusão tentará reverter as alterações no ranking, mas recomenda-se cautela.
                     </div>
-                    <form id="deleteForm" action="{{ url_for('delete_challenge', challenge_id=challenge.id) }}" method="post">
-                        <div class="mb-3">
-                            <label for="senha" class="form-label">Senha de Administrador:</label>
-                            <input type="password" class="form-control" id="senha" name="senha" required>
-                        </div>
-                    </form>
-                {% else %}
-                    <form id="deleteForm" action="{{ url_for('delete_challenge', challenge_id=challenge.id) }}" method="post">
-                        {% if challenge.status == 'completed_pending' %}
-                            <div class="mb-3">
-                                <label for="senha" class="form-label">Senha de Administrador:</label>
-                                <input type="password" class="form-control" id="senha" name="senha" required>
-                            </div>
-                        {% endif %}
-                    </form>
                 {% endif %}
+                
+                <form id="deleteForm" action="{{ url_for('delete_challenge', challenge_id=challenge.id) }}" method="post">
+                    <div class="mb-3">
+                        <label for="admin_delete_reason" class="form-label">Motivo da Exclusão:</label>
+                        <textarea class="form-control" id="admin_delete_reason" name="admin_delete_reason" rows="2" required placeholder="Explique o motivo da exclusão deste desafio"></textarea>
+                    </div>
+                    <input type="hidden" name="admin_action" value="true">
+                </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -201,22 +276,103 @@
 {% endif %}
 
 <script>
-    // Script para mostrar/ocultar o campo de resultado e senha
+    // Script para mostrar/ocultar o campo de resultado e notas do admin
     document.addEventListener('DOMContentLoaded', function() {
         const statusSelect = document.querySelector('select[name="status"]');
         const resultOptions = document.getElementById('resultOptions');
-        const senhaInput = document.getElementById('senhaInput');
+        const adminNotesInput = document.getElementById('adminNotesInput');
         
         if (statusSelect) {
             statusSelect.addEventListener('change', function() {
                 if (this.value === 'completed' || this.value === 'completed_pending') {
                     resultOptions.style.display = 'block';
-                    senhaInput.style.display = 'block';
+                    if (adminNotesInput) {
+                        adminNotesInput.style.display = 'block';
+                    }
                 } else {
                     resultOptions.style.display = 'none';
-                    senhaInput.style.display = 'none';
+                    if (adminNotesInput) {
+                        adminNotesInput.style.display = 'none';
+                    }
                 }
             });
+        }
+        
+        // Validação da data para o modal de propor nova data
+        const newDateField = document.getElementById('new_scheduled_date');
+        if (newDateField) {
+            // Função para calcular a data máxima (hoje + 7 dias)
+            function getMaxDate() {
+                const today = new Date();
+                const maxDate = new Date();
+                maxDate.setDate(today.getDate() + 7);
+                return maxDate;
+            }
+            
+            // Formatar data para o formato yyyy-mm-dd (usado em inputs date)
+            function formatDateForInput(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            
+            // Definir a data máxima (7 dias a partir de hoje)
+            const maxDate = getMaxDate();
+            newDateField.max = formatDateForInput(maxDate);
+            
+            // Definir a data mínima (hoje)
+            const today = new Date();
+            newDateField.min = formatDateForInput(today);
+            
+            // Definir valor inicial (amanhã)
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            newDateField.value = formatDateForInput(tomorrow);
+            
+            // Função para validar a data
+            function validateDate() {
+                const selectedDate = new Date(newDateField.value);
+                selectedDate.setHours(0, 0, 0, 0);
+                
+                today.setHours(0, 0, 0, 0);
+                
+                const maxDateObj = getMaxDate();
+                maxDateObj.setHours(23, 59, 59, 0);
+                
+                const errorElement = document.getElementById('modal-date-error');
+                
+                if (selectedDate < today) {
+                    errorElement.textContent = "A data não pode ser anterior à data atual.";
+                    newDateField.setCustomValidity("Data inválida");
+                    return false;
+                } else if (selectedDate > maxDateObj) {
+                    errorElement.textContent = "A data deve ser no máximo 7 dias a partir de hoje.";
+                    newDateField.setCustomValidity("Data inválida");
+                    return false;
+                } else {
+                    errorElement.textContent = "";
+                    newDateField.setCustomValidity("");
+                    return true;
+                }
+            }
+            
+            // Adicionar eventos de validação
+            newDateField.addEventListener('change', validateDate);
+            newDateField.addEventListener('input', validateDate);
+            
+            // Validar data inicial
+            validateDate();
+            
+            // Validar ao enviar o formulário
+            const form = newDateField.closest('form');
+            if (form) {
+                form.addEventListener('submit', function(event) {
+                    if (!validateDate()) {
+                        event.preventDefault();
+                    }
+                });
+            }
         }
     });
 </script>

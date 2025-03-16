@@ -113,6 +113,13 @@
                             </a>
                         </div>
                     </div>
+                    <div class="row mt-2">
+                        <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('admin_challenge_logs') }}" class="btn btn-outline-primary d-block">
+                                <i class="fas fa-history fa-fw"></i> Logs de Desafios
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -262,6 +269,7 @@
                                     <h5 class="card-title">Sistema</h5>
                                     <p class="card-text">Ações de administração do sistema.</p>
                                     <a href="{{ url_for('sync_history_route') }}" class="btn btn-sm btn-outline-primary">Sincronizar histórico</a>
+                                    <a href="{{ url_for('admin_challenge_logs') }}" class="btn btn-sm btn-outline-info">Logs de Alterações</a>
                                     <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-danger">Sair</a>
                                 </div>
                             </div>

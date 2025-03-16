@@ -518,10 +518,10 @@ def dashboard():
                     flash(f'ATENÇÃO: Você foi desafiado por {challenge["opponent_name"]}! O prazo para aceitar, rejeitar ou propor nova data vence HOJE. Acesse <a href="{url_for("challenge_detail", challenge_id=challenge["id"])}">aqui</a> para responder.', 'warning')
                 elif days_remaining <= 2:
                     # Próximo do vencimento (2 dias ou menos)
-                    flash(f'ATENÇÃO: Você foi desafiado por {challenge["opponent_name"]}! Você tem {days_remaining} dias para aceitar, rejeitar ou propor nova data. Acesse <a href="{url_for("challenge_detail", challenge_id=challenge["id"])}">aqui</a> para responder.', 'warning')
+                    flash(f'ATENÇÃO: Você foi desafiado por {challenge["opponent_name"]}! Você tem {days_remaining} dias para aceitar, rejeitar ou propor nova data dentro de 7 dias a partir de hoje. Acesse <a href="{url_for("challenge_detail", challenge_id=challenge["id"])}">aqui</a> para responder.', 'warning')
                 else:
                     # Demais casos, ainda no prazo
-                    flash(f'Você foi desafiado por {challenge["opponent_name"]}! Você tem {days_remaining} dias para aceitar, rejeitar ou propor nova data. Acesse <a href="{url_for("challenge_detail", challenge_id=challenge["id"])}">aqui</a> para responder.', 'info')
+                    flash(f'Você foi desafiado por {challenge["opponent_name"]}! Você tem {days_remaining} dias para aceitar, rejeitar ou propor nova data dentro de 7 dias a partir de hoje. Acesse <a href="{url_for("challenge_detail", challenge_id=challenge["id"])}">aqui</a> para responder.', 'info')
     
     return render_template('dashboard.html', 
                           player=player,
@@ -1890,7 +1890,7 @@ def new_challenge():
         
         conn = get_db_connection()
         
-        # NOVA VALIDAÇÃO: Verificar se a data do desafio está dentro de 7 dias
+        # NOVA VALIDAÇÃO: Verificar se a data do desafio está dentro de 7 dias A PARTIR DE HOJE
         try:
             # Converter a data agendada para um objeto datetime
             scheduled_date_obj = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
@@ -1904,7 +1904,7 @@ def new_challenge():
             # Verificar se a data está dentro do intervalo permitido
             if scheduled_date_obj > max_date:
                 conn.close()
-                flash(f'A data do desafio não pode ser superior a 7 dias da data atual. Data máxima permitida: {max_date.strftime("%d/%m/%Y")}', 'error')
+                flash(f'A data do desafio não pode ser superior a 7 dias a partir de hoje. Data máxima permitida: {max_date.strftime("%d/%m/%Y")}', 'error')
                 return redirect(url_for('new_challenge', challenger_id=challenger_id))
             
             # Verificar se a data não é anterior à data atual
@@ -1996,119 +1996,9 @@ def new_challenge():
         conn.commit()
         conn.close()
         
-        flash('Desafio criado com sucesso!', 'success')
+        flash('Desafio criado com sucesso! O desafiado terá 7 dias para responder ou propor uma nova data.', 'success')
         return redirect(url_for('challenges_calendar'))
     
-    # Para requisições GET, mostrar formulário
-    conn = get_db_connection()
-    
-    # Verificar se o usuário é um administrador
-    is_admin = session.get('is_admin', False)
-    
-    # MODIFICAÇÃO: Administradores podem selecionar qualquer jogador como desafiante
-    preselected_challenger_id = None
-    
-    if is_admin:
-        # Administradores veem todos os jogadores ativos para seleção como desafiante
-        all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
-        eligible_challenged = []  # Será preenchido após selecionar o desafiante
-        
-        # Verificar se há um desafiante pré-selecionado na query string
-        preselected_challenger_id = request.args.get('challenger_id', None)
-        
-        # Se há um desafiante pré-selecionado, buscar os jogadores elegíveis
-        if preselected_challenger_id:
-            challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
-                                     (preselected_challenger_id,)).fetchone()
-            
-            if challenger:
-                # Buscar apenas jogadores que podem ser desafiados (mesmo nível ou um nível acima)
-                # e que tenham posição melhor que o desafiante
-                eligible_challenged = conn.execute('''
-                    SELECT * FROM players 
-                    WHERE active = 1
-                    AND position < ? 
-                    AND (tier = ? OR tier = ?)
-                    ORDER BY position
-                ''', (challenger['position'], challenger['tier'], chr(ord(challenger['tier'])-1))).fetchall()
-    
-    else:
-        # Para jogadores normais, manter a lógica atual
-        if 'user_id' in session and not is_admin:
-            # Se o usuário está logado e não é admin, usar seu ID como challenger_id pré-selecionado
-            preselected_challenger_id = str(session['user_id'])
-        else:
-            # Verificar se há um challenger_id na query string (comportamento anterior)
-            preselected_challenger_id = request.args.get('challenger_id', None)
-        
-        # Buscar jogadores com desafios pendentes ou aceitos
-        players_with_challenges = set()
-        pending_challenges = conn.execute('''
-            SELECT challenger_id, challenged_id 
-            FROM challenges 
-            WHERE status IN ('pending', 'accepted')
-        ''').fetchall()
-        
-        for challenge in pending_challenges:
-            players_with_challenges.add(challenge['challenger_id'])
-            players_with_challenges.add(challenge['challenged_id'])
-        
-        # Se temos um desafiante pré-selecionado, obter apenas os jogadores que podem ser desafiados
-        if preselected_challenger_id:
-            # Verificar se o desafiante já tem desafios pendentes
-            if int(preselected_challenger_id) in players_with_challenges:
-                conn.close()
-                flash('Este jogador já está envolvido em um desafio pendente ou aceito.', 'warning')
-                return redirect(url_for('challenges_calendar'))
-            
-            # Buscar informações do desafiante
-            challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
-                                     (preselected_challenger_id,)).fetchone()
-            
-            if challenger:
-                # Buscar todos os jogadores para a lista de desafiantes
-                all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
-                
-                # Buscar apenas jogadores que podem ser desafiados (mesmo nível ou um nível acima)
-                eligible_challenged = conn.execute('''
-                    SELECT * FROM players 
-                    WHERE active = 1
-                    AND position < ? 
-                    AND (tier = ? OR tier = ?)
-                    ORDER BY position
-                ''', (challenger['position'], challenger['tier'], chr(ord(challenger['tier'])-1))).fetchall()
-                
-                # Filtrar os jogadores que já têm desafios pendentes
-                eligible_challenged = [player for player in eligible_challenged 
-                                       if player['id'] not in players_with_challenges]
-        else:
-            # Se não houver um desafiante pré-selecionado, mostrar todos os jogadores disponíveis
-            all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
-            
-            # Filtrar jogadores sem desafios pendentes para a lista de desafiantes
-            all_players = [player for player in all_players 
-                          if player['id'] not in players_with_challenges]
-            
-            eligible_challenged = []
-    
-    # Adicionar data atual formatada para o campo de data
-    today_date = datetime.now().strftime('%Y-%m-%d')
-    
-    # Se temos um desafiante pré-selecionado e informações dele, passar para o template
-    challenger_info = None
-    if preselected_challenger_id:
-        challenger_info = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
-                                      (preselected_challenger_id,)).fetchone()
-    
-    conn.close()
-    
-    return render_template('new_challenge.html', 
-                         all_players=all_players, 
-                         eligible_challenged=eligible_challenged,
-                         preselected_challenger=preselected_challenger_id,
-                         challenger_info=challenger_info,
-                         today_date=today_date,
-                         is_admin=is_admin)
 
 # Alteração na rota delete_challenge
 @app.route('/delete_challenge/<int:challenge_id>', methods=['POST'])
@@ -2123,22 +2013,68 @@ def delete_challenge(challenge_id):
         flash('Desafio não encontrado!', 'error')
         return redirect(url_for('challenges_calendar'))
     
-    # Verificar se o desafio está concluído (normal ou com pendência)
-    if challenge['status'] == 'completed' or challenge['status'] == 'completed_pending':
-        # Verificar se a senha foi fornecida e está correta
-        senha = request.form.get('senha', '')
-        if senha != '123':
-            conn.close()
-            flash('Senha incorreta! Desafios concluídos só podem ser excluídos com a senha correta.', 'error')
-            return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+    # Verificar se é um admin
+    is_admin = session.get('is_admin', False)
+    if not is_admin:
+        conn.close()
+        flash('Apenas administradores podem excluir desafios.', 'error')
+        return redirect(url_for('challenge_detail', challenge_id=challenge_id))
     
-    # Verificar se o desafio já afetou o ranking (apenas para status 'completed', não 'completed_pending')
+    # Obter o motivo da exclusão
+    admin_delete_reason = request.form.get('admin_delete_reason', '')
+    
+    # Registrar a ação de exclusão em um log
+    try:
+        # Verificar se a tabela de logs existe
+        table_exists = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='challenge_logs'").fetchone()
+        
+        if not table_exists:
+            # Criar a tabela se não existir
+            conn.execute('''
+                CREATE TABLE challenge_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    challenge_id INTEGER,
+                    user_id TEXT NOT NULL,
+                    modified_by TEXT NOT NULL,
+                    old_status TEXT,
+                    new_status TEXT,
+                    old_result TEXT,
+                    new_result TEXT,
+                    notes TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+        
+        # Inserir o log de exclusão
+        current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        conn.execute('''
+            INSERT INTO challenge_logs 
+            (challenge_id, user_id, modified_by, old_status, new_status, old_result, new_result, notes, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            challenge_id, 
+            session.get('user_id', 'unknown'),
+            "Admin",
+            challenge['status'],
+            "DELETED",
+            challenge['result'],
+            None,
+            f"Desafio excluído. Motivo: {admin_delete_reason}",
+            current_datetime
+        ))
+        
+    except Exception as e:
+        print(f"Erro ao registrar log de exclusão: {e}")
+        # Continuar mesmo se o log falhar
+    
+    # Verificar se o desafio já afetou o ranking
     if challenge['status'] == 'completed' and challenge['result']:
         # Buscar histórico relacionado a este desafio
         history = conn.execute('SELECT * FROM ranking_history WHERE challenge_id = ?', (challenge_id,)).fetchall()
         
         if history:
-            # Agora permitimos excluir, mas primeiro revertemos as alterações do ranking
+            # Reverter as alterações no ranking
             try:
                 revert_challenge_result(conn, challenge_id)
                 flash('Alterações no ranking foram revertidas.', 'info')
@@ -2245,7 +2181,8 @@ def edit_challenge(challenge_id):
 def update_challenge(challenge_id):
     status = request.form['status']
     result = request.form.get('result', None)
-    senha = request.form.get('senha', '')
+    admin_notes = request.form.get('admin_notes', '')
+    is_admin_action = request.form.get('modified_by_admin') == 'true'
     
     conn = get_db_connection()
     
@@ -2257,19 +2194,85 @@ def update_challenge(challenge_id):
         flash('Desafio não encontrado!', 'error')
         return redirect(url_for('challenges_calendar'))
     
-    # Se o desafio está concluído e estamos modificando-o, verificar a senha
-    if challenge and (challenge['status'] == 'completed' or challenge['status'] == 'completed_pending'):
-        if senha != '123':
+    # Verificar permissões
+    is_admin = session.get('is_admin', False)
+    is_challenger = challenge['challenger_id'] == session.get('user_id')
+    is_challenged = challenge['challenged_id'] == session.get('user_id')
+    
+    # Registrar quem fez a alteração para fins de auditoria
+    modified_by = "Admin" if is_admin else "Desafiante" if is_challenger else "Desafiado" if is_challenged else "Desconhecido"
+    current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Verificar se a alteração é permitida
+    if not (is_admin or is_challenger or is_challenged):
+        conn.close()
+        flash('Você não tem permissão para modificar este desafio.', 'error')
+        return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+    
+    # Verificações específicas por status
+    if status == 'accepted' and not (is_admin or is_challenged):
+        conn.close()
+        flash('Apenas o desafiado ou um administrador pode aceitar um desafio.', 'error')
+        return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+    
+    # Para qualquer mudança de status para 'completed' ou 'completed_pending', apenas admin ou participantes podem fazer
+    if (status == 'completed' or status == 'completed_pending'):
+        if not (is_admin or is_challenger or is_challenged):
             conn.close()
-            flash('Senha incorreta! Desafios concluídos só podem ser modificados com a senha correta.', 'error')
+            flash('Apenas participantes do desafio ou administradores podem marcar um desafio como concluído.', 'error')
             return redirect(url_for('challenge_detail', challenge_id=challenge_id))
     
-    # Para qualquer mudança de status para 'completed' ou 'completed_pending', também requer senha
-    if (status == 'completed' or status == 'completed_pending') and challenge['status'] != 'completed' and challenge['status'] != 'completed_pending':
-        if senha != '123':
-            conn.close()
-            flash('Senha incorreta! Para marcar um desafio como concluído, é necessário informar a senha.', 'error')
-            return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+    # Criar log da alteração
+    log_message = f"Status alterado de '{challenge['status']}' para '{status}'"
+    if result:
+        log_message += f", resultado: '{result}'"
+    if admin_notes:
+        log_message += f", observações: '{admin_notes}'"
+    
+    # Armazenar log em uma tabela de histórico de alterações
+    try:
+        # Verificar se a tabela challenge_logs existe
+        table_exists = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='challenge_logs'").fetchone()
+        
+        if not table_exists:
+            # Criar a tabela se não existir
+            conn.execute('''
+                CREATE TABLE challenge_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    challenge_id INTEGER NOT NULL,
+                    user_id TEXT NOT NULL,
+                    modified_by TEXT NOT NULL,
+                    old_status TEXT,
+                    new_status TEXT,
+                    old_result TEXT,
+                    new_result TEXT,
+                    notes TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (challenge_id) REFERENCES challenges(id)
+                )
+            ''')
+            print("Tabela challenge_logs criada com sucesso.")
+        
+        # Inserir o log
+        conn.execute('''
+            INSERT INTO challenge_logs 
+            (challenge_id, user_id, modified_by, old_status, new_status, old_result, new_result, notes, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            challenge_id, 
+            session.get('user_id', 'unknown'),
+            modified_by,
+            challenge['status'],
+            status,
+            challenge['result'],
+            result,
+            admin_notes,
+            current_datetime
+        ))
+        
+    except Exception as e:
+        print(f"Erro ao registrar log: {e}")
+        # Continuar mesmo se o log falhar
     
     # Processar o desafio conforme o status
     if status == 'completed' and result:
@@ -3134,6 +3137,76 @@ def add_response_deadline_column():
     
     conn.commit()
     conn.close()
+
+
+# Adicione esta nova rota ao seu arquivo app.py
+
+@app.route('/admin/challenge_logs')
+@login_required
+def admin_challenge_logs():
+    # Verificar se é um administrador
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    conn = get_db_connection()
+    
+    # Obter parâmetros de filtro
+    challenge_id = request.args.get('challenge_id')
+    user_id = request.args.get('user_id')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    
+    # Construir a consulta base
+    query = '''
+        SELECT cl.*, 
+               c.challenger_id, c.challenged_id,
+               p1.name as challenger_name,
+               p2.name as challenged_name,
+               u.name as user_name
+        FROM challenge_logs cl
+        LEFT JOIN challenges c ON cl.challenge_id = c.id
+        LEFT JOIN players p1 ON c.challenger_id = p1.id
+        LEFT JOIN players p2 ON c.challenged_id = p2.id
+        LEFT JOIN players u ON cl.user_id = u.id
+    '''
+    
+    # Adicionar condições de filtro
+    conditions = []
+    params = []
+    
+    if challenge_id:
+        conditions.append("cl.challenge_id = ?")
+        params.append(challenge_id)
+    
+    if user_id:
+        conditions.append("cl.user_id = ?")
+        params.append(user_id)
+    
+    if start_date:
+        conditions.append("date(cl.created_at) >= ?")
+        params.append(start_date)
+    
+    if end_date:
+        conditions.append("date(cl.created_at) <= ?")
+        params.append(end_date)
+    
+    # Adicionar as condições à consulta
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+    
+    # Adicionar ordenação
+    query += " ORDER BY cl.created_at DESC LIMIT 500"
+    
+    # Executar a consulta
+    logs = conn.execute(query, params).fetchall()
+    
+    # Buscar todos os usuários para o filtro
+    users = conn.execute('SELECT id, name FROM players ORDER BY name').fetchall()
+    
+    conn.close()
+    
+    return render_template('admin_challenge_logs.html', logs=logs, users=users)
 
 
 

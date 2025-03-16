@@ -1,199 +1,415 @@
 {% extends 'base.html' %}
 
-{% block title %}Novo Desafio - Liga Olímpica de Golfe{% endblock %}
+{% block title %}Detalhes do Desafio - Liga Olímpica de Golfe{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <div class="card shadow">
         <div class="card-header bg-primary text-white">
-            <h3 class="mb-0">Novo Desafio</h3>
+            <h3 class="mb-0">Detalhes do Desafio</h3>
         </div>
         <div class="card-body">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
-                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                        <div class="alert alert-{{ category }}">{{ message|safe }}</div>
                     {% endfor %}
                 {% endif %}
             {% endwith %}
             
-            {% if is_admin %}
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle"></i> <strong>Modo Administrador:</strong> 
-                Você pode criar desafios para qualquer jogador. Selecione primeiro o desafiante e depois o jogador a ser desafiado.
-                As regras de tier e posição ainda se aplicam.
+            <!-- Informações básicas do desafio -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h4 class="mb-0">Informações do Desafio</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Desafiante</h5>
+                            <p>
+                                <strong>Nome:</strong> <a href="{{ url_for('player_detail', player_id=challenge.challenger_id) }}">{{ challenge.challenger_name }}</a><br>
+                                <strong>Posição:</strong> {{ challenge.challenger_position }}<br>
+                                <strong>HCP:</strong> {{ challenge.challenger_hcp or 'Não informado' }}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Desafiado</h5>
+                            <p>
+                                <strong>Nome:</strong> <a href="{{ url_for('player_detail', player_id=challenge.challenged_id) }}">{{ challenge.challenged_name }}</a><br>
+                                <strong>Posição:</strong> {{ challenge.challenged_position }}<br>
+                                <strong>HCP:</strong> {{ challenge.challenged_hcp or 'Não informado' }}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Status do Desafio</h5>
+                            <p>
+                                {% if challenge.status == 'pending' %}
+                                    <span class="badge bg-warning">Pendente</span>
+                                {% elif challenge.status == 'accepted' %}
+                                    <span class="badge bg-success">Aceito</span>
+                                {% elif challenge.status == 'completed' %}
+                                    <span class="badge bg-primary">Concluído</span>
+                                {% elif challenge.status == 'completed_pending' %}
+                                    <span class="badge bg-info">Concluído (com pendência)</span>
+                                {% elif challenge.status == 'cancelled' %}
+                                    <span class="badge bg-danger">Cancelado</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ challenge.status }}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Datas</h5>
+                            <p>
+                                <strong>Data Agendada:</strong> {{ challenge.scheduled_date|datetime('%d/%m/%Y') }}<br>
+                                <strong>Data de Criação:</strong> {{ challenge.created_at|datetime('%d/%m/%Y %H:%M') }}
+                                
+                                {% if challenge.status == 'pending' and challenge.response_deadline %}
+                                    <br><strong>Prazo para Resposta:</strong> {{ challenge.response_deadline|datetime('%d/%m/%Y') }}
+                                    {% if days_remaining is not none %}
+                                        {% if days_remaining < 0 %}
+                                            <span class="text-danger">(Expirado há {{ days_remaining|abs }} dia(s))</span>
+                                        {% elif days_remaining == 0 %}
+                                            <span class="text-warning">(Vence hoje)</span>
+                                        {% else %}
+                                            <span class="text-info">({{ days_remaining }} dia(s) restante(s))</span>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {% if challenge.result %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h5>Resultado</h5>
+                            <p>
+                                {% if challenge.result == 'challenger_win' %}
+                                    <span class="badge bg-success">Vitória do Desafiante ({{ challenge.challenger_name }})</span>
+                                {% elif challenge.result == 'challenged_win' %}
+                                    <span class="badge bg-success">Vitória do Desafiado ({{ challenge.challenged_name }})</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ challenge.result }}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Bloco para ações do desafiado -->
+            {% if challenge.status == 'pending' and challenge.challenged_id|int == session.user_id|int %}
+            <div class="card mb-4 border-warning">
+                <div class="card-header bg-warning text-white">
+                    <h5 class="mb-0">Ações Necessárias</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Você foi desafiado por {{ challenge.challenger_name }}!</strong> Você precisa responder a este desafio.</p>
+                    <p>Você pode:</p>
+                    <ul>
+                        <li><strong>Aceitar</strong> a data proposta ({{ challenge.scheduled_date|datetime('%d/%m/%Y') }})</li>
+                        <li><strong>Rejeitar</strong> o desafio (isto conta como uma vitória para o desafiante)</li>
+                        <li><strong>Propor uma nova data</strong> para o desafio (a data deve ser dentro de 7 dias a partir de HOJE)</li>
+                    </ul>
+                    
+                    {% if expired %}
+                        <div class="alert alert-danger">
+                            <strong>Atenção!</strong> O prazo para resposta expirou há {{ days_remaining }} dia(s).
+                            Por favor, responda o mais rápido possível.
+                        </div>
+                    {% elif days_remaining is not none %}
+                        <div class="alert alert-warning">
+                            <strong>Prazo:</strong> Você tem {{ days_remaining }} dia(s) para responder.
+                            Após este prazo, o sistema poderá considerar como desafio rejeitado automaticamente.
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Formulários de ação -->
+                    <div class="row mt-3">
+                        <div class="col-md-4">
+                            <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post">
+                                <input type="hidden" name="status" value="accepted">
+                                <button type="submit" class="btn btn-success w-100">Aceitar Desafio</button>
+                            </form>
+                        </div>
+                        <div class="col-md-4">
+                            <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post" onsubmit="return confirm('Tem certeza que deseja rejeitar o desafio? Isto será considerado uma vitória para o desafiante.');">
+                                <input type="hidden" name="status" value="completed">
+                                <input type="hidden" name="result" value="challenger_win">
+                                <input type="hidden" name="senha" value="123">
+                                <button type="submit" class="btn btn-danger w-100">Rejeitar Desafio</button>
+                            </form>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#proposeDateModal">
+                                Propor Nova Data
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Modal para propor nova data -->
+            <div class="modal fade" id="proposeDateModal" tabindex="-1" aria-labelledby="proposeDateModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="proposeDateModalLabel">Propor Nova Data para o Desafio</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form action="{{ url_for('edit_challenge', challenge_id=challenge.id) }}" method="post">
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="new_scheduled_date" class="form-label">Nova Data do Desafio</label>
+                                    <input type="date" class="form-control" id="new_scheduled_date" name="scheduled_date" required>
+                                    <div class="form-text">A nova data deve estar dentro dos próximos 7 dias a partir de hoje.</div>
+                                    <div id="modal-date-error" class="text-danger mt-1"></div>
+                                </div>
+                                <input type="hidden" name="status" value="pending">
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="submit" class="btn btn-primary">Propor Data</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+            // Aplicar a validação da data no modal
+            document.addEventListener('DOMContentLoaded', function() {
+                // Função para calcular a data máxima (hoje + 7 dias)
+                function getMaxDate() {
+                    const today = new Date();
+                    const maxDate = new Date();
+                    maxDate.setDate(today.getDate() + 7);
+                    return maxDate;
+                }
+                
+                // Formatar data para o formato yyyy-mm-dd (usado em inputs date)
+                function formatDateForInput(date) {
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                }
+                
+                // Formatar data para exibição DD/MM/YYYY
+                function formatDateForDisplay(date) {
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const year = date.getFullYear();
+                    return `${day}/${month}/${year}`;
+                }
+                
+                // Função para validar a data selecionada no modal
+                function validateModalDate() {
+                    const datefield = document.getElementById('new_scheduled_date');
+                    const selectedDate = new Date(datefield.value);
+                    selectedDate.setHours(0, 0, 0, 0);
+                    
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    
+                    const maxDate = getMaxDate();
+                    maxDate.setHours(23, 59, 59, 0);
+                    
+                    const errorElement = document.getElementById('modal-date-error');
+                    
+                    if (selectedDate < today) {
+                        errorElement.textContent = "A data não pode ser anterior à data atual.";
+                        datefield.setCustomValidity("Data inválida");
+                        return false;
+                    } else if (selectedDate > maxDate) {
+                        errorElement.textContent = "A data deve ser no máximo 7 dias a partir de hoje (" + formatDateForDisplay(maxDate) + ").";
+                        datefield.setCustomValidity("Data inválida");
+                        return false;
+                    } else {
+                        errorElement.textContent = "";
+                        datefield.setCustomValidity("");
+                        return true;
+                    }
+                }
+                
+                var newDateField = document.getElementById('new_scheduled_date');
+                if (newDateField) {
+                    // Definir a data máxima (7 dias a partir de hoje)
+                    const maxDate = getMaxDate();
+                    newDateField.max = formatDateForInput(maxDate);
+                    
+                    // Definir a data mínima (hoje)
+                    const today = new Date();
+                    newDateField.min = formatDateForInput(today);
+                    
+                    // Definir valor inicial (amanhã)
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    newDateField.value = formatDateForInput(tomorrow);
+                    
+                    // Adicionar eventos de validação
+                    newDateField.addEventListener('change', validateModalDate);
+                    newDateField.addEventListener('input', validateModalDate);
+                    
+                    // Validar data inicial
+                    validateModalDate();
+                    
+                    // Adicionar validação ao envio do formulário
+                    const form = newDateField.closest('form');
+                    if (form) {
+                        form.addEventListener('submit', function(event) {
+                            if (!validateModalDate()) {
+                                event.preventDefault();
+                            }
+                        });
+                    }
+                }
+            });
+            </script>
+            {% endif %}
+            
+            <!-- Bloco para ações do desafiante -->
+            {% if challenge.status == 'pending' and challenge.challenger_id|int == session.user_id|int %}
+            <div class="card mb-4 border-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Status do seu Desafio</h5>
+                </div>
+                <div class="card-body">
+                    <p>Seu desafio para {{ challenge.challenged_name }} está pendente de resposta.</p>
+                    <p>O desafiado tem até <strong>{{ challenge.response_deadline|datetime('%d/%m/%Y') }}</strong> para responder.</p>
+                    
+                    {% if days_remaining is not none %}
+                        {% if days_remaining < 0 %}
+                            <div class="alert alert-info">
+                                O prazo para resposta expirou há {{ days_remaining|abs }} dia(s).
+                                O desafiado ainda pode responder, ou você pode solicitar a um administrador que registre o desafio como aceito automaticamente.
+                            </div>
+                        {% elif days_remaining <= 2 %}
+                            <div class="alert alert-info">
+                                O prazo para resposta vence em {{ days_remaining }} dia(s).
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
             </div>
             {% endif %}
             
-            {% if not preselected_challenger %}
-                <!-- Etapa 1: Selecionar o desafiante -->
-                <h4>Selecione o Jogador Desafiante:</h4>
-                <div class="row">
-                    {% for player in all_players %}
-                    <div class="col-md-6 col-lg-4 mb-3">
-                        <div class="card h-100">
-                            <div class="card-body">
-                                <h5 class="card-title">{{ player.name }}</h5>
-                                <p class="card-text">
-                                    <strong>Posição:</strong> {{ player.position }}<br>
-                                    <strong>Tier:</strong> {{ player.tier }}
-                                </p>
-                                <a href="{{ url_for('new_challenge', challenger_id=player.id) }}" class="btn btn-primary">
-                                    Selecionar como Desafiante
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <!-- Etapa 2: Mostrar desafiante selecionado e escolher desafiado -->
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <div class="card bg-light">
-                            <div class="card-header">
-                                <h5 class="mb-0">Desafiante Selecionado</h5>
-                            </div>
-                            <div class="card-body">
-                                <h4>{{ challenger_info.name }}</h4>
-                                <p>
-                                    <strong>Posição:</strong> {{ challenger_info.position }}<br>
-                                    <strong>Tier:</strong> {{ challenger_info.tier }}
-                                </p>
-                                <a href="{{ url_for('new_challenge') }}" class="btn btn-outline-secondary">
-                                    <i class="fas fa-arrow-left"></i> Escolher outro desafiante
-                                </a>
-                            </div>
-                        </div>
-                    </div>
+            <!-- Botões de ação gerais -->
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <a href="{{ url_for('challenges_list') }}" class="btn btn-secondary w-100">
+                        <i class="fas fa-arrow-left"></i> Voltar para Lista de Desafios
+                    </a>
                 </div>
                 
-                {% if eligible_challenged|length > 0 %}
-                    <h4>Selecione o Jogador a ser Desafiado:</h4>
-                    
-                    <form method="POST" action="{{ url_for('new_challenge') }}" class="mt-4" id="challenge-form">
-                        <input type="hidden" name="challenger_id" value="{{ preselected_challenger }}">
-                        
-                        <div class="mb-3">
-                            <label for="challenged_id" class="form-label">Jogador a ser desafiado:</label>
-                            <select class="form-select" id="challenged_id" name="challenged_id" required>
-                                <option value="">-- Selecione o jogador --</option>
-                                {% for player in eligible_challenged %}
-                                <option value="{{ player.id }}">
-                                    {{ player.name }} (Posição: {{ player.position }}, Tier: {{ player.tier }})
-                                </option>
-                                {% endfor %}
-                            </select>
+                {% if session.is_admin %}
+                <div class="col-md-4">
+                    <a href="{{ url_for('edit_challenge', challenge_id=challenge.id) }}" class="btn btn-warning w-100">
+                        <i class="fas fa-edit"></i> Editar Desafio
+                    </a>
+                </div>
+                
+                <div class="col-md-4">
+                    <button type="button" class="btn btn-danger w-100" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                        <i class="fas fa-trash-alt"></i> Excluir Desafio
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Opções para registrar resultado (para administradores ou desafios aceitos) -->
+            {% if session.is_admin or (challenge.status == 'accepted' and (challenge.challenger_id|int == session.user_id|int or challenge.challenged_id|int == session.user_id|int)) %}
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Registrar Resultado</h5>
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post" class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="status" class="form-label">Status do Desafio</label>
+                                <select class="form-select" id="status" name="status" required>
+                                    <option value="">-- Selecione --</option>
+                                    {% if challenge.status == 'pending' %}
+                                    <option value="accepted">Aceito</option>
+                                    {% endif %}
+                                    <option value="completed">Concluído</option>
+                                    <option value="completed_pending">Concluído (com pendência)</option>
+                                    <option value="cancelled">Cancelado</option>
+                                </select>
+                            </div>
                         </div>
                         
-                        <div class="mb-3">
-                            <label for="scheduled_date" class="form-label">Data do Desafio <small class="text-muted">(Máximo 7 dias a partir de hoje)</small>:</label>
-                            <input type="date" class="form-control" id="scheduled_date" name="scheduled_date" 
-                                   min="{{ today_date }}" value="{{ today_date }}" required>
-                            <div id="date-error" class="text-danger mt-1"></div>
-                            <small class="form-text text-muted">A data do desafio deve estar entre hoje e os próximos 7 dias.</small>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="result" class="form-label">Resultado (se concluído)</label>
+                                <select class="form-select" id="result" name="result">
+                                    <option value="">-- Selecione --</option>
+                                    <option value="challenger_win">Vitória do Desafiante ({{ challenge.challenger_name }})</option>
+                                    <option value="challenged_win">Vitória do Desafiado ({{ challenge.challenged_name }})</option>
+                                </select>
+                            </div>
                         </div>
                         
-                        <div class="mb-3">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="senha" class="form-label">Senha (se concluído)</label>
+                                <input type="password" class="form-select" id="senha" name="senha" placeholder="Senha necessária para concluir">
+                            </div>
+                        </div>
+                        
+                        <div class="col-12">
                             <button type="submit" class="btn btn-success">
-                                <i class="fas fa-check-circle"></i> Criar Desafio
+                                <i class="fas fa-save"></i> Salvar Resultado
                             </button>
                         </div>
                     </form>
-                {% else %}
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle"></i> Não há jogadores elegíveis para serem desafiados por este jogador.
-                        <p class="mb-0 mt-2">Lembre-se: um jogador só pode desafiar outros que:</p>
-                        <ul class="mb-0">
-                            <li>Estão ativos</li>
-                            <li>Estão no mesmo nível ou um nível acima</li>
-                            <li>Têm posição melhor (numero menor)</li>
-                            <li>Não estão envolvidos em outros desafios pendentes</li>
-                        </ul>
-                    </div>
-                {% endif %}
+                </div>
+            </div>
             {% endif %}
         </div>
     </div>
 </div>
 
-{% if preselected_challenger and eligible_challenged|length > 0 %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Função para calcular a data máxima (hoje + 7 dias)
-    function getMaxDate() {
-        const today = new Date();
-        const maxDate = new Date();
-        maxDate.setDate(today.getDate() + 7);
-        return maxDate;
-    }
-    
-    // Formatar data para o formato yyyy-mm-dd (usado em inputs date)
-    function formatDateForInput(date) {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }
-    
-    // Função para validar a data selecionada
-    function validateDate() {
-        const scheduledDateField = document.getElementById('scheduled_date');
-        const selectedDate = new Date(scheduledDateField.value);
-        
-        // Ajustar para comparar apenas datas (sem horário)
-        selectedDate.setHours(0, 0, 0, 0);
-        
-        // Data de hoje
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        // Data máxima (hoje + 7 dias)
-        const maxDate = getMaxDate();
-        maxDate.setHours(23, 59, 59, 0);
-        
-        const errorElement = document.getElementById('date-error');
-        
-        if (selectedDate < today) {
-            errorElement.textContent = "A data do desafio não pode ser anterior à data atual.";
-            scheduledDateField.setCustomValidity("Data inválida");
-            return false;
-        } else if (selectedDate > maxDate) {
-            errorElement.textContent = "A data do desafio não pode ser superior a 7 dias da data atual.";
-            scheduledDateField.setCustomValidity("Data inválida");
-            return false;
-        } else {
-            errorElement.textContent = "";
-            scheduledDateField.setCustomValidity("");
-            return true;
-        }
-    }
-    
-    // Aplicar a validação ao campo de data
-    const scheduledDateField = document.getElementById('scheduled_date');
-    if (scheduledDateField) {
-        // Definir a data máxima (7 dias a partir de hoje)
-        const maxDate = getMaxDate();
-        scheduledDateField.max = formatDateForInput(maxDate);
-        
-        // Adicionar eventos de validação
-        scheduledDateField.addEventListener('change', validateDate);
-        scheduledDateField.addEventListener('input', validateDate);
-        
-        // Validar data inicial
-        validateDate();
-        
-        // Adicionar validação ao envio do formulário
-        const form = document.getElementById('challenge-form');
-        if (form) {
-            form.addEventListener('submit', function(event) {
-                if (!validateDate()) {
-                    event.preventDefault();
-                }
-            });
-        }
-    }
-});
-</script>
+<!-- Modal de Confirmação de Exclusão -->
+{% if session.is_admin %}
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir este desafio?</p>
+                
+                {% if challenge.status == 'completed' %}
+                <div class="alert alert-warning">
+                    <strong>Atenção!</strong> Este desafio está concluído e pode ter afetado o ranking dos jogadores.
+                    Excluí-lo pode exigir ajustes manuais nas posições.
+                </div>
+                {% endif %}
+                
+                <form action="{{ url_for('delete_challenge', challenge_id=challenge.id) }}" method="post" id="deleteForm">
+                    <div class="mb-3">
+                        <label for="delete_senha" class="form-label">Senha de Administrador</label>
+                        <input type="password" class="form-control" id="delete_senha" name="senha" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" form="deleteForm" class="btn btn-danger">Confirmar Exclusão</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endif %}
 {% endblock %}
