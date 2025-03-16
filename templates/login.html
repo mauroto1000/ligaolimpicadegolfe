@@ -21,10 +21,10 @@
 
                     <form method="POST" action="{{ url_for('login') }}">
                         <div class="mb-3">
-                            <label for="identification" class="form-label">Nome ou Email:</label>
-                            <input type="text" class="form-control" id="identification" name="identification" required autofocus>
+                            <label for="player_code" class="form-label">Código do Jogador:</label>
+                            <input type="text" class="form-control" id="player_code" name="player_code" required autofocus placeholder="Ex: LO037">
                             <small class="form-text text-muted">
-                                Digite seu nome, email ou ID para login.
+                                Digite seu código de jogador (formato: LO seguido do número).
                             </small>
                         </div>
                         <div class="mb-3">
@@ -43,13 +43,20 @@
                         <a href="{{ url_for('forgot_password') }}" class="text-decoration-none">Esqueceu sua senha?</a>
                     </div>
 
+                    <div class="mt-4 alert alert-info">
+                        <p class="mb-1"><strong>Novo método de login!</strong></p>
+                        <p>Agora você deve usar seu código de jogador para acessar o sistema.</p>
+                        <p class="mb-1">Se você não sabe qual é o seu código, entre em contato com o administrador.</p>
+                    </div>
+
                     <div class="mt-4">
                         <p class="mb-1">Dicas de acesso:</p>
                         <ul class="small text-muted">
+                            <li>Seu código de jogador tem o formato LO seguido de um número (ex: LO037)</li>
                             <li>Sua senha inicial são as 3 primeiras letras do seu nome em minúsculas</li>
                             <li>Por exemplo, se seu nome é João Silva, sua senha inicial é "joã"</li>
                             <li>Você pode alterar sua senha após o primeiro login</li>
-                            <li>Os administradores usam login específico</li>
+                            <li>Os administradores continuam usando seu login específico</li>
                         </ul>
                     </div>
                 </div>
