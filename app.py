@@ -1999,6 +1999,116 @@ def new_challenge():
         flash('Desafio criado com sucesso! O desafiado terá 7 dias para responder ou propor uma nova data.', 'success')
         return redirect(url_for('challenges_calendar'))
     
+    # Para requisições GET, mostrar formulário
+    conn = get_db_connection()
+    
+    # Verificar se o usuário é um administrador
+    is_admin = session.get('is_admin', False)
+    
+    # MODIFICAÇÃO: Administradores podem selecionar qualquer jogador como desafiante
+    preselected_challenger_id = None
+    
+    if is_admin:
+        # Administradores veem todos os jogadores ativos para seleção como desafiante
+        all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
+        eligible_challenged = []  # Será preenchido após selecionar o desafiante
+        
+        # Verificar se há um desafiante pré-selecionado na query string
+        preselected_challenger_id = request.args.get('challenger_id', None)
+        
+        # Se há um desafiante pré-selecionado, buscar os jogadores elegíveis
+        if preselected_challenger_id:
+            challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
+                                     (preselected_challenger_id,)).fetchone()
+            
+            if challenger:
+                # Buscar apenas jogadores que podem ser desafiados (mesmo nível ou um nível acima)
+                # e que tenham posição melhor que o desafiante
+                eligible_challenged = conn.execute('''
+                    SELECT * FROM players 
+                    WHERE active = 1
+                    AND position < ? 
+                    AND (tier = ? OR tier = ?)
+                    ORDER BY position
+                ''', (challenger['position'], challenger['tier'], chr(ord(challenger['tier'])-1))).fetchall()
+    
+    else:
+        # Para jogadores normais, manter a lógica atual
+        if 'user_id' in session and not is_admin:
+            # Se o usuário está logado e não é admin, usar seu ID como challenger_id pré-selecionado
+            preselected_challenger_id = str(session['user_id'])
+        else:
+            # Verificar se há um challenger_id na query string (comportamento anterior)
+            preselected_challenger_id = request.args.get('challenger_id', None)
+        
+        # Buscar jogadores com desafios pendentes ou aceitos
+        players_with_challenges = set()
+        pending_challenges = conn.execute('''
+            SELECT challenger_id, challenged_id 
+            FROM challenges 
+            WHERE status IN ('pending', 'accepted')
+        ''').fetchall()
+        
+        for challenge in pending_challenges:
+            players_with_challenges.add(challenge['challenger_id'])
+            players_with_challenges.add(challenge['challenged_id'])
+        
+        # Se temos um desafiante pré-selecionado, obter apenas os jogadores que podem ser desafiados
+        if preselected_challenger_id:
+            # Verificar se o desafiante já tem desafios pendentes
+            if int(preselected_challenger_id) in players_with_challenges:
+                conn.close()
+                flash('Este jogador já está envolvido em um desafio pendente ou aceito.', 'warning')
+                return redirect(url_for('challenges_calendar'))
+            
+            # Buscar informações do desafiante
+            challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
+                                     (preselected_challenger_id,)).fetchone()
+            
+            if challenger:
+                # Buscar todos os jogadores para a lista de desafiantes
+                all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
+                
+                # Buscar apenas jogadores que podem ser desafiados (mesmo nível ou um nível acima)
+                eligible_challenged = conn.execute('''
+                    SELECT * FROM players 
+                    WHERE active = 1
+                    AND position < ? 
+                    AND (tier = ? OR tier = ?)
+                    ORDER BY position
+                ''', (challenger['position'], challenger['tier'], chr(ord(challenger['tier'])-1))).fetchall()
+                
+                # Filtrar os jogadores que já têm desafios pendentes
+                eligible_challenged = [player for player in eligible_challenged 
+                                       if player['id'] not in players_with_challenges]
+        else:
+            # Se não houver um desafiante pré-selecionado, mostrar todos os jogadores disponíveis
+            all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
+            
+            # Filtrar jogadores sem desafios pendentes para a lista de desafiantes
+            all_players = [player for player in all_players 
+                          if player['id'] not in players_with_challenges]
+            
+            eligible_challenged = []
+    
+    # Adicionar data atual formatada para o campo de data
+    today_date = datetime.now().strftime('%Y-%m-%d')
+    
+    # Se temos um desafiante pré-selecionado e informações dele, passar para o template
+    challenger_info = None
+    if preselected_challenger_id:
+        challenger_info = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
+                                      (preselected_challenger_id,)).fetchone()
+    
+    conn.close()
+    
+    return render_template('new_challenge.html', 
+                         all_players=all_players, 
+                         eligible_challenged=eligible_challenged,
+                         preselected_challenger=preselected_challenger_id,
+                         challenger_info=challenger_info,
+                         today_date=today_date,
+                         is_admin=is_admin)
 
 # Alteração na rota delete_challenge
 @app.route('/delete_challenge/<int:challenge_id>', methods=['POST'])
