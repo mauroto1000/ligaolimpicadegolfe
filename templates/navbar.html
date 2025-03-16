@@ -1,0 +1,87 @@
+<!-- Navbar com suporte a autenticação -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container">
+        <a class="navbar-brand" href="{{ url_for('index') }}">
+            <i class="fas fa-golf-ball"></i> Liga Olímpica de Golfe
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav mr-auto">
+                {% if session.user_id %}
+                    <!-- Menu para usuários logados -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+                    </li>
+                {% endif %}
+                
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('pyramid_dynamic') }}">Pirâmide</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('challenges_calendar') }}">Desafios</a>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="rankingDropdown" role="button"
+                       data-bs-toggle="dropdown" aria-expanded="false">
+                        Ranking
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="rankingDropdown">
+                        <li><a class="dropdown-item" href="{{ url_for('index') }}">Todos os Jogadores</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('ranking_history') }}">Histórico de Ranking</a></li>
+                        {% if session.user_id and not session.is_admin %}
+                            <li><a class="dropdown-item" href="{{ url_for('player_ranking_history', player_id=session.user_id) }}">Meu Histórico</a></li>
+                        {% endif %}
+                    </ul>
+                </li>
+            </ul>
+            
+            <ul class="navbar-nav ms-auto">
+                {% if session.user_id %}
+                    <!-- Menu do usuário logado -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
+                          data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-circle"></i> {{ session.user_name }}
+                            {% if session.is_admin %}
+                                <span class="badge bg-warning">Admin</span>
+                            {% endif %}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            {% if session.is_admin %}
+                                <li><a class="dropdown-item" href="{{ url_for('admin_dashboard') }}">Dashboard Admin</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                            {% else %}
+                                <li>
+                                    <a class="dropdown-item" href="{{ url_for('player_detail', player_id=session.user_id) }}">
+                                        <i class="fas fa-user fa-fw"></i> Meu Perfil
+                                    </a>
+                                </li>
+                            {% endif %}
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('change_password') }}">
+                                    <i class="fas fa-key fa-fw"></i> Alterar Senha
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
+                                    <i class="fas fa-sign-out-alt fa-fw"></i> Sair
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                {% else %}
+                    <!-- Opções para visitantes -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('login') }}">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</nav>

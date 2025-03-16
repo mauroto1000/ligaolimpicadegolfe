@@ -1,0 +1,346 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="row">
+        <!-- Perfil do Jogador -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Meu Perfil</h4>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <div class="rounded-circle bg-secondary text-white d-inline-flex justify-content-center align-items-center" style="width: 80px; height: 80px; font-size: 2.5rem;">
+                            {{ player.name[:1] }}
+                        </div>
+                    </div>
+                    
+                    <h5 class="text-center">{{ player.name }}</h5>
+                    <p class="text-center text-muted">
+                        <span class="badge bg-success">Posição #{{ player.position }}</span>
+                        <span class="badge bg-info">Tier {{ player.tier }}</span>
+                    </p>
+                    
+                    <div class="mt-4">
+                        <p class="mb-1"><strong>HCP Index:</strong> {{ player.hcp_index or 'Não informado' }}</p>
+                        {% if player.hcp_ogc_white %}
+                            <p class="mb-1"><strong>HCP OGC Branco:</strong> {{ player.hcp_ogc_white }}</p>
+                        {% endif %}
+                        <p class="mb-1"><strong>Email:</strong> {{ player.email or 'Não informado' }}</p>
+                        <p class="mb-1"><strong>Último login:</strong> 
+                            {% if player.last_login %}
+                                {{ player.last_login }}
+                            {% else %}
+                                Primeiro acesso
+                            {% endif %}
+                        </p>
+                    </div>
+                    
+                    <div class="d-grid gap-2 mt-4">
+                        <a href="{{ url_for('change_password') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-key"></i> Alterar senha
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Desafios Pendentes -->
+        <div class="col-md-8 mb-4">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Meus Desafios</h4>
+                </div>
+                <div class="card-body">
+                    <ul class="nav nav-tabs mb-3" id="challengeTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" aria-controls="pending" aria-selected="true">
+                                Pendentes 
+                                <span class="badge bg-danger">{{ challenges_as_challenger|length + challenges_as_challenged|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="new-challenge-tab" data-bs-toggle="tab" data-bs-target="#new-challenge" type="button" role="tab" aria-controls="new-challenge" aria-selected="false">
+                                Desafiar Jogador
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content" id="challengeTabsContent">
+                        <!-- Desafios Pendentes Tab -->
+                        <div class="tab-pane fade show active" id="pending" role="tabpanel" aria-labelledby="pending-tab">
+                            {% if challenges_as_challenger|length > 0 or challenges_as_challenged|length > 0 %}
+                                <h5>Desafios que você fez:</h5>
+                                {% if challenges_as_challenger|length > 0 %}
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Desafiado</th>
+                                                    <th>Posição</th>
+                                                    <th>Data</th>
+                                                    <th>Status</th>
+                                                    <th>Ações</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for challenge in challenges_as_challenger %}
+                                                <tr>
+                                                    <td>{{ challenge.opponent_name }}</td>
+                                                    <td>#{{ challenge.opponent_position }}</td>
+                                                    <td>
+                                                        {% if challenge.scheduled_date %}
+                                                            {{ challenge.scheduled_date }}
+                                                        {% else %}
+                                                            Não agendado
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if challenge.status == 'pending' %}
+                                                            <span class="badge bg-warning">Pendente</span>
+                                                        {% elif challenge.status == 'accepted' %}
+                                                            <span class="badge bg-primary">Aceito</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="btn btn-sm btn-outline-primary">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p>Você não tem desafios pendentes como desafiante.</p>
+                                {% endif %}
+                                
+                                <h5 class="mt-4">Desafios recebidos:</h5>
+                                {% if challenges_as_challenged|length > 0 %}
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Desafiante</th>
+                                                    <th>Posição</th>
+                                                    <th>Data</th>
+                                                    <th>Status</th>
+                                                    <th>Ações</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for challenge in challenges_as_challenged %}
+                                                <tr>
+                                                    <td>{{ challenge.opponent_name }}</td>
+                                                    <td>#{{ challenge.opponent_position }}</td>
+                                                    <td>
+                                                        {% if challenge.scheduled_date %}
+                                                            {{ challenge.scheduled_date }}
+                                                        {% else %}
+                                                            Não agendado
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if challenge.status == 'pending' %}
+                                                            <span class="badge bg-warning">Pendente</span>
+                                                        {% elif challenge.status == 'accepted' %}
+                                                            <span class="badge bg-primary">Aceito</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="btn btn-sm btn-outline-primary">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p>Você não tem desafios pendentes como desafiado.</p>
+                                {% endif %}
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <div class="mb-3">
+                                        <i class="fas fa-trophy fa-4x text-muted"></i>
+                                    </div>
+                                    <h5>Você não tem desafios pendentes</h5>
+                                    <p class="text-muted">Desafie um jogador para subir no ranking!</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Novo Desafio Tab -->
+                        <div class="tab-pane fade" id="new-challenge" role="tabpanel" aria-labelledby="new-challenge-tab">
+                            {% if potential_challenges|length > 0 %}
+                                <h5>Jogadores que você pode desafiar:</h5>
+                                <div class="alert alert-info">
+                                    <p class="mb-0">Você só pode desafiar jogadores no mesmo nível ou um nível acima, e que tenham posição melhor que a sua.</p>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Jogador</th>
+                                                <th>Posição</th>
+                                                <th>Tier</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for potential in potential_challenges %}
+                                            <tr>
+                                                <td>{{ potential.name }}</td>
+                                                <td>#{{ potential.position }}</td>
+                                                <td>{{ potential.tier }}</td>
+                                                <td>
+                                                    <a href="{{ url_for('new_challenge', challenger_id=player.id, challenged_id=potential.id) }}" class="btn btn-sm btn-success">
+                                                        <i class="fas fa-flag"></i> Desafiar
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <div class="mb-3">
+                                        <i class="fas fa-exclamation-circle fa-4x text-muted"></i>
+                                    </div>
+                                    <h5>Não há jogadores disponíveis para desafio</h5>
+                                    <p class="text-muted">Você pode estar no topo do ranking ou todos os possíveis oponentes já estão em desafios.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Ranking e Navegação -->
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Jogadores Acima de Mim</h4>
+                </div>
+                <div class="card-body">
+                    {% if players_above|length > 0 %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Posição</th>
+                                        <th>Jogador</th>
+                                        <th>Tier</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for p in players_above %}
+                                    <tr>
+                                        <td>#{{ p.position }}</td>
+                                        <td>{{ p.name }}</td>
+                                        <td>{{ p.tier }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <h5>Parabéns!</h5>
+                            <p class="text-muted">Você está no topo do ranking.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Jogadores Abaixo de Mim</h4>
+                </div>
+                <div class="card-body">
+                    {% if players_below|length > 0 %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Posição</th>
+                                        <th>Jogador</th>
+                                        <th>Tier</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for p in players_below %}
+                                    <tr>
+                                        <td>#{{ p.position }}</td>
+                                        <td>{{ p.name }}</td>
+                                        <td>{{ p.tier }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">Não há jogadores abaixo de você no ranking.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Links de Navegação -->
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Navegação Rápida</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <a href="{{ url_for('pyramid_dynamic') }}" class="btn btn-outline-primary d-block">
+                                <i class="fas fa-trophy fa-fw"></i> Pirâmide de Ranking
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="{{ url_for('challenges_calendar') }}" class="btn btn-outline-primary d-block">
+                                <i class="fas fa-calendar fa-fw"></i> Calendário de Desafios
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="{{ url_for('ranking_history') }}" class="btn btn-outline-primary d-block">
+                                <i class="fas fa-chart-line fa-fw"></i> Histórico do Ranking
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="{{ url_for('player_ranking_history', player_id=player.id) }}" class="btn btn-outline-primary d-block">
+                                <i class="fas fa-user-chart fa-fw"></i> Meu Histórico
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,16 +1,465 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 import sqlite3
 from datetime import datetime, timedelta
 import os
+from functools import wraps
+import hashlib
 
-# Removida a importação do APScheduler
-# from apscheduler.schedulers.background import BackgroundScheduler
-# import atexit
-
+# Adicionando session config
 app = Flask(__name__)
 app.secret_key = 'liga_olimpica_golfe_2025'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Sessão válida por 24 horas
 
 DATABASE = 'golf_league.db'
+
+# Função decoradora para verificar autenticação
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Por favor, faça login para acessar esta página.', 'error')
+            return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Função para obter conexão com o banco de dados
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# Função auxiliar para gerar hash de senha
+def hash_password(password):
+    # Método simples de hash para senhas
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# Função para criar tabela de usuários e campos de senha na tabela players
+def create_authentication_tables():
+    conn = get_db_connection()
+    
+    # Adicionar coluna de senha à tabela players se não existir
+    columns_info = conn.execute('PRAGMA table_info(players)').fetchall()
+    column_names = [col[1] for col in columns_info]
+    
+    if 'password' not in column_names:
+        conn.execute('ALTER TABLE players ADD COLUMN password TEXT')
+        print("Coluna 'password' adicionada à tabela players.")
+    
+    if 'last_login' not in column_names:
+        conn.execute('ALTER TABLE players ADD COLUMN last_login DATETIME')
+        print("Coluna 'last_login' adicionada à tabela players.")
+    
+    if 'reset_token' not in column_names:
+        conn.execute('ALTER TABLE players ADD COLUMN reset_token TEXT')
+        print("Coluna 'reset_token' adicionada à tabela players.")
+    
+    if 'reset_token_expiry' not in column_names:
+        conn.execute('ALTER TABLE players ADD COLUMN reset_token_expiry DATETIME')
+        print("Coluna 'reset_token_expiry' adicionada à tabela players.")
+    
+    # Tabela para administradores (opcional)
+    conn.execute('''
+    CREATE TABLE IF NOT EXISTS admins (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        name TEXT NOT NULL,
+        email TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
+    # Verificar se já temos algum admin padrão
+    admin = conn.execute('SELECT * FROM admins WHERE username = ?', ('admin',)).fetchone()
+    if not admin:
+        # Criar admin padrão (username: admin, senha: 123)
+        conn.execute('INSERT INTO admins (username, password, name) VALUES (?, ?, ?)', 
+                    ('admin', hash_password('123'), 'Administrador'))
+        print("Administrador padrão criado (usuário: admin, senha: 123).")
+    
+    # Definir senhas iniciais para todos os jogadores se a senha estiver vazia
+    players = conn.execute('SELECT id, name, password FROM players WHERE active = 1').fetchall()
+    for player in players:
+        if not player['password']:
+            # Senha inicial: 3 primeiras letras do nome em minúsculas
+            default_password = player['name'].strip().lower()[:3]
+            hashed_password = hash_password(default_password)
+            
+            conn.execute('UPDATE players SET password = ? WHERE id = ?', 
+                       (hashed_password, player['id']))
+            print(f"Senha inicial definida para o jogador {player['name']}")
+    
+    conn.commit()
+    conn.close()
+    print("Tabelas de autenticação verificadas com sucesso.")
+
+# Rota de login
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+        
+    if request.method == 'POST':
+        identification = request.form.get('identification', '')  # Pode ser o nome, email ou ID
+        password = request.form.get('password', '')
+        
+        conn = get_db_connection()
+        
+        # Buscar jogador por nome ou email
+        player = None
+        # Tentar buscar por ID se for um número
+        if identification.isdigit():
+            player = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
+                                (identification,)).fetchone()
+        
+        # Se não encontrou por ID, tentar por nome ou email
+        if not player:
+            player = conn.execute('''
+                SELECT * FROM players 
+                WHERE (name LIKE ? OR email LIKE ?) AND active = 1
+            ''', (f'%{identification}%', f'%{identification}%')).fetchone()
+        
+        if player and player['password'] == hash_password(password):
+            # Login bem-sucedido
+            session.permanent = True
+            session['user_id'] = player['id']
+            session['user_name'] = player['name']
+            session['user_position'] = player['position']
+            session['user_tier'] = player['tier']
+            session['is_admin'] = False  # Por padrão, jogadores não são admins
+            
+            # Registrar data/hora do login
+            conn.execute('UPDATE players SET last_login = ? WHERE id = ?', 
+                       (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), player['id']))
+            conn.commit()
+            
+            # Redirecionar para a página solicitada originalmente ou para o dashboard
+            next_page = request.args.get('next')
+            if next_page:
+                conn.close()
+                return redirect(next_page)
+            else:
+                conn.close()
+                return redirect(url_for('dashboard'))
+        else:
+            # Tentar login como administrador
+            admin = conn.execute('SELECT * FROM admins WHERE username = ?', 
+                              (identification,)).fetchone()
+            
+            if admin and admin['password'] == hash_password(password):
+                # Login de admin bem-sucedido
+                session.permanent = True
+                session['user_id'] = f"admin_{admin['id']}"
+                session['user_name'] = admin['name']
+                session['is_admin'] = True
+                
+                conn.close()
+                return redirect(url_for('admin_dashboard'))
+            
+            conn.close()
+            flash('Nome/Email ou senha incorretos.', 'error')
+    
+    return render_template('login.html')
+
+# Rota de logout
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('Você foi desconectado com sucesso.', 'success')
+    return redirect(url_for('login'))
+
+# Rota para troca de senha
+@app.route('/change_password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        old_password = request.form.get('old_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        # Validar dados do formulário
+        if not old_password or not new_password or not confirm_password:
+            flash('Todos os campos são obrigatórios.', 'error')
+            return redirect(url_for('change_password'))
+        
+        if new_password != confirm_password:
+            flash('A nova senha e a confirmação não coincidem.', 'error')
+            return redirect(url_for('change_password'))
+        
+        if len(new_password) < 3:
+            flash('A nova senha deve ter pelo menos 3 caracteres.', 'error')
+            return redirect(url_for('change_password'))
+        
+        # Verificar se a senha antiga está correta
+        conn = get_db_connection()
+        
+        # Verificar se é um admin ou um jogador
+        if session.get('is_admin', False):
+            admin_id = session['user_id'].split('_')[1]
+            user = conn.execute('SELECT * FROM admins WHERE id = ?', (admin_id,)).fetchone()
+            user_type = 'admin'
+        else:
+            user = conn.execute('SELECT * FROM players WHERE id = ?', (session['user_id'],)).fetchone()
+            user_type = 'player'
+        
+        if not user or user['password'] != hash_password(old_password):
+            conn.close()
+            flash('Senha atual incorreta.', 'error')
+            return redirect(url_for('change_password'))
+        
+        # Atualizar a senha
+        hashed_password = hash_password(new_password)
+        
+        if user_type == 'admin':
+            conn.execute('UPDATE admins SET password = ? WHERE id = ?', 
+                       (hashed_password, admin_id))
+        else:
+            conn.execute('UPDATE players SET password = ? WHERE id = ?', 
+                       (hashed_password, session['user_id']))
+        
+        conn.commit()
+        conn.close()
+        
+        flash('Senha alterada com sucesso!', 'success')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('change_password.html')
+
+# Rota para solicitar reset de senha
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        identification = request.form.get('identification', '')
+        
+        if not identification:
+            flash('Por favor, informe seu nome ou email.', 'error')
+            return redirect(url_for('forgot_password'))
+        
+        conn = get_db_connection()
+        
+        # Buscar jogador por nome ou email
+        player = conn.execute('''
+            SELECT * FROM players 
+            WHERE (name LIKE ? OR email LIKE ?) AND active = 1
+        ''', (f'%{identification}%', f'%{identification}%')).fetchone()
+        
+        if not player:
+            conn.close()
+            flash('Jogador não encontrado.', 'error')
+            return redirect(url_for('forgot_password'))
+        
+        # Gerar token de reset
+        token = hashlib.sha256(f"{player['id']}{datetime.now().timestamp()}".encode()).hexdigest()
+        expiry = (datetime.now() + timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Salvar token no banco
+        conn.execute('UPDATE players SET reset_token = ?, reset_token_expiry = ? WHERE id = ?', 
+                   (token, expiry, player['id']))
+        conn.commit()
+        
+        # Em um sistema real, enviaríamos um email com o link de reset
+        # Por simplicidade, apenas exibimos um link
+        reset_url = url_for('reset_password', token=token, _external=True)
+        
+        conn.close()
+        
+        # Mensagem para o usuário (em um sistema real, isso seria enviado por email)
+        flash(f'Um link para redefinir sua senha foi gerado: {reset_url}', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('forgot_password.html')
+
+# Rota para redefinir senha com token
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    # Verificar se o token é válido
+    conn = get_db_connection()
+    player = conn.execute('''
+        SELECT * FROM players 
+        WHERE reset_token = ? AND datetime(reset_token_expiry) > datetime('now')
+    ''', (token,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Link de redefinição de senha inválido ou expirado.', 'error')
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        if not new_password or not confirm_password:
+            flash('Todos os campos são obrigatórios.', 'error')
+            return redirect(url_for('reset_password', token=token))
+        
+        if new_password != confirm_password:
+            flash('A nova senha e a confirmação não coincidem.', 'error')
+            return redirect(url_for('reset_password', token=token))
+        
+        if len(new_password) < 3:
+            flash('A nova senha deve ter pelo menos 3 caracteres.', 'error')
+            return redirect(url_for('reset_password', token=token))
+        
+        # Atualizar a senha e limpar o token
+        hashed_password = hash_password(new_password)
+        conn.execute('''
+            UPDATE players 
+            SET password = ?, reset_token = NULL, reset_token_expiry = NULL 
+            WHERE id = ?
+        ''', (hashed_password, player['id']))
+        
+        conn.commit()
+        conn.close()
+        
+        flash('Senha redefinida com sucesso! Faça login com sua nova senha.', 'success')
+        return redirect(url_for('login'))
+    
+    conn.close()
+    return render_template('reset_password.html', token=token)
+
+# Dashboard do jogador
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    # Se for admin, redirecionar para o dashboard de admin
+    if session.get('is_admin', False):
+        return redirect(url_for('admin_dashboard'))
+    
+    conn = get_db_connection()
+    
+    # Buscar informações do jogador
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (session['user_id'],)).fetchone()
+    
+    if not player:
+        session.clear()
+        conn.close()
+        flash('Sua conta não foi encontrada. Por favor, faça login novamente.', 'error')
+        return redirect(url_for('login'))
+    
+    # Buscar desafios pendentes
+    challenges_as_challenger = conn.execute('''
+        SELECT c.*, p.name as opponent_name, p.position as opponent_position
+        FROM challenges c
+        JOIN players p ON c.challenged_id = p.id
+        WHERE c.challenger_id = ? AND c.status IN ('pending', 'accepted')
+        ORDER BY c.scheduled_date
+    ''', (session['user_id'],)).fetchall()
+    
+    challenges_as_challenged = conn.execute('''
+        SELECT c.*, p.name as opponent_name, p.position as opponent_position
+        FROM challenges c
+        JOIN players p ON c.challenger_id = p.id
+        WHERE c.challenged_id = ? AND c.status IN ('pending', 'accepted')
+        ORDER BY c.scheduled_date
+    ''', (session['user_id'],)).fetchall()
+    
+    # Próximos 10 jogadores acima e abaixo na classificação
+    players_above = conn.execute('''
+        SELECT * FROM players 
+        WHERE position < ? AND active = 1
+        ORDER BY position DESC
+        LIMIT 10
+    ''', (player['position'],)).fetchall()
+    
+    players_below = conn.execute('''
+        SELECT * FROM players 
+        WHERE position > ? AND active = 1
+        ORDER BY position
+        LIMIT 10
+    ''', (player['position'],)).fetchall()
+    
+    # Buscar jogadores que podem ser desafiados
+    potential_challenges = []
+    if player['active'] == 1 and player['position']:
+        # Calcular o tier anterior (um nível acima)
+        tier = player['tier']
+        prev_tier = chr(ord(tier) - 1) if ord(tier) > ord('A') else tier
+        
+        potential_challenges = conn.execute('''
+            SELECT p.*
+            FROM players p
+            WHERE p.position < ? 
+              AND (p.tier = ? OR p.tier = ?)
+              AND p.active = 1
+              AND p.id NOT IN (
+                SELECT challenged_id FROM challenges 
+                WHERE challenger_id = ? AND status IN ('pending', 'accepted')
+              )
+              AND p.id NOT IN (
+                SELECT challenger_id FROM challenges 
+                WHERE challenged_id = ? AND status IN ('pending', 'accepted')
+              )
+            ORDER BY p.position DESC
+        ''', (player['position'], tier, prev_tier, player['id'], player['id'])).fetchall()
+    
+    conn.close()
+    
+    return render_template('dashboard.html', 
+                          player=player,
+                          challenges_as_challenger=challenges_as_challenger,
+                          challenges_as_challenged=challenges_as_challenged,
+                          players_above=players_above,
+                          players_below=players_below,
+                          potential_challenges=potential_challenges)
+
+# Dashboard do administrador
+@app.route('/admin')
+@login_required
+def admin_dashboard():
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    conn = get_db_connection()
+    
+    # Estatísticas gerais
+    stats = {}
+    
+    # Total de jogadores ativos
+    active_players = conn.execute('SELECT COUNT(*) as count FROM players WHERE active = 1').fetchone()
+    stats['active_players'] = active_players['count']
+    
+    # Total de desafios pendentes
+    pending_challenges = conn.execute('SELECT COUNT(*) as count FROM challenges WHERE status IN ("pending", "accepted")').fetchone()
+    stats['pending_challenges'] = pending_challenges['count']
+    
+    # Desafios recentes
+    recent_challenges = conn.execute('''
+        SELECT c.*, 
+               p1.name as challenger_name, 
+               p2.name as challenged_name
+        FROM challenges c
+        JOIN players p1 ON c.challenger_id = p1.id
+        JOIN players p2 ON c.challenged_id = p2.id
+        ORDER BY c.created_at DESC
+        LIMIT 10
+    ''').fetchall()
+    
+    # Jogadores que nunca fizeram login
+    never_logged = conn.execute('''
+        SELECT * FROM players
+        WHERE last_login IS NULL AND active = 1
+        ORDER BY name
+    ''').fetchall()
+    
+    conn.close()
+    
+    return render_template('admin_dashboard.html', 
+                          stats=stats,
+                          recent_challenges=recent_challenges,
+                          never_logged=never_logged)
+
+# Inicialização da aplicação
+if __name__ == '__main__':
+    # Verificar se o banco de dados existe, caso contrário, importar dados
+    if not os.path.exists(DATABASE):
+        print("Banco de dados não encontrado. Executando script de importação...")
+        import import_data
+        import_data.create_database()
+        import_data.import_players_data(import_data.cursor)
+    
+    # Criar tabelas de autenticação
+    create_authentication_tables()
 
 # Definição fixa da estrutura da pirâmide: quais posições pertencem a cada nível
 # Seguindo o padrão tradicional de pirâmide: 1 posição no topo, depois 2, 3, 4, etc.
