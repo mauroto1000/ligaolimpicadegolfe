@@ -3151,63 +3151,39 @@ def admin_challenge_logs():
     
     conn = get_db_connection()
     
-    # Obter parâmetros de filtro
-    challenge_id = request.args.get('challenge_id')
-    user_id = request.args.get('user_id')
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    
-    # Construir a consulta base
-    query = '''
-        SELECT cl.*, 
-               c.challenger_id, c.challenged_id,
-               p1.name as challenger_name,
-               p2.name as challenged_name,
-               u.name as user_name
-        FROM challenge_logs cl
-        LEFT JOIN challenges c ON cl.challenge_id = c.id
-        LEFT JOIN players p1 ON c.challenger_id = p1.id
-        LEFT JOIN players p2 ON c.challenged_id = p2.id
-        LEFT JOIN players u ON cl.user_id = u.id
-    '''
-    
-    # Adicionar condições de filtro
-    conditions = []
-    params = []
-    
-    if challenge_id:
-        conditions.append("cl.challenge_id = ?")
-        params.append(challenge_id)
-    
-    if user_id:
-        conditions.append("cl.user_id = ?")
-        params.append(user_id)
-    
-    if start_date:
-        conditions.append("date(cl.created_at) >= ?")
-        params.append(start_date)
-    
-    if end_date:
-        conditions.append("date(cl.created_at) <= ?")
-        params.append(end_date)
-    
-    # Adicionar as condições à consulta
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
-    
-    # Adicionar ordenação
-    query += " ORDER BY cl.created_at DESC LIMIT 500"
-    
-    # Executar a consulta
-    logs = conn.execute(query, params).fetchall()
-    
-    # Buscar todos os usuários para o filtro
-    users = conn.execute('SELECT id, name FROM players ORDER BY name').fetchall()
+    # Consulta básica, sem JOINs para começo
+    try:
+        # Verificar se a tabela de logs existe
+        table_exists = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='challenge_logs'").fetchone()
+        
+        if not table_exists:
+            # Criar a tabela se não existir
+            conn.execute('''
+                CREATE TABLE challenge_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    challenge_id INTEGER,
+                    user_id TEXT NOT NULL,
+                    modified_by TEXT NOT NULL,
+                    old_status TEXT,
+                    new_status TEXT,
+                    old_result TEXT,
+                    new_result TEXT,
+                    notes TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.commit()
+            
+        # Consulta simplificada
+        logs = conn.execute('SELECT * FROM challenge_logs ORDER BY created_at DESC LIMIT 100').fetchall()
+        
+    except Exception as e:
+        logs = []
+        flash(f'Erro ao carregar logs: {str(e)}', 'error')
     
     conn.close()
     
-    return render_template('admin_challenge_logs.html', logs=logs, users=users)
-
+    return render_template('admin_challenge_logs.html', logs=logs, users=[])
 
 
 if __name__ == '__main__':
