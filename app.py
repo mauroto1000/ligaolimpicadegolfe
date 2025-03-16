@@ -405,6 +405,7 @@ def reset_password(token):
     return render_template('reset_password.html', token=token)
 
 # Dashboard do jogador
+# 2. Modificação na rota dashboard para melhorar os alertas para desafiados
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -511,13 +512,16 @@ def dashboard():
             if days_remaining is not None:
                 if days_remaining < 0:
                     # Prazo expirado
-                    flash(f'Você tem um desafio pendente de {challenge["opponent_name"]} com prazo EXPIRADO! Acesse a página de detalhes para responder.', 'danger')
+                    flash(f'ATENÇÃO: Você foi desafiado por {challenge["opponent_name"]}. O prazo para aceitar, rejeitar ou propor nova data EXPIROU! Acesse <a href="{url_for("challenge_detail", challenge_id=challenge["id"])}">aqui</a> para responder.', 'danger')
                 elif days_remaining == 0:
                     # Vence hoje
-                    flash(f'Você tem um desafio pendente de {challenge["opponent_name"]} que vence HOJE! Acesse a página de detalhes para responder.', 'warning')
+                    flash(f'ATENÇÃO: Você foi desafiado por {challenge["opponent_name"]}! O prazo para aceitar, rejeitar ou propor nova data vence HOJE. Acesse <a href="{url_for("challenge_detail", challenge_id=challenge["id"])}">aqui</a> para responder.', 'warning')
                 elif days_remaining <= 2:
                     # Próximo do vencimento (2 dias ou menos)
-                    flash(f'Você tem um desafio pendente de {challenge["opponent_name"]} que vence em {days_remaining} dias! Acesse a página de detalhes para responder.', 'warning')
+                    flash(f'ATENÇÃO: Você foi desafiado por {challenge["opponent_name"]}! Você tem {days_remaining} dias para aceitar, rejeitar ou propor nova data. Acesse <a href="{url_for("challenge_detail", challenge_id=challenge["id"])}">aqui</a> para responder.', 'warning')
+                else:
+                    # Demais casos, ainda no prazo
+                    flash(f'Você foi desafiado por {challenge["opponent_name"]}! Você tem {days_remaining} dias para aceitar, rejeitar ou propor nova data. Acesse <a href="{url_for("challenge_detail", challenge_id=challenge["id"])}">aqui</a> para responder.', 'info')
     
     return render_template('dashboard.html', 
                           player=player,
@@ -526,6 +530,7 @@ def dashboard():
                           players_above=players_above,
                           players_below=players_below,
                           potential_challenges=potential_challenges)
+
 
 # Dashboard do administrador
 @app.route('/admin')
@@ -1874,6 +1879,7 @@ def challenges_list():
     
     return render_template('challenges_list.html', challenges=challenges)
 
+# 1. Modificação na rota new_challenge para validar a data do desafio (máximo 7 dias)
 @app.route('/new_challenge', methods=['GET', 'POST'])
 @login_required
 def new_challenge():
@@ -1883,6 +1889,33 @@ def new_challenge():
         scheduled_date = request.form['scheduled_date']
         
         conn = get_db_connection()
+        
+        # NOVA VALIDAÇÃO: Verificar se a data do desafio está dentro de 7 dias
+        try:
+            # Converter a data agendada para um objeto datetime
+            scheduled_date_obj = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
+            
+            # Obter a data atual (apenas a data, sem o horário)
+            today_date = datetime.now().date()
+            
+            # Calcular a data máxima permitida (hoje + 7 dias)
+            max_date = today_date + timedelta(days=7)
+            
+            # Verificar se a data está dentro do intervalo permitido
+            if scheduled_date_obj > max_date:
+                conn.close()
+                flash(f'A data do desafio não pode ser superior a 7 dias da data atual. Data máxima permitida: {max_date.strftime("%d/%m/%Y")}', 'error')
+                return redirect(url_for('new_challenge', challenger_id=challenger_id))
+            
+            # Verificar se a data não é anterior à data atual
+            if scheduled_date_obj < today_date:
+                conn.close()
+                flash('A data do desafio não pode ser anterior à data atual.', 'error')
+                return redirect(url_for('new_challenge', challenger_id=challenger_id))
+        except ValueError:
+            conn.close()
+            flash('Formato de data inválido.', 'error')
+            return redirect(url_for('new_challenge', challenger_id=challenger_id))
         
         # Verificar se o desafio é válido conforme as regras
         # Verificar se ambos jogadores estão ativos
@@ -1965,7 +1998,7 @@ def new_challenge():
         
         flash('Desafio criado com sucesso!', 'success')
         return redirect(url_for('challenges_calendar'))
-        
+    
     # Para requisições GET, mostrar formulário
     conn = get_db_connection()
     
@@ -2076,7 +2109,6 @@ def new_challenge():
                          challenger_info=challenger_info,
                          today_date=today_date,
                          is_admin=is_admin)
-
 
 # Alteração na rota delete_challenge
 @app.route('/delete_challenge/<int:challenge_id>', methods=['POST'])
