@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import os
 from functools import wraps
 import hashlib
+from datetime import datetime, timedelta
 
 # Adicionando session config
 app = Flask(__name__)
@@ -11,6 +12,59 @@ app.secret_key = 'liga_olimpica_golfe_2025'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Sessão válida por 24 horas
 
 DATABASE = 'golf_league.db'
+
+
+# Função para obter a data atual para uso nos templates
+@app.context_processor
+def utility_processor():
+    def now():
+        return datetime.now()
+    return dict(now=now)
+
+# Registrando a biblioteca datetime para que esteja disponível nos templates
+@app.context_processor
+def utility_processor_datetime():
+    return dict(datetime=datetime)
+
+
+# Após a linha onde você cria a aplicação Flask:
+# app = Flask(__name__)
+
+# Filtro para formatar data e hora
+@app.template_filter('datetime')
+def format_datetime(value, format='%d/%m/%Y %H:%M'):
+    """Formata uma string de data para exibição."""
+    if value is None:
+        return ""
+    
+    try:
+        if isinstance(value, str):
+            dt = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+        else:
+            dt = value
+        return dt.strftime(format)
+    except:
+        return value
+
+
+
+# Adicione este código perto do início do seu arquivo app.py, após a definição da aplicação Flask
+
+# Filtro para formatar data e hora
+@app.template_filter('datetime')
+def format_datetime(value, format='%d/%m/%Y %H:%M'):
+    """Formata uma string de data para exibição."""
+    if value is None:
+        return ""
+    
+    try:
+        if isinstance(value, str):
+            dt = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+        else:
+            dt = value
+        return dt.strftime(format)
+    except:
+        return value
 
 # Função decoradora para verificar autenticação
 def login_required(f):
@@ -94,7 +148,6 @@ def create_authentication_tables():
     print("Tabelas de autenticação verificadas com sucesso.")
 
 # Rota de login
-# Rota de login
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if 'user_id' in session:
@@ -126,7 +179,20 @@ def login():
             # Registrar data/hora do login
             conn.execute('UPDATE players SET last_login = ? WHERE id = ?', 
                        (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), player['id']))
+            
+            # NOVA SEÇÃO: Verificar se o jogador tem desafios pendentes como desafiado
+            challenges = conn.execute('''
+                SELECT c.*, p.name as opponent_name, c.response_deadline
+                FROM challenges c
+                JOIN players p ON c.challenger_id = p.id
+                WHERE c.challenged_id = ? AND c.status = 'pending'
+                ORDER BY c.response_deadline
+            ''', (player['id'],)).fetchall()
+            
             conn.commit()
+            
+            # Não precisamos mostrar os alertas aqui, pois eles serão exibidos 
+            # automaticamente quando o usuário for redirecionado para o dashboard
             
             # Redirecionar para a página solicitada originalmente ou para o dashboard
             next_page = request.args.get('next')
@@ -325,13 +391,36 @@ def dashboard():
         ORDER BY c.scheduled_date
     ''', (session['user_id'],)).fetchall()
     
+    # Buscar desafios onde o usuário é o desafiado e verificar prazos
     challenges_as_challenged = conn.execute('''
-        SELECT c.*, p.name as opponent_name, p.position as opponent_position
+        SELECT c.*, p.name as opponent_name, p.position as opponent_position, c.response_deadline
         FROM challenges c
         JOIN players p ON c.challenger_id = p.id
         WHERE c.challenged_id = ? AND c.status IN ('pending', 'accepted')
         ORDER BY c.scheduled_date
     ''', (session['user_id'],)).fetchall()
+    
+    # Calcular dias restantes para cada desafio
+    challenges_as_challenged_list = []
+    for challenge in challenges_as_challenged:
+        challenge_dict = dict(challenge)
+        if challenge_dict['status'] == 'pending' and challenge_dict['response_deadline']:
+            try:
+                # Extrair apenas a data (sem o horário)
+                deadline_obj = datetime.strptime(challenge_dict['response_deadline'], '%Y-%m-%d %H:%M:%S')
+                deadline_date = deadline_obj.date()
+                today_date = datetime.now().date()
+                
+                # Calcular diferença em dias
+                days_remaining = (deadline_date - today_date).days
+                
+                # Adicionar ao dicionário
+                challenge_dict['days_remaining'] = days_remaining
+                challenge_dict['deadline_date'] = deadline_date.strftime('%Y-%m-%d')
+            except Exception as e:
+                print(f"Erro ao processar prazo de resposta: {str(e)}")
+                challenge_dict['days_remaining'] = None
+        challenges_as_challenged_list.append(challenge_dict)
     
     # Próximos 10 jogadores acima e abaixo na classificação
     players_above = conn.execute('''
@@ -374,10 +463,25 @@ def dashboard():
     
     conn.close()
     
+    # Adicionar verificação para desafios pendentes e mostrar alertas
+    for challenge in challenges_as_challenged_list:
+        if challenge['status'] == 'pending' and 'days_remaining' in challenge:
+            days_remaining = challenge['days_remaining']
+            if days_remaining is not None:
+                if days_remaining < 0:
+                    # Prazo expirado
+                    flash(f'Você tem um desafio pendente de {challenge["opponent_name"]} com prazo EXPIRADO! Acesse a página de detalhes para responder.', 'danger')
+                elif days_remaining == 0:
+                    # Vence hoje
+                    flash(f'Você tem um desafio pendente de {challenge["opponent_name"]} que vence HOJE! Acesse a página de detalhes para responder.', 'warning')
+                elif days_remaining <= 2:
+                    # Próximo do vencimento (2 dias ou menos)
+                    flash(f'Você tem um desafio pendente de {challenge["opponent_name"]} que vence em {days_remaining} dias! Acesse a página de detalhes para responder.', 'warning')
+    
     return render_template('dashboard.html', 
                           player=player,
                           challenges_as_challenger=challenges_as_challenger,
-                          challenges_as_challenged=challenges_as_challenged,
+                          challenges_as_challenged=challenges_as_challenged_list,
                           players_above=players_above,
                           players_below=players_below,
                           potential_challenges=potential_challenges)
@@ -1797,11 +1901,20 @@ def new_challenge():
             flash(error, 'error')
             return redirect(url_for('new_challenge'))
         
-        # Inserir o novo desafio
+        # Obter a data e hora atual
+        current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Calcular a data limite de resposta (7 dias a partir da data atual)
+        # Pegar apenas a data (sem horário) e adicionar 7 dias
+        response_deadline_date = (datetime.now().date() + timedelta(days=7))
+        # Definir o horário como final do dia (23:59:59)
+        response_deadline = datetime.combine(response_deadline_date, datetime.max.time()).strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Inserir o novo desafio com a data/hora de criação e prazo de resposta
         conn.execute('''
-            INSERT INTO challenges (challenger_id, challenged_id, status, scheduled_date)
-            VALUES (?, ?, ?, ?)
-        ''', (challenger_id, challenged_id, 'pending', scheduled_date))
+            INSERT INTO challenges (challenger_id, challenged_id, status, scheduled_date, created_at, response_deadline)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (challenger_id, challenged_id, 'pending', scheduled_date, current_datetime, response_deadline))
         
         conn.commit()
         conn.close()
@@ -1863,12 +1976,16 @@ def new_challenge():
             eligible_challenged = [player for player in eligible_challenged 
                                   if player['id'] not in players_with_challenges]
             
+            # Adicionar data atual formatada para o campo de data
+            today_date = datetime.now().strftime('%Y-%m-%d')
+            
             conn.close()
             return render_template('new_challenge.html', 
                                 all_players=all_players,
                                 eligible_challenged=eligible_challenged,
                                 preselected_challenger=preselected_challenger_id,
-                                challenger_info=challenger)
+                                challenger_info=challenger,
+                                today_date=today_date)
     
     # Se não houver um desafiante pré-selecionado, mostrar todos os jogadores disponíveis
     # (sem desafios pendentes) para seleção como desafiante
@@ -1880,10 +1997,14 @@ def new_challenge():
     
     conn.close()
     
+    # Adicionar data atual formatada para o campo de data
+    today_date = datetime.now().strftime('%Y-%m-%d')
+    
     return render_template('new_challenge.html', 
                          all_players=available_players, 
                          eligible_challenged=[],
-                         preselected_challenger=preselected_challenger_id)
+                         preselected_challenger=preselected_challenger_id,
+                         today_date=today_date)
 
 # Alteração na rota delete_challenge
 @app.route('/delete_challenge/<int:challenge_id>', methods=['POST'])
@@ -2161,8 +2282,36 @@ def challenge_detail(challenge_id):
     if not challenge:
         flash('Desafio não encontrado!', 'error')
         return redirect(url_for('challenges_calendar'))
-        
-    return render_template('challenge_detail.html', challenge=challenge)
+    
+    # Cálculo de dias restantes para resposta
+    days_remaining = None
+    expired = False
+    
+    if challenge['status'] == 'pending' and challenge['response_deadline']:
+        # Converter a string de data para objeto datetime e extrair só a data
+        try:
+            deadline_obj = datetime.strptime(challenge['response_deadline'], '%Y-%m-%d %H:%M:%S')
+            deadline_date = deadline_obj.date()
+            today_date = datetime.now().date()
+            
+            # Calcular diferença em dias (considerando apenas datas, sem horários)
+            delta = (deadline_date - today_date).days
+            days_remaining = delta
+            
+            # Se negativo ou zero, o prazo expirou
+            expired = days_remaining < 0
+            
+            # Ajustar para exibição se for negativo
+            if expired:
+                days_remaining = abs(days_remaining)
+        except Exception as e:
+            print(f"Erro ao calcular dias restantes: {str(e)}")
+            days_remaining = None
+    
+    return render_template('challenge_detail.html', 
+                          challenge=challenge, 
+                          days_remaining=days_remaining,
+                          expired=expired)
 
 # Rota aprimorada para verificar e corrigir completamente a estrutura da pirâmide
 @app.route('/fix_pyramid', methods=['GET'])
@@ -2851,7 +3000,38 @@ def sync_history_route():
 
 # Atualização da parte relacionada à inicialização da aplicação
 
-# Atualização da parte relacionada à inicialização da aplicação
+
+# Função para verificar e criar tabela de histórico diário
+def create_daily_history_table():
+    # código existente...
+    print("Tabela de histórico diário criada com sucesso.")
+
+# Função para verificar e adicionar a coluna response_deadline na tabela challenges
+# Função para verificar e adicionar a coluna response_deadline na tabela challenges
+def add_response_deadline_column():
+    conn = get_db_connection()
+    
+    # Verificar se a coluna response_deadline existe
+    columns_info = conn.execute('PRAGMA table_info(challenges)').fetchall()
+    column_names = [col[1] for col in columns_info]
+    
+    if 'response_deadline' not in column_names:
+        # Adicionar coluna de prazo de resposta
+        conn.execute('ALTER TABLE challenges ADD COLUMN response_deadline DATETIME')
+        print("Coluna 'response_deadline' adicionada à tabela challenges.")
+        
+        # Definir prazo de resposta para desafios existentes (7 dias após a criação, até 23:59:59)
+        conn.execute('''
+            UPDATE challenges 
+            SET response_deadline = date(created_at, '+7 days') || ' 23:59:59'
+            WHERE status = 'pending' AND response_deadline IS NULL
+        ''')
+        print("Prazo de resposta definido para desafios pendentes existentes.")
+    
+    conn.commit()
+    conn.close()
+
+
 
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
@@ -2876,12 +3056,19 @@ if __name__ == '__main__':
         print("Adicionando coluna 'notes' à tabela players...")
         cursor.execute('ALTER TABLE players ADD COLUMN notes TEXT')
     
+    
+    
     conn.commit()
     conn.close()
+
     
     # Criar a tabela de histórico diário se não existir
     create_daily_history_table()
     
+    # Adicionar coluna de prazo de resposta à tabela de desafios
+    add_response_deadline_column()
+
+  
     # Verificar e corrigir a estrutura da pirâmide
     print("Realizando verificação inicial da pirâmide...")
     conn = get_db_connection()
