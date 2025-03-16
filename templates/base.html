@@ -41,50 +41,6 @@
                 max-width: 220px;
             }
         }
-        
-        /* Estilos para a seção de alertas importantes */
-        .important-alerts {
-            background-color: #fff3cd;
-            border-top: 1px solid #ffeeba;
-            border-bottom: 1px solid #ffeeba;
-            padding: 10px 0;
-            margin-bottom: 15px;
-        }
-        
-        .important-alerts h5 {
-            color: #dc3545;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-        
-        .important-alerts ul {
-            margin-bottom: 0;
-            padding-left: 20px;
-        }
-        
-        .important-alerts li {
-            color: #dc3545;
-            margin-bottom: 5px;
-        }
-        
-        .important-alerts li:last-child {
-            margin-bottom: 0;
-        }
-        
-        .important-alerts i {
-            margin-right: 5px;
-        }
-        
-        /* Animação sutil para destacar os alertas */
-        @keyframes highlightAlert {
-            0% { background-color: #fff3cd; }
-            50% { background-color: #ffe8a1; }
-            100% { background-color: #fff3cd; }
-        }
-        
-        .important-alerts {
-            animation: highlightAlert 2s ease-in-out;
-        }
     </style>
     
     {% block head %}{% endblock %}
@@ -236,23 +192,6 @@
         </nav>
     </header>
     
-    <!-- Seção de Alertas Importantes -->
-    <div class="important-alerts">
-        <div class="container">
-            <h5 class="text-center">
-                <i class="fas fa-exclamation-triangle"></i> AVISOS IMPORTANTES
-            </h5>
-            <ul>
-                <li>
-                    <strong>ATENÇÃO:</strong> Desafios só poderão ser propostos via WhatsApp (marcação via plataforma temporariamente suspensa)
-                </li>
-                <li>
-                    <strong>NOVIDADE:</strong> Com vistas a estimular os desafios na base, serão aceitos jogos com 9 buracos nos níveis I, J e K
-                </li>
-            </ul>
-        </div>
-    </div>
-    
     <!-- Mensagens Flash -->
     <div class="container mt-3">
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -284,22 +223,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     
     <!-- Scripts adicionais -->
-    {% block scripts %}
-    <!-- Script para garantir que os usuários vejam os alertas (exibe por 5 segundos no mínimo) -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Destacar a área de alertas importantes quando a página carrega
-            const alertsSection = document.querySelector('.important-alerts');
-            
-            // Adiciona uma classe para indicar que é novo (por 15 segundos)
-            alertsSection.classList.add('new-alert');
-            
-            // Remove a classe após 15 segundos
-            setTimeout(function() {
-                alertsSection.classList.remove('new-alert');
-            }, 15000);
-        });
-    </script>
-    {% endblock %}
+    {% block scripts %}{% endblock %}
 </body>
 </html>
