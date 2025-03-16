@@ -12,6 +12,58 @@
         {% endif %}
     {% endwith %}
 
+    <!-- Seção para destacar desafios pendentes que precisam de resposta -->
+    {% if challenges_as_challenged|selectattr('status', 'equalto', 'pending')|list|length > 0 %}
+    <div class="card shadow mb-4 border-danger">
+        <div class="card-header bg-danger text-white">
+            <h4 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Desafios Pendentes que Precisam de Resposta</h4>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Desafiante</th>
+                            <th>Data Proposta</th>
+                            <th>Prazo para Resposta</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for challenge in challenges_as_challenged %}
+                            {% if challenge.status == 'pending' %}
+                                <tr class="{% if challenge.days_remaining < 0 %}table-danger{% elif challenge.days_remaining <= 2 %}table-warning{% endif %}">
+                                    <td>{{ challenge.opponent_name }}</td>
+                                    <td>{{ challenge.scheduled_date|datetime('%d/%m/%Y') }}</td>
+                                    <td>
+                                        <strong class="text-danger">
+                                            {{ challenge.response_deadline|datetime('%d/%m/%Y') }}
+                                            {% if challenge.days_remaining < 0 %}
+                                                (EXPIRADO!)
+                                            {% elif challenge.days_remaining == 0 %}
+                                                (HOJE!)
+                                            {% elif challenge.days_remaining == 1 %}
+                                                (AMANHÃ!)
+                                            {% else %}
+                                                ({{ challenge.days_remaining }} dias)
+                                            {% endif %}
+                                        </strong>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-reply"></i> Responder
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="row">
         <!-- Perfil do Jogador -->
         <div class="col-md-4 mb-4">
@@ -40,7 +92,7 @@
                         <p class="mb-1"><strong>Email:</strong> {{ player.email or 'Não informado' }}</p>
                         <p class="mb-1"><strong>Último login:</strong> 
                             {% if player.last_login %}
-                                {{ player.last_login }}
+                                {{ player.last_login|datetime('%d/%m/%Y %H:%M') }}
                             {% else %}
                                 Primeiro acesso
                             {% endif %}
@@ -101,7 +153,7 @@
                                                     <td>#{{ challenge.opponent_position }}</td>
                                                     <td>
                                                         {% if challenge.scheduled_date %}
-                                                            {{ challenge.scheduled_date }}
+                                                            {{ challenge.scheduled_date|datetime('%d/%m/%Y') }}
                                                         {% else %}
                                                             Não agendado
                                                         {% endif %}
@@ -142,12 +194,12 @@
                                             </thead>
                                             <tbody>
                                                 {% for challenge in challenges_as_challenged %}
-                                                <tr>
+                                                <tr {% if challenge.status == 'pending' %}class="table-warning"{% endif %}>
                                                     <td>{{ challenge.opponent_name }}</td>
                                                     <td>#{{ challenge.opponent_position }}</td>
                                                     <td>
                                                         {% if challenge.scheduled_date %}
-                                                            {{ challenge.scheduled_date }}
+                                                            {{ challenge.scheduled_date|datetime('%d/%m/%Y') }}
                                                         {% else %}
                                                             Não agendado
                                                         {% endif %}
@@ -155,6 +207,13 @@
                                                     <td>
                                                         {% if challenge.status == 'pending' %}
                                                             <span class="badge bg-warning">Pendente</span>
+                                                            {% if challenge.days_remaining is defined %}
+                                                                {% if challenge.days_remaining < 0 %}
+                                                                    <span class="badge bg-danger">EXPIRADO!</span>
+                                                                {% elif challenge.days_remaining <= 2 %}
+                                                                    <span class="badge bg-danger">{{ challenge.days_remaining }} dias</span>
+                                                                {% endif %}
+                                                            {% endif %}
                                                         {% elif challenge.status == 'accepted' %}
                                                             <span class="badge bg-primary">Aceito</span>
                                                         {% endif %}
