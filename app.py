@@ -94,6 +94,7 @@ def create_authentication_tables():
     print("Tabelas de autenticação verificadas com sucesso.")
 
 # Rota de login
+# Rota de login
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if 'user_id' in session:
@@ -140,7 +141,10 @@ def login():
             admin = conn.execute('SELECT * FROM admins WHERE username = ?', 
                               (player_code,)).fetchone()
             
-            if admin and admin['password'] == hash_password(password):
+            # CORREÇÃO AQUI: Calcular o hash da senha digitada para comparar com o hash armazenado
+            hashed_password = hash_password(password)
+            
+            if admin and admin['password'] == hashed_password:
                 # Login de admin bem-sucedido
                 session.permanent = True
                 session['user_id'] = f"admin_{admin['id']}"
@@ -1807,8 +1811,14 @@ def new_challenge():
     # Para requisições GET, mostrar formulário
     conn = get_db_connection()
     
-    # Verificar se há um challenger_id na query string
-    preselected_challenger_id = request.args.get('challenger_id', None)
+    # MODIFICAÇÃO: Verificar se o usuário está logado e não é admin
+    preselected_challenger_id = None
+    if 'user_id' in session and not session.get('is_admin', False):
+        # Se o usuário está logado e não é admin, usar seu ID como challenger_id pré-selecionado
+        preselected_challenger_id = str(session['user_id'])
+    else:
+        # Verificar se há um challenger_id na query string (comportamento anterior)
+        preselected_challenger_id = request.args.get('challenger_id', None)
     
     # Buscar jogadores com desafios pendentes ou aceitos
     players_with_challenges = set()
