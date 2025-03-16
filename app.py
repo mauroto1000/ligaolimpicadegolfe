@@ -111,25 +111,72 @@ def create_authentication_tables():
         conn.execute('ALTER TABLE players ADD COLUMN reset_token_expiry DATETIME')
         print("Coluna 'reset_token_expiry' adicionada à tabela players.")
     
-    # Tabela para administradores (opcional)
-    conn.execute('''
-    CREATE TABLE IF NOT EXISTS admins (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        name TEXT NOT NULL,
-        email TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
+    # Verificar se a tabela admins existe
+    tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='admins'").fetchall()
     
-    # Verificar se já temos algum admin padrão
-    admin = conn.execute('SELECT * FROM admins WHERE username = ?', ('admin',)).fetchone()
-    if not admin:
+    # Se a tabela não existir ou se precisar recriar por falta de estrutura correta
+    if not tables:
+        print("Criando tabela de administradores...")
+        # Tabela para administradores
+        conn.execute('''
+        CREATE TABLE IF NOT EXISTS admins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            name TEXT NOT NULL,
+            email TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_login DATETIME
+        )
+        ''')
+        
         # Criar admin padrão (username: admin, senha: 123)
         conn.execute('INSERT INTO admins (username, password, name) VALUES (?, ?, ?)', 
                     ('admin', hash_password('123'), 'Administrador'))
         print("Administrador padrão criado (usuário: admin, senha: 123).")
+    else:
+        # Verificar se a estrutura da tabela está correta
+        admin_columns = conn.execute('PRAGMA table_info(admins)').fetchall()
+        admin_column_names = [col[1] for col in admin_columns]
+        
+        # Se a coluna username não existir, recriar a tabela
+        if 'username' not in admin_column_names:
+            print("Reestruturando tabela de administradores...")
+            # Fazer backup dos dados existentes, se houver
+            try:
+                admin_data = conn.execute('SELECT * FROM admins').fetchall()
+            except:
+                admin_data = []
+            
+            # Dropar e recriar a tabela com a estrutura correta
+            conn.execute('DROP TABLE IF EXISTS admins')
+            conn.execute('''
+            CREATE TABLE admins (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password TEXT NOT NULL,
+                name TEXT NOT NULL,
+                email TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_login DATETIME
+            )
+            ''')
+            
+            # Recriar admin padrão
+            conn.execute('INSERT INTO admins (username, password, name) VALUES (?, ?, ?)', 
+                        ('admin', hash_password('123'), 'Administrador'))
+            print("Administrador padrão recriado (usuário: admin, senha: 123).")
+    
+    # Verificar se já temos algum admin padrão
+    try:
+        admin = conn.execute('SELECT * FROM admins WHERE username = ?', ('admin',)).fetchone()
+        if not admin:
+            # Criar admin padrão (username: admin, senha: 123)
+            conn.execute('INSERT INTO admins (username, password, name) VALUES (?, ?, ?)', 
+                        ('admin', hash_password('123'), 'Administrador'))
+            print("Administrador padrão criado (usuário: admin, senha: 123).")
+    except Exception as e:
+        print(f"Erro ao verificar admin: {e}")
     
     # Definir senhas iniciais para todos os jogadores se a senha estiver vazia
     players = conn.execute('SELECT id, name, password FROM players WHERE active = 1').fetchall()
@@ -150,78 +197,72 @@ def create_authentication_tables():
 # Rota de login
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Se o usuário já está logado, redirecionar para o dashboard
     if 'user_id' in session:
         return redirect(url_for('dashboard'))
-        
+    
     if request.method == 'POST':
-        player_code = request.form.get('player_code', '').strip().upper()  # Converter para maiúsculas para consistência
+        player_code = request.form.get('player_code', '').strip().upper()
         password = request.form.get('password', '')
-        
-        if not player_code or not password:
-            flash('Código do jogador e senha são obrigatórios.', 'error')
-            return redirect(url_for('login'))
         
         conn = get_db_connection()
         
-        # Buscar jogador pelo player_code
-        player = conn.execute('SELECT * FROM players WHERE player_code = ? AND active = 1', 
-                            (player_code,)).fetchone()
-        
-        if player and player['password'] == hash_password(password):
-            # Login bem-sucedido
-            session.permanent = True
-            session['user_id'] = player['id']
-            session['user_name'] = player['name']
-            session['user_position'] = player['position']
-            session['user_tier'] = player['tier']
-            session['is_admin'] = False
+        # Verificar se é uma tentativa de login de administrador 
+        # (verificando se o código tem formato 'admin' ou 'ADMIN')
+        if player_code.lower() == 'admin':
+            # Login como administrador
+            admin = conn.execute('''
+                SELECT * FROM admins 
+                WHERE username = ?
+            ''', ('admin',)).fetchone()
             
-            # Registrar data/hora do login
-            conn.execute('UPDATE players SET last_login = ? WHERE id = ?', 
-                       (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), player['id']))
-            
-            # NOVA SEÇÃO: Verificar se o jogador tem desafios pendentes como desafiado
-            challenges = conn.execute('''
-                SELECT c.*, p.name as opponent_name, c.response_deadline
-                FROM challenges c
-                JOIN players p ON c.challenger_id = p.id
-                WHERE c.challenged_id = ? AND c.status = 'pending'
-                ORDER BY c.response_deadline
-            ''', (player['id'],)).fetchall()
-            
-            conn.commit()
-            
-            # Não precisamos mostrar os alertas aqui, pois eles serão exibidos 
-            # automaticamente quando o usuário for redirecionado para o dashboard
-            
-            # Redirecionar para a página solicitada originalmente ou para o dashboard
-            next_page = request.args.get('next')
-            if next_page:
-                conn.close()
-                return redirect(next_page)
-            else:
-                conn.close()
-                return redirect(url_for('dashboard'))
-        else:
-            # Tentar login como administrador (manter esta funcionalidade como está)
-            admin = conn.execute('SELECT * FROM admins WHERE username = ?', 
-                              (player_code,)).fetchone()
-            
-            # CORREÇÃO AQUI: Calcular o hash da senha digitada para comparar com o hash armazenado
-            hashed_password = hash_password(password)
-            
-            if admin and admin['password'] == hashed_password:
-                # Login de admin bem-sucedido
-                session.permanent = True
-                session['user_id'] = f"admin_{admin['id']}"
-                session['user_name'] = admin['name']
-                session['is_admin'] = True
+            if admin and admin['password'] == hash_password(password):
+                # Registrar login bem-sucedido
+                conn.execute('''
+                    UPDATE admins 
+                    SET last_login = CURRENT_TIMESTAMP 
+                    WHERE id = ?
+                ''', (admin['id'],))
+                conn.commit()
                 
-                conn.close()
+                # Guardar ID do admin na sessão com prefixo para diferenciar de jogadores
+                session['user_id'] = f"admin_{admin['id']}"
+                session['username'] = admin['username']
+                session['is_admin'] = True
+                session.permanent = True
+                
+                flash(f'Bem-vindo, {admin["name"]}!', 'success')
                 return redirect(url_for('admin_dashboard'))
+            else:
+                flash('Credenciais de administrador inválidas. Tente novamente.', 'error')
+        else:
+            # Login como jogador
+            player = conn.execute('''
+                SELECT * FROM players 
+                WHERE player_code = ? AND active = 1
+            ''', (player_code,)).fetchone()
             
-            conn.close()
-            flash('Código do jogador ou senha incorretos.', 'error')
+            if player and player['password'] == hash_password(password):
+                # Registrar login bem-sucedido
+                conn.execute('''
+                    UPDATE players 
+                    SET last_login = CURRENT_TIMESTAMP 
+                    WHERE id = ?
+                ''', (player['id'],))
+                conn.commit()
+                
+                # Guardar ID do jogador na sessão
+                session['user_id'] = player['id']
+                session['player_code'] = player['player_code']
+                session['is_admin'] = False
+                session.permanent = True
+                
+                flash(f'Bem-vindo, {player["name"]}!', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Credenciais inválidas. Tente novamente.', 'error')
+        
+        conn.close()
     
     return render_template('login.html')
 
