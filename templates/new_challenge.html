@@ -71,7 +71,7 @@
                 {% if eligible_challenged|length > 0 %}
                     <h4>Selecione o Jogador a ser Desafiado:</h4>
                     
-                    <form method="POST" action="{{ url_for('new_challenge') }}" class="mt-4">
+                    <form method="POST" action="{{ url_for('new_challenge') }}" class="mt-4" id="challenge-form">
                         <input type="hidden" name="challenger_id" value="{{ preselected_challenger }}">
                         
                         <div class="mb-3">
@@ -87,9 +87,11 @@
                         </div>
                         
                         <div class="mb-3">
-                            <label for="scheduled_date" class="form-label">Data do Desafio:</label>
+                            <label for="scheduled_date" class="form-label">Data do Desafio <small class="text-muted">(Máximo 7 dias a partir de hoje)</small>:</label>
                             <input type="date" class="form-control" id="scheduled_date" name="scheduled_date" 
                                    min="{{ today_date }}" value="{{ today_date }}" required>
+                            <div id="date-error" class="text-danger mt-1"></div>
+                            <small class="form-text text-muted">A data do desafio deve estar entre hoje e os próximos 7 dias.</small>
                         </div>
                         
                         <div class="mb-3">
@@ -114,4 +116,84 @@
         </div>
     </div>
 </div>
+
+{% if preselected_challenger and eligible_challenged|length > 0 %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Função para calcular a data máxima (hoje + 7 dias)
+    function getMaxDate() {
+        const today = new Date();
+        const maxDate = new Date();
+        maxDate.setDate(today.getDate() + 7);
+        return maxDate;
+    }
+    
+    // Formatar data para o formato yyyy-mm-dd (usado em inputs date)
+    function formatDateForInput(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    
+    // Função para validar a data selecionada
+    function validateDate() {
+        const scheduledDateField = document.getElementById('scheduled_date');
+        const selectedDate = new Date(scheduledDateField.value);
+        
+        // Ajustar para comparar apenas datas (sem horário)
+        selectedDate.setHours(0, 0, 0, 0);
+        
+        // Data de hoje
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Data máxima (hoje + 7 dias)
+        const maxDate = getMaxDate();
+        maxDate.setHours(23, 59, 59, 0);
+        
+        const errorElement = document.getElementById('date-error');
+        
+        if (selectedDate < today) {
+            errorElement.textContent = "A data do desafio não pode ser anterior à data atual.";
+            scheduledDateField.setCustomValidity("Data inválida");
+            return false;
+        } else if (selectedDate > maxDate) {
+            errorElement.textContent = "A data do desafio não pode ser superior a 7 dias da data atual.";
+            scheduledDateField.setCustomValidity("Data inválida");
+            return false;
+        } else {
+            errorElement.textContent = "";
+            scheduledDateField.setCustomValidity("");
+            return true;
+        }
+    }
+    
+    // Aplicar a validação ao campo de data
+    const scheduledDateField = document.getElementById('scheduled_date');
+    if (scheduledDateField) {
+        // Definir a data máxima (7 dias a partir de hoje)
+        const maxDate = getMaxDate();
+        scheduledDateField.max = formatDateForInput(maxDate);
+        
+        // Adicionar eventos de validação
+        scheduledDateField.addEventListener('change', validateDate);
+        scheduledDateField.addEventListener('input', validateDate);
+        
+        // Validar data inicial
+        validateDate();
+        
+        // Adicionar validação ao envio do formulário
+        const form = document.getElementById('challenge-form');
+        if (form) {
+            form.addEventListener('submit', function(event) {
+                if (!validateDate()) {
+                    event.preventDefault();
+                }
+            });
+        }
+    }
+});
+</script>
+{% endif %}
 {% endblock %}
