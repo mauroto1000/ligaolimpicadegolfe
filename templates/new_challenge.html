@@ -1,169 +1,117 @@
-@app.route('/new_challenge', methods=['GET', 'POST'])
-@login_required
-def new_challenge():
-    if request.method == 'POST':
-        challenger_id = request.form['challenger_id']
-        challenged_id = request.form['challenged_id']
-        scheduled_date = request.form['scheduled_date']
-        
-        conn = get_db_connection()
-        
-        # Verificar se o desafio é válido conforme as regras
-        # Verificar se ambos jogadores estão ativos
-        challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', (challenger_id,)).fetchone()
-        challenged = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', (challenged_id,)).fetchone()
-        
-        if not challenger or not challenged:
-            conn.close()
-            flash('Um dos jogadores está inativo e não pode participar de desafios.', 'error')
-            return redirect(url_for('new_challenge'))
-        
-        # NOVA REGRA: Verificar se algum dos jogadores já tem desafios pendentes ou aceitos
-        pending_challenges = conn.execute('''
-            SELECT * FROM challenges 
-            WHERE (challenger_id = ? OR challenged_id = ? OR challenger_id = ? OR challenged_id = ?)
-            AND status IN ('pending', 'accepted')
-        ''', (challenger_id, challenger_id, challenged_id, challenged_id)).fetchall()
-        
-        error = None
-        
-        # Se encontrou desafios pendentes ou aceitos
-        if pending_challenges:
-            # Verificar se o desafio pendente é entre estes mesmos jogadores
-            same_players_challenge = False
-            for challenge in pending_challenges:
-                if ((challenge['challenger_id'] == int(challenger_id) and challenge['challenged_id'] == int(challenged_id)) or
-                    (challenge['challenger_id'] == int(challenged_id) and challenge['challenged_id'] == int(challenger_id))):
-                    same_players_challenge = True
-                    break
+{% extends 'base.html' %}
+
+{% block title %}Novo Desafio - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">Novo Desafio</h3>
+        </div>
+        <div class="card-body">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
             
-            if same_players_challenge:
-                error = "Já existe um desafio pendente ou aceito entre estes jogadores."
-            else:
-                error = "Um dos jogadores já está envolvido em um desafio pendente ou aceito. Conclua o desafio atual antes de criar um novo."
-        
-        # Regras existentes
-        if not error:
-            # Regra: Desafio apenas uma linha acima
-            challenger_tier = challenger['tier']
-            challenged_tier = challenged['tier']
+            {% if is_admin %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> <strong>Modo Administrador:</strong> 
+                Você pode criar desafios para qualquer jogador. Selecione primeiro o desafiante e depois o jogador a ser desafiado.
+                As regras de tier e posição ainda se aplicam.
+            </div>
+            {% endif %}
             
-            # Calcular a diferença de níveis (em termos de "distância alfabética")
-            tier_difference = ord(challenger_tier) - ord(challenged_tier)
-            
-            # Se o tier_difference é negativo, o desafiado está abaixo do desafiante (erro)
-            if tier_difference < 0:
-                error = "Você só pode desafiar jogadores de níveis acima do seu."
-            # Se o tier_difference > 1, o desafiado está mais que uma linha acima (erro)
-            elif tier_difference > 1:
-                error = "Você só pode desafiar jogadores até uma linha acima da sua."
-            # Verificar se o desafiado tem posição melhor (menor numericamente)
-            elif challenged['position'] > challenger['position']:
-                error = "Você só pode desafiar jogadores em posições melhores que a sua."
-        
-        if error:
-            conn.close()
-            flash(error, 'error')
-            return redirect(url_for('new_challenge'))
-        
-        # Obter a data e hora atual
-        current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        # Calcular a data limite de resposta (7 dias a partir da data atual)
-        response_deadline = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
-        
-        # Inserir o novo desafio com a data/hora de criação e prazo de resposta
-        conn.execute('''
-            INSERT INTO challenges (challenger_id, challenged_id, status, scheduled_date, created_at, response_deadline)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (challenger_id, challenged_id, 'pending', scheduled_date, current_datetime, response_deadline))
-        
-        conn.commit()
-        conn.close()
-        
-        flash('Desafio criado com sucesso!', 'success')
-        return redirect(url_for('challenges_calendar'))
-        
-    # Para requisições GET, mostrar formulário
-    conn = get_db_connection()
-    
-    # MODIFICAÇÃO: Verificar se o usuário está logado e não é admin
-    preselected_challenger_id = None
-    if 'user_id' in session and not session.get('is_admin', False):
-        # Se o usuário está logado e não é admin, usar seu ID como challenger_id pré-selecionado
-        preselected_challenger_id = str(session['user_id'])
-    else:
-        # Verificar se há um challenger_id na query string (comportamento anterior)
-        preselected_challenger_id = request.args.get('challenger_id', None)
-    
-    # Buscar jogadores com desafios pendentes ou aceitos
-    players_with_challenges = set()
-    pending_challenges = conn.execute('''
-        SELECT challenger_id, challenged_id 
-        FROM challenges 
-        WHERE status IN ('pending', 'accepted')
-    ''').fetchall()
-    
-    for challenge in pending_challenges:
-        players_with_challenges.add(challenge['challenger_id'])
-        players_with_challenges.add(challenge['challenged_id'])
-    
-    # Se temos um desafiante pré-selecionado, obter apenas os jogadores que podem ser desafiados
-    if preselected_challenger_id:
-        # Verificar se o desafiante já tem desafios pendentes
-        if int(preselected_challenger_id) in players_with_challenges:
-            conn.close()
-            flash('Este jogador já está envolvido em um desafio pendente ou aceito.', 'warning')
-            return redirect(url_for('challenges_calendar'))
-        
-        # Buscar informações do desafiante
-        challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', (preselected_challenger_id,)).fetchone()
-        
-        if challenger:
-            # Buscar todos os jogadores para a lista de desafiantes
-            all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
-            
-            # Buscar apenas jogadores que podem ser desafiados (mesmo nível ou um nível acima)
-            # e que tenham posição melhor que o desafiante
-            # e que NÃO estejam envolvidos em desafios pendentes
-            eligible_challenged = conn.execute('''
-                SELECT * FROM players 
-                WHERE active = 1
-                AND position < ? 
-                AND (tier = ? OR tier = ?)
-                ORDER BY position
-            ''', (challenger['position'], challenger['tier'], chr(ord(challenger['tier'])-1))).fetchall()
-            
-            # Filtrar os jogadores que já têm desafios pendentes
-            eligible_challenged = [player for player in eligible_challenged 
-                                  if player['id'] not in players_with_challenges]
-            
-            # Adicionar data atual formatada para o campo de data
-            today_date = datetime.now().strftime('%Y-%m-%d')
-            
-            conn.close()
-            return render_template('new_challenge.html', 
-                                all_players=all_players,
-                                eligible_challenged=eligible_challenged,
-                                preselected_challenger=preselected_challenger_id,
-                                challenger_info=challenger,
-                                today_date=today_date)
-    
-    # Se não houver um desafiante pré-selecionado, mostrar todos os jogadores disponíveis
-    # (sem desafios pendentes) para seleção como desafiante
-    all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
-    
-    # Filtrar jogadores sem desafios pendentes para a lista de desafiantes
-    available_players = [player for player in all_players 
-                        if player['id'] not in players_with_challenges]
-    
-    conn.close()
-    
-    # Adicionar data atual formatada para o campo de data
-    today_date = datetime.now().strftime('%Y-%m-%d')
-    
-    return render_template('new_challenge.html', 
-                         all_players=available_players, 
-                         eligible_challenged=[],
-                         preselected_challenger=preselected_challenger_id,
-                         today_date=today_date)
+            {% if not preselected_challenger %}
+                <!-- Etapa 1: Selecionar o desafiante -->
+                <h4>Selecione o Jogador Desafiante:</h4>
+                <div class="row">
+                    {% for player in all_players %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ player.name }}</h5>
+                                <p class="card-text">
+                                    <strong>Posição:</strong> {{ player.position }}<br>
+                                    <strong>Tier:</strong> {{ player.tier }}
+                                </p>
+                                <a href="{{ url_for('new_challenge', challenger_id=player.id) }}" class="btn btn-primary">
+                                    Selecionar como Desafiante
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <!-- Etapa 2: Mostrar desafiante selecionado e escolher desafiado -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-header">
+                                <h5 class="mb-0">Desafiante Selecionado</h5>
+                            </div>
+                            <div class="card-body">
+                                <h4>{{ challenger_info.name }}</h4>
+                                <p>
+                                    <strong>Posição:</strong> {{ challenger_info.position }}<br>
+                                    <strong>Tier:</strong> {{ challenger_info.tier }}
+                                </p>
+                                <a href="{{ url_for('new_challenge') }}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-arrow-left"></i> Escolher outro desafiante
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if eligible_challenged|length > 0 %}
+                    <h4>Selecione o Jogador a ser Desafiado:</h4>
+                    
+                    <form method="POST" action="{{ url_for('new_challenge') }}" class="mt-4">
+                        <input type="hidden" name="challenger_id" value="{{ preselected_challenger }}">
+                        
+                        <div class="mb-3">
+                            <label for="challenged_id" class="form-label">Jogador a ser desafiado:</label>
+                            <select class="form-select" id="challenged_id" name="challenged_id" required>
+                                <option value="">-- Selecione o jogador --</option>
+                                {% for player in eligible_challenged %}
+                                <option value="{{ player.id }}">
+                                    {{ player.name }} (Posição: {{ player.position }}, Tier: {{ player.tier }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="scheduled_date" class="form-label">Data do Desafio:</label>
+                            <input type="date" class="form-control" id="scheduled_date" name="scheduled_date" 
+                                   min="{{ today_date }}" value="{{ today_date }}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-check-circle"></i> Criar Desafio
+                            </button>
+                        </div>
+                    </form>
+                {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> Não há jogadores elegíveis para serem desafiados por este jogador.
+                        <p class="mb-0 mt-2">Lembre-se: um jogador só pode desafiar outros que:</p>
+                        <ul class="mb-0">
+                            <li>Estão ativos</li>
+                            <li>Estão no mesmo nível ou um nível acima</li>
+                            <li>Têm posição melhor (numero menor)</li>
+                            <li>Não estão envolvidos em outros desafios pendentes</li>
+                        </ul>
+                    </div>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
