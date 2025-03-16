@@ -17,44 +17,103 @@
                 {% endif %}
             {% endwith %}
             
+            <!-- Filtros -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Filtros</h5>
+                </div>
+                <div class="card-body">
+                    <form method="GET" action="{{ url_for('admin_challenge_logs') }}" class="row g-3">
+                        <div class="col-md-3">
+                            <label for="challenge_id" class="form-label">ID do Desafio</label>
+                            <input type="text" class="form-control" id="challenge_id" name="challenge_id" value="{{ request.args.get('challenge_id', '') }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="user_id" class="form-label">Usuário</label>
+                            <select class="form-select" id="user_id" name="user_id">
+                                <option value="">-- Todos --</option>
+                                {% for user in users %}
+                                <option value="{{ user.id }}" {% if request.args.get('user_id')|string == user.id|string %}selected{% endif %}>
+                                    {{ user.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="start_date" class="form-label">Data inicial</label>
+                            <input type="date" class="form-control" id="start_date" name="start_date" value="{{ request.args.get('start_date', '') }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="end_date" class="form-label">Data final</label>
+                            <input type="date" class="form-control" id="end_date" name="end_date" value="{{ request.args.get('end_date', '') }}">
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search"></i> Filtrar
+                            </button>
+                            <a href="{{ url_for('admin_challenge_logs') }}" class="btn btn-outline-secondary">Limpar Filtros</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
             <!-- Tabela de Logs -->
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Desafio ID</th>
-                            <th>Usuário ID</th>
-                            <th>Modificado Por</th>
-                            <th>Status Anterior</th>
-                            <th>Novo Status</th>
                             <th>Data/Hora</th>
+                            <th>Desafio ID</th>
+                            <th>Desafiante</th>
+                            <th>Desafiado</th>
+                            <th>Modificado Por</th>
+                            <th>Alteração</th>
                             <th>Observações</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for log in logs %}
                         <tr>
-                            <td>{{ log.id }}</td>
+                            <td>{{ log.created_at|datetime('%d/%m/%Y %H:%M') }}</td>
                             <td>
                                 {% if log.challenge_id %}
                                 <a href="{{ url_for('challenge_detail', challenge_id=log.challenge_id) }}">
                                     #{{ log.challenge_id }}
                                 </a>
                                 {% else %}
-                                N/A
+                                Desafio excluído
                                 {% endif %}
                             </td>
-                            <td>{{ log.user_id }}</td>
-                            <td>{{ log.modified_by }}</td>
-                            <td>{{ log.old_status or 'N/A' }}</td>
-                            <td>{{ log.new_status or 'N/A' }}</td>
-                            <td>{{ log.created_at }}</td>
+                            <td>{{ log.challenger_name or 'N/A' }}</td>
+                            <td>{{ log.challenged_name or 'N/A' }}</td>
+                            <td>
+                                {{ log.user_name or log.modified_by }}
+                                {% if log.modified_by == 'Admin' %}
+                                <span class="badge bg-primary">Admin</span>
+                                {% elif log.modified_by == 'Desafiante' %}
+                                <span class="badge bg-success">Desafiante</span>
+                                {% elif log.modified_by == 'Desafiado' %}
+                                <span class="badge bg-warning">Desafiado</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.old_status != log.new_status %}
+                                <div>
+                                    Status: <strong>{{ log.old_status or 'N/A' }}</strong> → <strong>{{ log.new_status or 'N/A' }}</strong>
+                                </div>
+                                {% endif %}
+                                
+                                {% if log.old_result != log.new_result %}
+                                <div>
+                                    Resultado: <strong>{{ log.old_result or 'N/A' }}</strong> → <strong>{{ log.new_result or 'N/A' }}</strong>
+                                </div>
+                                {% endif %}
+                            </td>
                             <td>{{ log.notes or '-' }}</td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="8" class="text-center">Nenhum registro encontrado.</td>
+                            <td colspan="7" class="text-center">Nenhum registro encontrado.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
