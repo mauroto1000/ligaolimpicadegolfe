@@ -147,15 +147,24 @@
                                 {% endif %}
                             </ul>
                         </li>
+                        
+                        <!-- Adicionar o item de logout visível apenas em telas pequenas (d-lg-none) -->
+                        {% if session.user_id %}
+                        <li class="nav-item d-lg-none mt-3 pt-2 border-top">
+                            <a class="nav-link text-danger" href="{{ url_for('logout') }}">
+                                <i class="fas fa-sign-out-alt"></i> Sair da conta
+                            </a>
+                        </li>
+                        {% endif %}
                     </ul>
                     
                     <!-- Opções de autenticação e ações rápidas -->
                     <div class="d-flex align-items-center">
                         {% if session.user_id %}
-                            <!-- Menu do usuário logado -->
-                            <div class="dropdown">
+                            <!-- Menu do usuário logado (visível apenas em telas médias e grandes) -->
+                            <div class="dropdown d-none d-lg-block">
                                 <button class="btn btn-outline-light dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="fas fa-user-circle"></i> {{ session.user_name }}
+                                    <i class="fas fa-user-circle"></i> {{ session.username }}
                                     {% if session.is_admin %}
                                         <span class="badge bg-warning text-dark">Admin</span>
                                     {% endif %}
@@ -371,4 +380,18 @@
                 
                 if (savedConsent) {
                     try {
-                        const consent = JSON.parse(savedConsent
+                        const consent = JSON.parse(savedConsent);
+                        document.getElementById('functionalCookies').checked = consent.functional || false;
+                        document.getElementById('analyticsCookies').checked = consent.analytics || false;
+                    } catch (e) {
+                        console.error('Erro ao carregar configurações de cookies:', e);
+                    }
+                }
+            });
+        });
+    </script>
+    
+    <!-- Scripts adicionais -->
+    {% block scripts %}{% endblock %}
+</body>
+</html>
