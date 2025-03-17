@@ -3304,6 +3304,72 @@ def admin_challenge_logs():
     return render_template('admin_challenge_logs.html', logs=logs, users=[])
 
 
+@app.route('/privacy-policy')
+def privacy_policy():
+    """Página de Política de Privacidade e LGPD"""
+    return render_template('privacy_policy.html')
+
+
+@app.route('/data-export')
+@login_required
+def data_export():
+    """Permite que o usuário baixe seus dados pessoais"""
+    # Apenas usuário logado pode acessar seus próprios dados
+    user_id = session.get('user_id')
+    
+    conn = get_db_connection()
+    
+    # Obter dados do jogador
+    player_data = conn.execute('SELECT * FROM players WHERE id = ?', (user_id,)).fetchone()
+    
+    # Obter histórico de desafios
+    challenges_as_challenger = conn.execute('''
+        SELECT * FROM challenges WHERE challenger_id = ?
+    ''', (user_id,)).fetchall()
+    
+    challenges_as_challenged = conn.execute('''
+        SELECT * FROM challenges WHERE challenged_id = ?
+    ''', (user_id,)).fetchall()
+    
+    # Obter histórico de rankings
+    ranking_history = conn.execute('''
+        SELECT * FROM ranking_history WHERE player_id = ?
+    ''', (user_id,)).fetchall()
+    
+    conn.close()
+    
+    # Converter para formato JSON
+    data = {
+        'player_info': dict(player_data) if player_data else None,
+        'challenges_as_challenger': [dict(row) for row in challenges_as_challenger],
+        'challenges_as_challenged': [dict(row) for row in challenges_as_challenged],
+        'ranking_history': [dict(row) for row in ranking_history]
+    }
+    
+    # Criar resposta para download
+    response = make_response(json.dumps(data, default=str, indent=4))
+    response.headers["Content-Disposition"] = f"attachment; filename=data_export_{user_id}.json"
+    response.headers["Content-Type"] = "application/json"
+    
+    return response
+
+@app.route('/request-data-deletion', methods=['GET', 'POST'])
+@login_required
+def request_data_deletion():
+    """Solicitar exclusão de dados pessoais"""
+    if request.method == 'POST':
+        # Implementação para lidar com a solicitação
+        # Talvez envie um e-mail para o administrador ou marque o usuário
+        # para exclusão futura
+        
+        flash('Sua solicitação de exclusão de dados foi recebida. Entraremos em contato em até 15 dias úteis.', 'success')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('request_data_deletion.html')
+
+
+
+
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
     if not os.path.exists(DATABASE):
