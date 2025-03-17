@@ -188,105 +188,154 @@ document.addEventListener('DOMContentLoaded', function() {
         // Gerar cores aleatórias para cada jogador
         const colors = generateColors(data.players.length);
         
+        // Calcular as datas efetivas: datas originais + pequeno espaço
+        // Usar apenas 5% de espaço adicional em vez de tomar muito espaço
+        const dateWidth = data.dates.length;
+        const gapSize = Math.max(1, Math.ceil(dateWidth * 0.05)); // 5% de espaço, no mínimo 1
+        
         // Preparar datasets
         const datasets = data.players.map((player, index) => {
+            // Encontrar o último ponto válido
+            let lastValidIndex = player.positions.length - 1;
+            while (lastValidIndex >= 0 && (player.positions[lastValidIndex] === null || player.positions[lastValidIndex] === undefined)) {
+                lastValidIndex--;
+            }
+            
+            // Se não tiver pontos válidos, pular este jogador
+            if (lastValidIndex < 0) {
+                return null;
+            }
+            
+            // Obter a última posição válida
+            const lastPosition = player.positions[lastValidIndex];
+            
+            // Criar uma cópia dos dados
+            const extendedData = [...player.positions];
+            
+            // Adicionar pontos nulos para criar o espaço (apenas o necessário)
+            for (let i = 0; i < gapSize - 1; i++) {
+                extendedData.push(null);
+            }
+            
+            // Adicionar o ponto para o texto
+            extendedData.push(lastPosition);
+            
             return {
                 label: player.name,
-                data: player.positions,
+                data: extendedData,
                 borderColor: colors[index],
-                backgroundColor: colors[index] + '33', // Adiciona transparência
+                backgroundColor: colors[index] + '33',
                 tension: 0.3,
-                pointRadius: 4,
-                pointHoverRadius: 6,
+                pointRadius: function(context) {
+                    // Ocultar pontos extras
+                    if (context.dataIndex >= player.positions.length) {
+                        return 0;
+                    }
+                    return 4;
+                },
+                pointHoverRadius: function(context) {
+                    if (context.dataIndex >= player.positions.length) {
+                        return 0;
+                    }
+                    return 6;
+                },
+                spanGaps: false, // Não conectar através de pontos null
                 borderWidth: 2,
-                // Adicionar rótulos de texto para os jogadores
+                fill: false,
+                lastPosition: lastPosition,
                 datalabels: {
-                    align: 'left',
-                    anchor: 'start',
-                    color: colors[index],
+                    align: 'start',
+                    anchor: function(context) {
+                        // Para o ponto do texto
+                        if (context.dataIndex === extendedData.length - 1) {
+                            return 'start';
+                        }
+                        return 'center';
+                    },
+                    color: function(context) {
+                        return context.dataset.borderColor;
+                    },
                     font: {
                         weight: 'bold',
-                        size: 11
+                        size: 12
                     },
                     formatter: function(value, context) {
-                        const datasetIndex = context.datasetIndex;
-                        const dataIndex = context.dataIndex;
-                        
-                        // Exibir o nome apenas no primeiro ponto válido da série (lado esquerdo)
-                        if (dataIndex === 0 && value !== null && value !== undefined) {
-                            return player.name;
+                        // Mostrar colocação e nome apenas no último ponto
+                        if (context.dataIndex === extendedData.length - 1) {
+                            return context.dataset.lastPosition + 'º - ' + player.name;
                         }
                         return null;
                     },
-                    padding: {
-                        right: 5
-                    },
-                    textAlign: 'right',
-                    offset: 5
+                    padding: 0
                 }
             };
-        });
+        }).filter(Boolean); // Remover jogadores sem pontos válidos
+        
+        // Criar labels estendidos para acomodar o espaço
+        const extendedLabels = [...data.dates];
+        for (let i = 0; i < gapSize; i++) {
+            extendedLabels.push('');
+        }
         
         // Configurar o gráfico
         chartInstance = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: data.dates,
+                labels: extendedLabels,
                 datasets: datasets
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        right: 80 // Menos padding já que o espaço é menor
+                    }
+                },
                 scales: {
                     y: {
-                        reverse: true, // Inverte o eixo Y (posição 1 no topo)
+                        reverse: true,
                         title: {
                             display: true,
                             text: 'Posição'
                         },
-                        min: 0.5, // Começa um pouco acima do 1 para melhor visualização
-                        suggestedMax: 25, // Limite sugerido para evitar muitos valores
+                        min: 0.5,
+                        suggestedMax: 25,
                         ticks: {
-                            stepSize: 1, // Garante que apenas posições inteiras sejam mostradas
-                            precision: 0, // Sem casas decimais
+                            stepSize: 1,
+                            precision: 0,
                             callback: function(value) {
-                                // Apenas mostrar se for número inteiro
                                 if (Math.floor(value) === value) {
-                                    // Encontrar jogadores que têm essa posição no último ponto de dados válido
-                                    let playersAtPosition = [];
-                                    
-                                    data.players.forEach(player => {
-                                        // Encontrar a última posição válida para este jogador
-                                        let lastValidPosition = null;
-                                        for (let i = player.positions.length - 1; i >= 0; i--) {
-                                            if (player.positions[i] !== null && player.positions[i] !== undefined) {
-                                                lastValidPosition = player.positions[i];
-                                                break;
-                                            }
-                                        }
-                                        
-                                        // Se a última posição válida corresponde à marcação atual, adicionar o jogador
-                                        if (lastValidPosition === value) {
-                                            playersAtPosition.push(player.name);
-                                        }
-                                    });
-                                    
-                                    // Retornar a posição e os nomes dos jogadores
-                                    if (playersAtPosition.length > 0) {
-                                        return value + ' - ' + playersAtPosition.join(', ');
-                                    }
                                     return value;
                                 }
-                                return ''; // Não mostrar valores não inteiros
+                                return '';
                             },
-                            // Garantir marcações para todas as posições relevantes
-                            count: 30 // Valor razoável para cobrir as posições normais
+                            count: 30
                         }
                     },
                     x: {
                         title: {
                             display: true,
                             text: 'Data'
+                        },
+                        ticks: {
+                            callback: function(value, index, values) {
+                                // Não mostrar o label dos pontos extras
+                                if (index >= data.dates.length) {
+                                    return '';
+                                }
+                                
+                                // Lógica para mostrar menos labels em telas pequenas
+                                const screenWidth = window.innerWidth;
+                                const interval = screenWidth < 768 ? 
+                                                Math.ceil(data.dates.length / 5) : 
+                                                Math.ceil(data.dates.length / 10);
+                                
+                                if (index % interval === 0) {
+                                    return data.dates[index];
+                                }
+                                return '';
+                            }
                         }
                     }
                 },
@@ -298,15 +347,34 @@ document.addEventListener('DOMContentLoaded', function() {
                     tooltip: {
                         callbacks: {
                             title: function(tooltipItems) {
+                                // Não mostrar tooltip para os pontos extras
+                                if (tooltipItems[0].dataIndex >= data.dates.length) {
+                                    return '';
+                                }
                                 return 'Data: ' + tooltipItems[0].label;
                             },
                             label: function(context) {
+                                // Não mostrar tooltip para os pontos extras
+                                if (context.dataIndex >= data.dates.length) {
+                                    return '';
+                                }
+                                if (context.raw === null || context.raw === undefined) {
+                                    return '';
+                                }
                                 return context.dataset.label + ': ' + context.raw + 'ª posição';
                             }
                         }
                     },
                     legend: {
-                        display: false // Ocultar as legendas tradicionais
+                        display: false
+                    },
+                    datalabels: {
+                        clamp: false,
+                        // Configurações para evitar sobreposição
+                        overlap: {
+                            mode: 'shift',
+                            padding: 4
+                        }
                     }
                 }
             }
