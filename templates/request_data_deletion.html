@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}Solicitar Exclusão de Dados - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow">
+                <div class="card-header bg-danger text-white">
+                    <h2 class="h4 mb-0">Solicitar Exclusão de Dados</h2>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Atenção:</strong> A exclusão de seus dados é irreversível e resultará no encerramento de sua participação na Liga Olímpica de Golfe.
+                    </div>
+                    
+                    <p>De acordo com a Lei Geral de Proteção de Dados (LGPD), você tem o direito de solicitar a exclusão dos seus dados pessoais.</p>
+                    
+                    <p>Ao confirmar esta solicitação:</p>
+                    <ul>
+                        <li>Seus dados pessoais serão excluídos ou anonimizados de nossos sistemas</li>
+                        <li>Sua conta será desativada permanentemente</li>
+                        <li>Você não poderá mais participar da Liga com este cadastro</li>
+                    </ul>
+                    
+                    <p>Note que alguns dados podem ser mantidos por períodos específicos para cumprir obrigações legais ou para preservar a integridade histórica da competição.</p>
+                    
+                    <form method="post" class="mt-4" onsubmit="return confirm('Tem certeza que deseja solicitar a exclusão dos seus dados? Esta ação não pode ser desfeita.');">
+                        <div class="mb-3">
+                            <label for="reason" class="form-label">Motivo da solicitação (opcional):</label>
+                            <textarea class="form-control" id="reason" name="reason" rows="3" placeholder="Nos ajude a entender o motivo da sua solicitação..."></textarea>
+                        </div>
+                        
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="confirmCheck" required>
+                            <label class="form-check-label" for="confirmCheck">Confirmo que desejo solicitar a exclusão dos meus dados pessoais</label>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex">
+                            <button type="submit" class="btn btn-danger">Solicitar Exclusão</button>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
