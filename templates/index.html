@@ -3,6 +3,18 @@
 {% block title %}Ranking - Liga Olímpica de Golfe{% endblock %}
 
 {% block content %}
+{% if 'user_id' not in session %}
+<div class="alert alert-danger mb-4">
+    <div class="d-flex align-items-center">
+        <i class="fas fa-exclamation-circle me-3 fs-3"></i>
+        <div>
+            <h4 class="alert-heading text-danger fw-bold">Acesse sua conta agora!</h4>
+            <p class="mb-0 text-danger">Para desafiar outros jogadores ou verificar se você foi desafiado, faça <a href="{{ url_for('login') }}" class="alert-link text-danger"><u>login na sua conta</u></a>. Tenha acesso a todas as funcionalidades da Liga Olímpica de Golfe.</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="row">
     <div class="col-12 mb-3">
         <div class="d-flex justify-content-between align-items-center">
@@ -39,9 +51,15 @@
                                         <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-primary">
                                             <i class="fas fa-user"></i> <span class="d-none d-md-inline">Detalhes</span>
                                         </a>
+                                        {% if 'user_id' in session %}
                                         <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}" class="btn btn-sm btn-outline-success">
                                             <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
                                         </a>
+                                        {% else %}
+                                        <a href="{{ url_for('login') }}" class="btn btn-sm btn-danger" title="Faça login para desafiar">
+                                            <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
+                                        </a>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
@@ -103,7 +121,9 @@
                                 <td class="text-center actions-cell">
                                     <div class="d-flex justify-content-center gap-1">
                                         <a href="{{ url_for('player_detail', player_id=player.id) }}" class="btn btn-sm btn-outline-info">Detalhes</a>
+                                        {% if 'user_id' in session and session.is_admin %}
                                         <a href="{{ url_for('reactivate_player', player_id=player.id) }}" class="btn btn-sm btn-outline-success">Reativar</a>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
