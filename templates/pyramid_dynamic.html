@@ -109,10 +109,20 @@
         box-shadow: 0 1px 2px rgba(0,0,0,0.2);
     }
     
-    /* Ajuste da cor da data para jogadores com desafios pendentes */
-    .pending-challenge .challenge-date {
-        color: #fff; /* Mantém o texto branco */
-        background-color: #17a2b8; /* Mantém o fundo azul mesmo em células amarelas */
+    /* Estilo para desafios pendentes */
+    .pending-date {
+        font-size: 11px;
+        font-weight: normal;
+        background-color: #dc3545; /* Vermelho */
+        color: #fff; /* Texto branco */
+        padding: 2px 5px;
+        border-radius: 3px;
+        position: absolute;
+        bottom: 3px;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2);
     }
 
     .player-name {
@@ -390,6 +400,10 @@
                 <span style="margin-left: 5px;">Data do desafio aceito</span>
             </div>
             <div class="legend-item">
+                <span style="font-size: 11px; padding: 2px 5px; background-color: #dc3545; color: #fff; border-radius: 3px; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">(?!)</span>
+                <span style="margin-left: 5px;">Aguardando data</span>
+            </div>
+            <div class="legend-item">
                 <span style="font-size: 12px; padding: 3px 5px; background-color: rgba(255, 255, 255, 0.95); color: black; border: 2px solid rgba(0, 0, 0, 0.3); border-radius: 3px; font-weight: bold;">#2 → #1</span>
                 <span style="margin-left: 5px;">Desafiante</span>
             </div>
@@ -457,11 +471,24 @@
                                 <small>Clique para detalhes</small>
                             </div>
                             
-                            <!-- NOVO: Data do jogo para desafios aceitos -->
-                            {# Buscando apenas o primeiro desafio aceito para este jogador #}
+                            <!-- NOVO: Data do jogo para desafios aceitos ou indicação para pendentes -->
                             {% set displayed = false %}
-                            {% for challenge in challenges if not displayed %}
-                                {% if challenge.status == 'accepted' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                            
+                            {# Primeiro verificamos desafios pendentes #}
+                            {% if player.has_pending_challenge and not displayed %}
+                                {% for challenge in challenges %}
+                                    {% if not displayed and challenge.status == 'pending' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                        <span class="pending-date">
+                                            (?!)
+                                        </span>
+                                        {% set displayed = true %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                            
+                            {# Depois buscamos desafios aceitos se ainda não exibimos nada #}
+                            {% for challenge in challenges %}
+                                {% if not displayed and challenge.status == 'accepted' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
                                     <span class="challenge-date">
                                         {% if challenge.scheduled_date|string is defined %}
                                             {% set date_str = challenge.scheduled_date|string %}

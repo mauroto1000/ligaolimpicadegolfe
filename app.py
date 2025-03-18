@@ -1789,17 +1789,17 @@ def pyramid_dynamic():
     # Ordenar tiers alfabeticamente
     sorted_tiers = sorted(tiers.items())
     
-    # Buscar todos os desafios aceitos para mostrar datas
-    accepted_challenges = conn.execute('''
+    # Buscar todos os desafios aceitos e pendentes para mostrar datas ou indicadores
+    challenges_for_display = conn.execute('''
         SELECT id, challenger_id, challenged_id, status, scheduled_date
         FROM challenges
-        WHERE status = 'accepted'
+        WHERE status IN ('accepted', 'pending')
     ''').fetchall()
     
     conn.close()
     return render_template('pyramid_dynamic.html', 
                           tiers=sorted_tiers, 
-                          challenges=accepted_challenges)
+                          challenges=challenges_for_display)
 
 # Rota original (mantida para compatibilidade ou redirecionamento)
 # Altere estas rotas no seu arquivo app.py:
