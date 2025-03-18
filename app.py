@@ -1729,7 +1729,7 @@ def pyramid_dynamic():
     
     # Buscar jogadores com desafios
     challenges = conn.execute('''
-        SELECT DISTINCT c.challenger_id, c.challenged_id, c.status, 
+        SELECT DISTINCT c.challenger_id, c.challenged_id, c.status, c.scheduled_date,
                p1.position as challenger_position, p2.position as challenged_position
         FROM challenges c
         JOIN players p1 ON c.challenger_id = p1.id
@@ -1789,8 +1789,17 @@ def pyramid_dynamic():
     # Ordenar tiers alfabeticamente
     sorted_tiers = sorted(tiers.items())
     
+    # Buscar todos os desafios aceitos para mostrar datas
+    accepted_challenges = conn.execute('''
+        SELECT id, challenger_id, challenged_id, status, scheduled_date
+        FROM challenges
+        WHERE status = 'accepted'
+    ''').fetchall()
+    
     conn.close()
-    return render_template('pyramid_dynamic.html', tiers=sorted_tiers)
+    return render_template('pyramid_dynamic.html', 
+                          tiers=sorted_tiers, 
+                          challenges=accepted_challenges)
 
 # Rota original (mantida para compatibilidade ou redirecionamento)
 # Altere estas rotas no seu arquivo app.py:
@@ -3366,6 +3375,8 @@ def request_data_deletion():
         return redirect(url_for('dashboard'))
     
     return render_template('request_data_deletion.html')
+
+
 
 
 
