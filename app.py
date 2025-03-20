@@ -2697,10 +2697,52 @@ def add_columns():
     else:
         return "Nenhuma alteração necessária."
 
+# Função para gerar automaticamente um novo player_code
+# Função para gerar automaticamente um novo player_code
+def generate_player_code(conn):
+    """
+    Gera um novo código de jogador único no formato 'LO' + número sequencial de 3 dígitos
+    baseado no maior código existente no banco de dados.
+    
+    Args:
+        conn: Conexão com o banco de dados
+    
+    Returns:
+        str: Novo código de jogador no formato 'LO001'
+    """
+    # Buscar o maior código de jogador atual
+    result = conn.execute('''
+        SELECT player_code FROM players 
+        WHERE player_code LIKE 'LO%' 
+        ORDER BY LENGTH(player_code) DESC, player_code DESC 
+        LIMIT 1
+    ''').fetchone()
+    
+    if result and result['player_code']:
+        # Se existir algum código, extrair o número e incrementar
+        current_code = result['player_code']
+        try:
+            # Remover o prefixo 'LO' e converter para inteiro
+            current_number = int(current_code[2:])
+            # Incrementar o número e gerar o novo código com 3 dígitos
+            new_number = current_number + 1
+            new_code = f"LO{new_number:03d}"  # Formata como 3 dígitos (001, 002, etc.)
+        except ValueError:
+            # Caso haja algum problema ao extrair o número, começar do 1
+            new_code = "LO001"
+    else:
+        # Se não existir nenhum código, começar do 1
+        new_code = "LO001"
+    
+    return new_code
+
+# Modificação da função add_player para incluir a geração automática do player_code
 @app.route('/add_player', methods=['GET', 'POST'])
 def add_player():
     """
     Adiciona um novo jogador ao sistema, colocando-o na última posição do ranking.
+    Agora gera automaticamente o player_code no formato 'LO' + número sequencial.
+    
     GET: Mostra formulário para adicionar jogador
     POST: Processa a adição do jogador
     """
@@ -2738,6 +2780,9 @@ def add_player():
                     conn.close()
                     return redirect(url_for('add_player'))
             
+            # Gerar automaticamente um novo player_code
+            player_code = generate_player_code(conn)
+            
             # Determinar a última posição do ranking
             last_pos_result = conn.execute('SELECT MAX(position) as max_pos FROM players WHERE active = 1').fetchone()
             last_pos = last_pos_result['max_pos'] if last_pos_result and last_pos_result['max_pos'] is not None else 0
@@ -2750,13 +2795,13 @@ def add_player():
             # Determinar o tier com base na posição
             new_tier = get_tier_from_position(new_position)
             
-            # Converter hcp_index para float se fornecido, ou None se vazio
-            hcp_index_val = None
+            # Converter hcp_index para float se fornecido, ou 0 se vazio
+            hcp_index_val = 0  # Valor padrão quando vazio
             if hcp_index:
                 try:
                     hcp_index_val = float(hcp_index.replace(',', '.'))
                 except ValueError:
-                    # Se não for um número válido, deixar como None
+                    # Se não for um número válido, deixar como 0
                     pass
             
             # Verificar quais colunas existem na tabela
@@ -2764,8 +2809,8 @@ def add_player():
             column_names = [col[1] for col in columns_info]
             
             # Construir a query dinamicamente com base nas colunas existentes
-            columns = ['name', 'active', 'position', 'tier']
-            values = [name, 1, new_position, new_tier]
+            columns = ['name', 'active', 'position', 'tier', 'player_code']
+            values = [name, 1, new_position, new_tier, player_code]
             
             if 'hcp_index' in column_names:
                 columns.append('hcp_index')
@@ -2799,7 +2844,7 @@ def add_player():
             ''', (player_id, 0, new_position, "NEW", new_tier, 'player_added'))
             
             conn.commit()
-            flash(f'Jogador "{name}" adicionado com sucesso na posição {new_position} (Tier {new_tier})!', 'success')
+            flash(f'Jogador "{name}" adicionado com sucesso na posição {new_position} (Tier {new_tier}) com código {player_code}!', 'success')
             return redirect(url_for('player_detail', player_id=player_id))
             
         except Exception as e:
