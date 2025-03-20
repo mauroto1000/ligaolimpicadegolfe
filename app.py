@@ -1080,8 +1080,7 @@ def rebalance_positions_after_challenge(conn, winner_id, loser_id, winner_new_po
 def process_challenge_result(conn, challenge_id, status, result):
     """
     Processa o resultado de um desafio, atualizando posições e tiers conforme necessário.
-    Versão melhorada que garante a consistência da pirâmide e registra o histórico diário.
-    Agora suporta o status "completed_pending" que finaliza o desafio sem alterar o ranking.
+    Versão atualizada que inclui a regra: quando o desafiante perde, ele troca de posição com o jogador abaixo.
     """
     # Atualizar o status e resultado do desafio
     conn.execute('UPDATE challenges SET status = ?, result = ? WHERE id = ?', 
@@ -1110,8 +1109,10 @@ def process_challenge_result(conn, challenge_id, status, result):
             return
         
         # Guardar posições e tiers antigos para histórico
+        challenger_id = challenge['challenger_id']
         challenger_old_pos = challenge['challenger_position']
         challenger_old_tier = challenge['challenger_tier']
+        challenged_id = challenge['challenged_id']
         challenged_old_pos = challenge['challenged_position']
         challenged_old_tier = challenge['challenged_tier']
         
@@ -1126,41 +1127,61 @@ def process_challenge_result(conn, challenge_id, status, result):
                     challenge['challenged_position'] + 1  # Nova posição do perdedor (desafiado)
                 )
             elif result == 'challenged_win':
-                # Se o desafiado ganhar, as posições permanecem as mesmas
-                # Mas ainda registramos no histórico
-                pass
+                # NOVA REGRA: Se o desafiado ganhar, o desafiante troca de posição com quem está uma posição abaixo
+                
+                # Primeiro, verificar se existe alguém uma posição abaixo do desafiante
+                player_below = conn.execute('''
+                    SELECT id, position FROM players 
+                    WHERE position = ? AND active = 1
+                ''', (challenger_old_pos + 1,)).fetchone()
+                
+                if player_below:
+                    # Se existe um jogador abaixo, trocar as posições
+                    player_below_id = player_below['id']
+                    
+                    # Atualizando para a nova regra: desafiante troca com quem está abaixo
+                    conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                               (challenger_old_pos + 1, challenger_id))
+                    conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                               (challenger_old_pos, player_below_id))
+                    
+                    # Registrar a mudança no histórico para o desafiante que perdeu
+                    conn.execute('''
+                        INSERT INTO ranking_history 
+                        (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ''', (challenger_id, challenger_old_pos, challenger_old_pos + 1, 
+                         challenger_old_tier, get_tier_from_position(challenger_old_pos + 1), 
+                         'challenge_loss_demotion', challenge_id))
+                    
+                    # E também para o jogador que subiu uma posição
+                    conn.execute('''
+                        INSERT INTO ranking_history 
+                        (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ''', (player_below_id, challenger_old_pos + 1, challenger_old_pos, 
+                         get_tier_from_position(challenger_old_pos + 1), get_tier_from_position(challenger_old_pos), 
+                         'player_promoted_due_to_challenge', challenge_id))
+                else:
+                    # Se não houver ninguém abaixo, não há troca de posição
+                    print(f"Não há jogador abaixo da posição {challenger_old_pos} para trocar")
             else:
                 # Resultado inválido
                 print(f"Erro: Resultado inválido: {result}")
                 conn.rollback()
                 return
             
-            # Buscar as novas posições e tiers após o rebalanceamento
-            new_challenger = conn.execute('SELECT position, tier FROM players WHERE id = ?', 
-                                        (challenge['challenger_id'],)).fetchone()
-            new_challenged = conn.execute('SELECT position, tier FROM players WHERE id = ?', 
-                                        (challenge['challenged_id'],)).fetchone()
-            
             # Verificar se houve mudança nas posições
-            if new_challenger['position'] != challenger_old_pos:
-                # Registrar no histórico para o desafiante
-                conn.execute('''
-                    INSERT INTO ranking_history 
-                    (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (challenge['challenger_id'], challenger_old_pos, new_challenger['position'], 
-                     challenger_old_tier, new_challenger['tier'], 
-                     'challenge_win' if result == 'challenger_win' else 'no_change', challenge_id))
+            new_challenger = conn.execute('SELECT position, tier FROM players WHERE id = ?', 
+                                        (challenger_id,)).fetchone()
+            new_challenged = conn.execute('SELECT position, tier FROM players WHERE id = ?', 
+                                        (challenged_id,)).fetchone()
             
-            if new_challenged['position'] != challenged_old_pos:
-                # Registrar no histórico para o desafiado
-                conn.execute('''
-                    INSERT INTO ranking_history 
-                    (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (challenge['challenged_id'], challenged_old_pos, new_challenged['position'], 
-                     challenged_old_tier, new_challenged['tier'], 
-                     'challenge_loss' if result == 'challenger_win' else 'no_change', challenge_id))
+            # O registro no histórico para o desafiante já foi feito, se necessário
+            # O registro para o desafiado também já foi feito se ele perdeu
+            
+            # Atualizar todos os tiers após qualquer alteração
+            update_all_tiers(conn)
             
             # Sincronizar as tabelas de histórico para garantir consistência
             sync_ranking_history_tables(conn)
