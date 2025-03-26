@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}Histórico de Handicap - {{ player.name }} - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>Histórico de Handicap</h2>
+            <div>
+                <a href="{{ url_for('player_detail', player_id=player.id) }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left"></i> Voltar para Perfil do Jogador
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">{{ player.name }} - HCP Index: {{ player.hcp_index or 'Não informado' }}</h4>
+            </div>
+            <div class="card-body">
+                {% if history %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>HCP Anterior</th>
+                                    <th>Novo HCP</th>
+                                    <th>Modificado por</th>
+                                    <th>Observações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in history %}
+                                <tr>
+                                    <td>{{ item.change_date | datetime('%d/%m/%Y %H:%M') }}</td>
+                                    <td>{{ item.old_hcp if item.old_hcp is not none else 'Não informado' }}</td>
+                                    <td>{{ item.new_hcp }}</td>
+                                    <td>
+                                        {% if item.modified_by == 'admin' %}
+                                            <span class="badge bg-primary">Administrador</span>
+                                        {% elif item.modified_by == 'player' %}
+                                            <span class="badge bg-success">Jogador</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ item.modified_by }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.notes or '' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Não há registros de alterações de handicap para este jogador.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
