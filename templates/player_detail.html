@@ -79,78 +79,18 @@
                     </div>
                 </div>
                 
-                <!-- Substitua a seção de HCP/Handicap por esta nova versão -->
+                <!-- SEÇÃO SEM HCP Index - Apenas Posição e Tier -->
                 <div class="row mb-3">
-                    <div class="col-md-3">
+                    <div class="col-md-6">
                         <h5>Posição Atual</h5>
                         <p>{{ player['position'] or 'N/A' }}</p>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-6">
                         <h5>Nível (Tier)</h5>
                         <p>{{ player['tier'] or 'N/A' }}</p>
                     </div>
-                    <div class="col-md-3">
-                        <h5>HCP Index</h5>
-                        <p class="d-flex align-items-center">
-                            <span id="playerHcpDisplay">{{ player['hcp_index'] or 'Adicionar HCP' }}</span>
-                            <button type="button" class="btn btn-sm text-primary border-0 px-1" 
-                                    onclick="toggleEditHcp()" title="Editar HCP Index">
-                                <i class="fas fa-pencil-alt fa-sm"></i>
-                            </button>
-                        </p>
-                        
-                        <!-- Formulário para editar HCP (inicialmente oculto) -->
-                        <form id="editHcpForm" action="{{ url_for('update_player_hcp', player_id=player.id) }}" 
-                              method="post" class="d-none mb-3">
-                            <div class="input-group">
-                                <input type="text" class="form-control" name="new_hcp" 
-                                       value="{{ player['hcp_index'] or '' }}">
-                                <button type="submit" class="btn btn-primary">Salvar</button>
-                                <button type="button" class="btn btn-secondary" 
-                                        onclick="toggleEditHcp()">Cancelar</button>
-                            </div>
-                            <div class="form-group mt-2">
-                                <label for="senha_hcp" class="small">Senha de Administrador:</label>
-                                <input type="password" class="form-control form-control-sm" 
-                                       id="senha_hcp" name="senha" required>
-                            </div>
-                        </form>
-                    </div>
                 </div>
-                <!-- Nova linha para os Course Handicaps dos diferentes tees -->
-                <div class="row mb-3">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-header bg-light">
-                                <h5 class="mb-0">Course Handicap por Tee</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-4 mb-2">
-                                        <h6 class="text-muted">Tee Branco</h6>
-                                        <p>{{ player['hcp_ogc_white'] or 'N/A' }}</p>
-                                    </div>
-                                    <div class="col-md-4 mb-2">
-                                        <h6 class="text-muted">Tee Azul</h6>
-                                        <p>{{ player['hcp_ogc_azul'] or 'N/A' }}</p>
-                                    </div>
-                                    <div class="col-md-4 mb-2">
-                                        <h6 class="text-muted">Tee Preto</h6>
-                                        <p>{{ player['hcp_ogc_preto'] or 'N/A' }}</p>
-                                    </div>
-                                    <div class="col-md-4 mb-2">
-                                        <h6 class="text-muted">Tee Vermelho</h6>
-                                        <p>{{ player['hcp_ogc_vermelho'] or 'N/A' }}</p>
-                                    </div>
-                                    <div class="col-md-4 mb-2">
-                                        <h6 class="text-muted">Tee Amarelo</h6>
-                                        <p>{{ player['hcp_ogc_amarelo'] or 'N/A' }}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- FIM DA SEÇÃO SIMPLIFICADA -->
 
                 <!-- Se houver jogadores disponíveis para desafiar -->
                 {% if player.active == 1 and potential_challenges %}
@@ -227,7 +167,7 @@
                 </div>
                 {% endif %}
                 
-                <!-- Seção para Histórico de Posições (NOVA SEÇÃO) -->
+                <!-- Seção para Histórico de Posições -->
                 <div class="card mb-3">
                     <div class="card-header bg-info text-white">
                         <h5 class="mb-0">
@@ -326,103 +266,104 @@
             </div>
         </div>
         
-        <!-- Desafios como Desafiante -->
-        <div class="card mb-4">
-            <div class="card-header bg-info text-white">
-                <h4 class="mb-0">Desafios como Desafiante</h4>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush">
-                    {% for challenge in challenges_as_challenger %}
-                    <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
-                        <div class="d-flex w-100 justify-content-between">
-                            <h6 class="mb-1">vs. {{ challenge['opponent_name'] }}</h6>
-                            <small>{{ challenge['scheduled_date'] }}</small>
-                        </div>
-                        <div class="d-flex w-100 justify-content-between">
-                            <small>Posição #{{ challenge['opponent_position'] }}</small>
-                            {% if challenge['status'] == 'pending' %}
-                            <span class="badge bg-warning text-dark">Pendente</span>
-                            {% elif challenge['status'] == 'accepted' %}
-                            <span class="badge bg-info">Aceito</span>
-                            {% elif challenge['status'] == 'completed' %}
-                                {% if challenge['result'] == 'challenger_win' %}
-                                <span class="badge bg-success">Vitória</span>
-                                {% elif challenge['result'] == 'challenged_win' %}
-                                <span class="badge bg-danger">Derrota</span>
-                                {% else %}
-                                <span class="badge bg-secondary">Concluído</span>
-                                {% endif %}
-                            {% elif challenge['status'] == 'rejected' %}
-                            <span class="badge bg-danger">Rejeitado</span>
-                            {% elif challenge['status'] == 'cancelled' %}
-                            <span class="badge bg-secondary">Cancelado</span>
-                            {% endif %}
-                        </div>
-                    </a>
-                    {% endfor %}
-                    
-                    {% if not challenges_as_challenger %}
-                    <div class="list-group-item py-3 text-center">
-                        <p class="mb-0">Nenhum desafio como desafiante</p>
-                    </div>
+<!-- Desafios como Desafiante -->
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <h4 class="mb-0">Desafios como Desafiante</h4>
+    </div>
+    <div class="card-body p-0">
+        <div class="list-group list-group-flush">
+            {% for challenge in challenges_as_challenger %}
+            <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">vs. {{ challenge['opponent_name'] }}</h6>
+                    <small>{{ challenge['scheduled_date'] }}</small>
+                </div>
+                <div class="d-flex w-100 justify-content-between">
+                    <small>Posição #{{ challenge['opponent_position'] }}</small>
+                    {% if challenge['status'] == 'pending' %}
+                    <span class="badge bg-warning text-dark">Pendente</span>
+                    {% elif challenge['status'] == 'accepted' %}
+                    <span class="badge bg-info">Aceito</span>
+                    {% elif challenge['status'] == 'completed' %}
+                        {% if challenge['result'] == 'challenger_win' %}
+                        <span class="badge bg-success">Vitória</span>
+                        {% elif challenge['result'] == 'challenged_win' %}
+                        <span class="badge bg-danger">Derrota</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Concluído</span>
+                        {% endif %}
+                    {% elif challenge['status'] == 'rejected' %}
+                    <span class="badge bg-danger">Rejeitado</span>
+                    {% elif challenge['status'] == 'cancelled' %}
+                    <span class="badge bg-secondary">Cancelado</span>
                     {% endif %}
                 </div>
+            </a>
+            {% endfor %}
+            
+            {% if not challenges_as_challenger %}
+            <div class="list-group-item py-3 text-center">
+                <p class="mb-0">Nenhum desafio como desafiante</p>
             </div>
-        </div>
-        
-        <!-- Desafios como Desafiado -->
-        <div class="card mb-4">
-            <div class="card-header bg-warning text-dark">
-                <h4 class="mb-0">Desafios como Desafiado</h4>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush">
-                    {% for challenge in challenges_as_challenged %}
-                    <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
-                        <div class="d-flex w-100 justify-content-between">
-                            <h6 class="mb-1">de {{ challenge['opponent_name'] }}</h6>
-                            <small>{{ challenge['scheduled_date'] }}</small>
-                        </div>
-                        <div class="d-flex w-100 justify-content-between">
-                            <small>Posição #{{ challenge['opponent_position'] }}</small>
-                            {% if challenge['status'] == 'pending' %}
-                            <span class="badge bg-warning text-dark">Pendente</span>
-                            {% elif challenge['status'] == 'accepted' %}
-                            <span class="badge bg-info">Aceito</span>
-                            {% elif challenge['status'] == 'completed' %}
-                                {% if challenge['result'] == 'challenged_win' %}
-                                <span class="badge bg-success">Vitória</span>
-                                {% elif challenge['result'] == 'challenger_win' %}
-                                <span class="badge bg-danger">Derrota</span>
-                                {% else %}
-                                <span class="badge bg-secondary">Concluído</span>
-                                {% endif %}
-                            {% elif challenge['status'] == 'rejected' %}
-                            <span class="badge bg-danger">Rejeitado</span>
-                            {% elif challenge['status'] == 'cancelled' %}
-                            <span class="badge bg-secondary">Cancelado</span>
-                            {% endif %}
-                        </div>
-                    </a>
-                    {% endfor %}
-                    
-                    {% if not challenges_as_challenged %}
-                    <div class="list-group-item py-3 text-center">
-                        <p class="mb-0">Nenhum desafio como desafiado</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
+            {% endif %}
         </div>
     </div>
 </div>
 
+<!-- Desafios como Desafiado -->
+<div class="card mb-4">
+    <div class="card-header bg-warning text-dark">
+        <h4 class="mb-0">Desafios como Desafiado</h4>
+    </div>
+    <div class="card-body p-0">
+        <div class="list-group list-group-flush">
+            {% for challenge in challenges_as_challenged %}
+            <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">de {{ challenge['opponent_name'] }}</h6>
+                    <small>{{ challenge['scheduled_date'] }}</small>
+                </div>
+                <div class="d-flex w-100 justify-content-between">
+                    <small>Posição #{{ challenge['opponent_position'] }}</small>
+                    {% if challenge['status'] == 'pending' %}
+                    <span class="badge bg-warning text-dark">Pendente</span>
+                    {% elif challenge['status'] == 'accepted' %}
+                    <span class="badge bg-info">Aceito</span>
+                    {% elif challenge['status'] == 'completed' %}
+                        {% if challenge['result'] == 'challenged_win' %}
+                        <span class="badge bg-success">Vitória</span>
+                        {% elif challenge['result'] == 'challenger_win' %}
+                        <span class="badge bg-danger">Derrota</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Concluído</span>
+                        {% endif %}
+                    {% elif challenge['status'] == 'rejected' %}
+                    <span class="badge bg-danger">Rejeitado</span>
+                    {% elif challenge['status'] == 'cancelled' %}
+                    <span class="badge bg-secondary">Cancelado</span>
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+            
+            {% if not challenges_as_challenged %}
+            <div class="list-group-item py-3 text-center">
+                <p class="mb-0">Nenhum desafio como desafiado</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+</div>
+</div>
+
 <script>
+// Funções para interatividade da página
 function toggleEditName() {
     const displayElement = document.getElementById('playerNameDisplay');
     const formElement = document.getElementById('editNameForm');
-    
+
     if (formElement.classList.contains('d-none')) {
         // Mostrar formulário, ocultar display
         displayElement.classList.add('d-none');
@@ -437,22 +378,7 @@ function toggleEditName() {
 function toggleEditContact() {
     const displayElement = document.getElementById('playerContactDisplay');
     const formElement = document.getElementById('editContactForm');
-    
-    if (formElement.classList.contains('d-none')) {
-        // Mostrar formulário, ocultar display
-        displayElement.classList.add('d-none');
-        formElement.classList.remove('d-none');
-    } else {
-        // Ocultar formulário, mostrar display
-        displayElement.classList.remove('d-none');
-        formElement.classList.add('d-none');
-    }
-}
 
-function toggleEditHcp() {
-    const displayElement = document.getElementById('playerHcpDisplay');
-    const formElement = document.getElementById('editHcpForm');
-    
     if (formElement.classList.contains('d-none')) {
         // Mostrar formulário, ocultar display
         displayElement.classList.add('d-none');

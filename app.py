@@ -636,6 +636,94 @@ def create_daily_history_table():
     conn.close()
     print("Tabela de histórico diário criada com sucesso.")
 
+
+# Função para criar tabela de histórico de handicap
+def create_hcp_history_table():
+    conn = get_db_connection()
+    conn.execute('''
+    CREATE TABLE IF NOT EXISTS hcp_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        player_id INTEGER NOT NULL,
+        old_hcp REAL,
+        new_hcp REAL NOT NULL,
+        modified_by TEXT NOT NULL,
+        notes TEXT,
+        change_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (player_id) REFERENCES players(id)
+    )
+    ''')
+    
+    # Criar um índice para melhorar a performance das consultas
+    conn.execute('''
+    CREATE INDEX IF NOT EXISTS idx_hcp_history_player_date 
+    ON hcp_history (player_id, change_date)
+    ''')
+    
+    conn.commit()
+    conn.close()
+    print("Tabela de histórico de handicap criada com sucesso.")
+
+# Função para registrar alterações de handicap
+def record_hcp_change(player_id, old_hcp, new_hcp, modified_by, notes=None):
+    """
+    Registra alterações no handicap de um jogador.
+    
+    Args:
+        player_id: ID do jogador
+        old_hcp: Handicap anterior (pode ser None)
+        new_hcp: Novo handicap
+        modified_by: Quem modificou ('admin', 'player', etc)
+        notes: Observações sobre a alteração (opcional)
+    """
+    conn = get_db_connection()
+    
+    try:
+        conn.execute('''
+            INSERT INTO hcp_history 
+            (player_id, old_hcp, new_hcp, modified_by, notes)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (player_id, old_hcp, new_hcp, modified_by, notes))
+        
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"Erro ao registrar alteração de handicap: {str(e)}")
+    finally:
+        conn.close()
+
+
+
+@app.route('/player/<int:player_id>/hcp_history')
+def player_hcp_history(player_id):
+    """
+    Exibe o histórico de handicap de um jogador específico
+    """
+    conn = get_db_connection()
+    
+    # Verificar se o jogador existe
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Jogador não encontrado!', 'error')
+        return redirect(url_for('index'))
+    
+    # Buscar histórico de handicap do jogador
+    history = conn.execute('''
+        SELECT hcp_history.*, players.name as player_name
+        FROM hcp_history 
+        JOIN players ON hcp_history.player_id = players.id
+        WHERE player_id = ?
+        ORDER BY change_date DESC
+    ''', (player_id,)).fetchall()
+    
+    conn.close()
+    
+    return render_template('player_hcp_history.html', 
+                           player=player,
+                           history=history)
+
+
 # MODIFICAÇÃO: Melhoria na função record_daily_rankings para permitir sobrescrever registros
 def record_daily_rankings(force_update=False):
     """
@@ -2511,6 +2599,27 @@ def player_detail(player_id):
         except Exception as e:
             print(f"Erro ao buscar desafios potenciais: {str(e)}")
     
+    # Determinar explicitamente se o usuário está vendo seu próprio perfil
+    # Método muito mais robusto para verificar se é o próprio jogador
+    is_own_profile = False
+    is_admin = session.get('is_admin', False)
+    
+    try:
+        user_id = session.get('user_id')
+        
+        # Verificar se é um admin (o ID pode ser no formato 'admin_1')
+        if isinstance(user_id, str) and user_id.startswith('admin_'):
+            is_own_profile = False
+        elif isinstance(user_id, int):
+            is_own_profile = user_id == player_id
+        elif isinstance(user_id, str) and user_id.isdigit():
+            is_own_profile = int(user_id) == player_id
+    except (ValueError, TypeError, AttributeError):
+        is_own_profile = False
+    
+    # Log para depuração - remova depois que o problema for resolvido
+    print(f"Acesso ao perfil - player_id: {player_id}, user_id: {session.get('user_id')}, is_own_profile: {is_own_profile}, is_admin: {is_admin}")
+    
     conn.close()
     
     return render_template('player_detail.html', 
@@ -2518,7 +2627,9 @@ def player_detail(player_id):
                          challenges_as_challenger=challenges_as_challenger,
                          challenges_as_challenged=challenges_as_challenged,
                          history=history,
-                         potential_challenges=potential_challenges)
+                         potential_challenges=potential_challenges,
+                         is_own_profile=is_own_profile,  # Passar explicitamente
+                         is_admin=is_admin)  # Passar explicitamente
 
 @app.route('/challenge_detail/<int:challenge_id>')
 def challenge_detail(challenge_id):
@@ -3444,6 +3555,241 @@ def request_data_deletion():
 
 
 
+# Adicione esta nova rota ao seu arquivo app.py
+
+# Adicione esta nova rota ao arquivo app.py
+
+@app.route('/player/update_self_hcp', methods=['POST'])
+@login_required
+def update_self_hcp():
+    """
+    Permite que um jogador atualize seu próprio HCP Index sem necessidade de senha
+    """
+    # Obter o ID do jogador autenticado
+    player_id = session.get('user_id')
+    if not player_id or session.get('is_admin', False):
+        flash('Acesso não autorizado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    conn = get_db_connection()
+    
+    # Verificar se o jogador existe e está ativo
+    player = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Jogador não encontrado ou inativo!', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Obter novo HCP do formulário
+    new_hcp = request.form.get('new_hcp', '').strip()
+    old_hcp = str(player['hcp_index']) if player['hcp_index'] is not None else ''
+    
+    # Se o HCP não mudou, não fazer nada
+    if new_hcp == old_hcp:
+        conn.close()
+        flash('Nenhuma alteração foi realizada.', 'info')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    try:
+        # Converter o novo HCP para float se não estiver vazio
+        hcp_value = None
+        if new_hcp:
+            try:
+                hcp_value = float(new_hcp.replace(',', '.'))
+            except ValueError:
+                conn.close()
+                flash('Valor de HCP inválido. Use apenas números.', 'error')
+                return redirect(url_for('player_detail', player_id=player_id))
+        
+        # Atualizar o HCP do jogador
+        conn.execute('UPDATE players SET hcp_index = ? WHERE id = ?', (hcp_value, player_id))
+        
+        # Calcular e atualizar o HCP OGC Tee Branco se o HCP Index foi fornecido
+        if hcp_value is not None:
+            # Função para determinar o HCP OGC Tee Branco com base no HCP Index
+            def get_hcp_ogc_white(hcp):
+                # Para handicaps "plus" (valores negativos no banco)
+                if hcp <= -0.3:
+                    if -5.0 <= hcp <= -4.8: return '+7'
+                    elif -4.7 <= hcp <= -3.9: return '+6'
+                    elif -3.8 <= hcp <= -3.1: return '+5'
+                    elif -3.0 <= hcp <= -2.2: return '+4'
+                    elif -2.1 <= hcp <= -1.3: return '+3'
+                    elif -1.2 <= hcp <= -0.4: return '+2'
+                    elif -0.3 <= hcp <= 0.5: return '+1'
+                
+                # Para handicaps regulares (valores positivos no banco)
+                if 0.6 <= hcp <= 1.4: return '0'
+                elif 1.5 <= hcp <= 2.2: return '1'
+                elif 2.3 <= hcp <= 3.1: return '2'
+                elif 3.2 <= hcp <= 4.0: return '3'
+                elif 4.1 <= hcp <= 4.9: return '4'
+                elif 5.0 <= hcp <= 5.8: return '5'
+                elif 5.9 <= hcp <= 6.7: return '6'
+                elif 6.8 <= hcp <= 7.5: return '7'
+                elif 7.6 <= hcp <= 8.4: return '8'
+                elif 8.5 <= hcp <= 9.3: return '9'
+                elif 9.4 <= hcp <= 10.2: return '10'
+                elif 10.3 <= hcp <= 11.1: return '11'
+                elif 11.2 <= hcp <= 12.0: return '12'
+                elif 12.1 <= hcp <= 12.8: return '13'
+                elif 12.9 <= hcp <= 13.7: return '14'
+                elif 13.8 <= hcp <= 14.6: return '15'
+                elif 14.7 <= hcp <= 15.5: return '16'
+                elif 15.6 <= hcp <= 16.4: return '17'
+                elif 16.5 <= hcp <= 17.3: return '18'
+                elif 17.4 <= hcp <= 18.1: return '19'
+                elif 18.2 <= hcp <= 19.0: return '20'
+                elif 19.1 <= hcp <= 19.9: return '21'
+                elif 20.0 <= hcp <= 20.8: return '22'
+                elif 20.9 <= hcp <= 21.7: return '23'
+                elif 21.8 <= hcp <= 22.5: return '24'
+                elif 22.6 <= hcp <= 23.4: return '25'
+                elif 23.5 <= hcp <= 24.3: return '26'
+                elif 24.4 <= hcp <= 25.2: return '27'
+                elif 25.3 <= hcp <= 26.1: return '28'
+                elif 26.2 <= hcp <= 27.0: return '29'
+                elif 27.1 <= hcp <= 27.8: return '30'
+                elif 27.9 <= hcp <= 28.7: return '31'
+                elif 28.8 <= hcp <= 29.6: return '32'
+                elif 29.7 <= hcp <= 30.5: return '33'
+                elif 30.6 <= hcp <= 31.4: return '34'
+                elif 31.5 <= hcp <= 32.3: return '35'
+                elif 32.4 <= hcp <= 33.1: return '36'
+                elif 33.2 <= hcp <= 34.0: return '37'
+                elif 34.1 <= hcp <= 34.9: return '38'
+                elif 35.0 <= hcp <= 35.8: return '39'
+                elif 35.9 <= hcp <= 36.7: return '40'
+                elif 36.8 <= hcp <= 37.6: return '41'
+                elif 37.7 <= hcp <= 38.4: return '42'
+                elif 38.5 <= hcp <= 39.3: return '43'
+                elif 39.4 <= hcp <= 40.2: return '44'
+                elif 40.3 <= hcp <= 41.1: return '45'
+                elif 41.2 <= hcp <= 42.0: return '46'
+                elif 42.1 <= hcp <= 42.9: return '47'
+                elif 43.0 <= hcp <= 43.7: return '48'
+                elif 43.8 <= hcp <= 44.6: return '49'
+                elif 44.7 <= hcp <= 45.5: return '50'
+                elif 45.6 <= hcp <= 46.4: return '51'
+                elif 46.5 <= hcp <= 47.3: return '52'
+                elif 47.4 <= hcp <= 48.2: return '53'
+                elif 48.3 <= hcp <= 49.0: return '54'
+                elif 49.1 <= hcp <= 49.9: return '55'
+                elif 50.0 <= hcp <= 50.8: return '56'
+                elif 50.9 <= hcp <= 51.7: return '57'
+                elif 51.8 <= hcp <= 52.6: return '58'
+                elif 52.7 <= hcp <= 53.4: return '59'
+                elif hcp >= 53.5: return '60'
+                
+                # Caso não encontre correspondência
+                return 'N/A'
+            
+            # Calcular o HCP OGC Tee Branco
+            hcp_ogc_white = get_hcp_ogc_white(hcp_value)
+            
+            # Atualizar o HCP OGC Tee Branco
+            conn.execute('UPDATE players SET hcp_ogc_white = ? WHERE id = ?', (hcp_ogc_white, player_id))
+        else:
+            # Se o HCP Index foi removido, remover também o HCP OGC Tee Branco
+            conn.execute('UPDATE players SET hcp_ogc_white = NULL WHERE id = ?', (player_id,))
+        
+        # Calcular o HCP OGC Tee Azul
+        if hcp_value is not None:
+            # Fórmula: Handicap Index × (Slope Rating ÷ 113) + (Course Rating - Par)
+            # Para o Tee Azul: Course Rating = 71.4, Slope Rating = 131, Par = 71
+            if hcp_value < 0:  # Handicap "plus"
+                # Adiciona um sinal '+' para handicaps plus
+                hcp_ogc_azul = '+' + str(round(abs(hcp_value) * (131.0 / 113.0) + (71.4 - 71.0)))
+            else:
+                hcp_ogc_azul = str(round(hcp_value * (131.0 / 113.0) + (71.4 - 71.0)))
+            
+            # Atualizar o HCP OGC Tee Azul
+            conn.execute('UPDATE players SET hcp_ogc_azul = ? WHERE id = ?', (hcp_ogc_azul, player_id))
+        else:
+            # Se o HCP Index foi removido, remover também o HCP OGC Tee Azul
+            conn.execute('UPDATE players SET hcp_ogc_azul = NULL WHERE id = ?', (player_id,))
+        
+        # Calcular o HCP OGC Tee Preto
+        if hcp_value is not None:
+            # Fórmula: Handicap Index × (Slope Rating ÷ 113) + (Course Rating - Par)
+            # Para o Tee Preto: Course Rating = 73.9, Slope Rating = 144, Par = 71
+            if hcp_value < 0:  # Handicap "plus"
+                # Adiciona um sinal '+' para handicaps plus
+                hcp_ogc_preto = '+' + str(round(abs(hcp_value) * (144.0 / 113.0) + (73.9 - 71.0)))
+            else:
+                hcp_ogc_preto = str(round(hcp_value * (144.0 / 113.0) + (73.9 - 71.0)))
+            
+            # Atualizar o HCP OGC Tee Preto
+            conn.execute('UPDATE players SET hcp_ogc_preto = ? WHERE id = ?', (hcp_ogc_preto, player_id))
+        else:
+            # Se o HCP Index foi removido, remover também o HCP OGC Tee Preto
+            conn.execute('UPDATE players SET hcp_ogc_preto = NULL WHERE id = ?', (player_id,))
+        
+        # Calcular o HCP OGC Tee Vermelho
+        if hcp_value is not None:
+            # Fórmula: Handicap Index × (Slope Rating ÷ 113) + (Course Rating - Par)
+            # Para o Tee Vermelho: Course Rating = 68.1, Slope Rating = 125, Par = 71
+            if hcp_value < 0:  # Handicap "plus"
+                # Adiciona um sinal '+' para handicaps plus
+                hcp_ogc_vermelho = '+' + str(round(abs(hcp_value) * (125.0 / 113.0) + (68.1 - 71.0)))
+            else:
+                hcp_ogc_vermelho = str(round(hcp_value * (125.0 / 113.0) + (68.1 - 71.0)))
+            
+            # Atualizar o HCP OGC Tee Vermelho
+            conn.execute('UPDATE players SET hcp_ogc_vermelho = ? WHERE id = ?', (hcp_ogc_vermelho, player_id))
+        else:
+            # Se o HCP Index foi removido, remover também o HCP OGC Tee Vermelho
+            conn.execute('UPDATE players SET hcp_ogc_vermelho = NULL WHERE id = ?', (player_id,))
+        
+        # Calcular o HCP OGC Tee Amarelo
+        if hcp_value is not None:
+            # Fórmula: Handicap Index × (Slope Rating ÷ 113) + (Course Rating - Par)
+            # Para o Tee Amarelo: Course Rating = 65.3, Slope Rating = 118, Par = 71
+            if hcp_value < 0:  # Handicap "plus"
+                # Adiciona um sinal '+' para handicaps plus
+                hcp_ogc_amarelo = '+' + str(round(abs(hcp_value) * (118.0 / 113.0) + (65.3 - 71.0)))
+            else:
+                hcp_ogc_amarelo = str(round(hcp_value * (118.0 / 113.0) + (65.3 - 71.0)))
+            
+            # Atualizar o HCP OGC Tee Amarelo
+            conn.execute('UPDATE players SET hcp_ogc_amarelo = ? WHERE id = ?', (hcp_ogc_amarelo, player_id))
+        else:
+            # Se o HCP Index foi removido, remover também o HCP OGC Tee Amarelo
+            conn.execute('UPDATE players SET hcp_ogc_amarelo = NULL WHERE id = ?', (player_id,))
+        
+        # Registrar a atualização no log de alterações
+        now = datetime.now().strftime('%d/%m/%Y')
+        log_message = f"HCP Index atualizado pelo próprio jogador de '{old_hcp or 'não informado'}' para '{new_hcp or 'não informado'}' em {now}"
+        
+        # Atualizar notas se a coluna existir
+        if player['notes']:
+            notes = f"{player['notes']} | {log_message}"
+        else:
+            notes = log_message
+        
+        conn.execute('UPDATE players SET notes = ? WHERE id = ?', (notes, player_id))
+        
+        # Registrar a alteração no histórico de HCP, se a função existir
+        old_hcp_value = float(old_hcp.replace(',', '.')) if old_hcp and old_hcp.strip() else None
+        try:
+            # Verifique se a função record_hcp_change existe
+            if 'record_hcp_change' in globals():
+                record_hcp_change(player_id, old_hcp_value, hcp_value, 'player')
+        except Exception as e:
+            print(f"Erro ao registrar histórico de HCP: {e}")
+        
+        conn.commit()
+        flash('Seu HCP Index foi atualizado com sucesso!', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao atualizar o HCP: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('player_detail', player_id=player_id))
+
 
 
 
@@ -3470,10 +3816,14 @@ if __name__ == '__main__':
         print("Adicionando coluna 'notes' à tabela players...")
         cursor.execute('ALTER TABLE players ADD COLUMN notes TEXT')
     
-    
+
     
     conn.commit()
     conn.close()
+
+   # Criar a tabela de histórico de HCP
+    create_hcp_history_table()
+
 
     
     # Criar a tabela de histórico diário se não existir
