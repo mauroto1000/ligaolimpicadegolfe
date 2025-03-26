@@ -228,11 +228,23 @@
         {% endwith %}
     </div>
     
-    <!-- Aviso sobre suspensão de desafios -->
+    <!-- Avisos importantes -->
     <div class="container mt-2 mb-3">
-        <div class="alert alert-warning text-center" role="alert">
+        <!-- Aviso sobre suspensão de desafios -->
+        <div class="alert alert-warning text-center mb-2" role="alert">
             <i class="fas fa-exclamation-triangle me-2"></i>
             <strong>AVISO IMPORTANTE:</strong> Em razão do 70º ECP BRASIL OPEN, os desafios no COG estarão suspensos entre os dias 30/03 e 06/04.
+        </div>
+        
+        <!-- Novo aviso sobre atualização de HCP Index -->
+        <div class="alert alert-info text-center" role="alert">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>LEMBRETE:</strong> Atualize seu HCP Index no seu Perfil de Jogador
+            {% if session.user_id and not session.is_admin %}
+            <a href="{{ url_for('player_detail', player_id=session.user_id) }}" class="alert-link ms-2">
+                <i class="fas fa-arrow-right"></i> Acessar meu perfil
+            </a>
+            {% endif %}
         </div>
     </div>
     
