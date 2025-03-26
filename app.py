@@ -3791,6 +3791,24 @@ def update_self_hcp():
     return redirect(url_for('player_detail', player_id=player_id))
 
 
+@app.route('/add_hcp_last_update_column')
+def add_hcp_last_update_column():
+    conn = get_db_connection()
+    
+    # Verificar se a coluna já existe
+    columns_info = conn.execute('PRAGMA table_info(players)').fetchall()
+    column_names = [col[1] for col in columns_info]
+    
+    if 'hcp_last_update' not in column_names:
+        conn.execute('ALTER TABLE players ADD COLUMN hcp_last_update DATETIME')
+        conn.commit()
+        result = "Coluna 'hcp_last_update' adicionada com sucesso."
+    else:
+        result = "Coluna 'hcp_last_update' já existe."
+    
+    conn.close()
+    return result
+
 
 
 if __name__ == '__main__':
