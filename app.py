@@ -693,35 +693,82 @@ def record_hcp_change(player_id, old_hcp, new_hcp, modified_by, notes=None):
 
 
 
+"""
+Copie esta função corrigida para substituir a existente no seu arquivo app.py
+"""
+
 @app.route('/player/<int:player_id>/hcp_history')
 def player_hcp_history(player_id):
     """
-    Exibe o histórico de handicap de um jogador específico
+    Exibe o histórico de handicap de um jogador específico.
+    Versão corrigida para tratamento de erros.
     """
-    conn = get_db_connection()
-    
-    # Verificar se o jogador existe
-    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
-    
-    if not player:
+    try:
+        conn = get_db_connection()
+        
+        # Verificar se o jogador existe
+        player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+        
+        if not player:
+            conn.close()
+            flash('Jogador não encontrado!', 'error')
+            return redirect(url_for('index'))
+        
+        # Verificar se a tabela hcp_history existe
+        table_exists = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='hcp_history'").fetchone()
+        
+        if not table_exists:
+            # Criar a tabela se não existir
+            conn.execute('''
+            CREATE TABLE IF NOT EXISTS hcp_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                player_id INTEGER NOT NULL,
+                old_hcp REAL,
+                new_hcp REAL NOT NULL,
+                modified_by TEXT NOT NULL,
+                notes TEXT,
+                change_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (player_id) REFERENCES players(id)
+            )
+            ''')
+            conn.commit()
+        
+        # Buscar histórico de handicap do jogador
+        history = conn.execute('''
+            SELECT hcp_history.*, players.name as player_name
+            FROM hcp_history 
+            JOIN players ON hcp_history.player_id = players.id
+            WHERE player_id = ?
+            ORDER BY change_date DESC
+        ''', (player_id,)).fetchall()
+        
         conn.close()
-        flash('Jogador não encontrado!', 'error')
-        return redirect(url_for('index'))
+        
+        # Converter os dados de Row para dict para evitar problemas
+        history_list = []
+        for item in history:
+            # Copia os valores para um dicionário, garantindo tratamento adequado
+            item_dict = {}
+            for key in item.keys():
+                item_dict[key] = item[key]
+            history_list.append(item_dict)
+        
+        return render_template('player_hcp_history.html', 
+                              player=player,
+                              history=history_list)  # Enviar a lista convertida
     
-    # Buscar histórico de handicap do jogador
-    history = conn.execute('''
-        SELECT hcp_history.*, players.name as player_name
-        FROM hcp_history 
-        JOIN players ON hcp_history.player_id = players.id
-        WHERE player_id = ?
-        ORDER BY change_date DESC
-    ''', (player_id,)).fetchall()
-    
-    conn.close()
-    
-    return render_template('player_hcp_history.html', 
-                           player=player,
-                           history=history)
+    except Exception as e:
+        # Tratar qualquer exceção para exibir uma mensagem útil ao usuário
+        import traceback
+        error_details = traceback.format_exc()
+        
+        # Registrar o erro para debug
+        print(f"Erro ao acessar histórico de HCP: {str(e)}")
+        print(error_details)
+        
+        # Mostrar mensagem amigável ao usuário
+        flash(f'Erro ao carregar o histórico de handicap: {str(e)}', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
 
 
 # MODIFICAÇÃO: Melhoria na função record_daily_rankings para permitir sobrescrever registros
