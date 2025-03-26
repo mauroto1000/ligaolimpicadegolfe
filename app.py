@@ -3070,8 +3070,8 @@ def update_player_hcp(player_id):
                 flash('Valor de HCP inválido. Use apenas números.', 'error')
                 return redirect(url_for('player_detail', player_id=player_id))
         
-        # Atualizar o HCP do jogador
-        conn.execute('UPDATE players SET hcp_index = ? WHERE id = ?', (hcp_value, player_id))
+        # Atualizar o HCP do jogador com a data atual
+        conn.execute('UPDATE players SET hcp_index = ?, hcp_last_update = CURRENT_TIMESTAMP WHERE id = ?', (hcp_value, player_id))
         
         # Calcular e atualizar o HCP OGC Tee Branco se o HCP Index foi fornecido
         if hcp_value is not None:
@@ -3602,8 +3602,8 @@ def update_self_hcp():
                 flash('Valor de HCP inválido. Use apenas números.', 'error')
                 return redirect(url_for('player_detail', player_id=player_id))
         
-        # Atualizar o HCP do jogador
-        conn.execute('UPDATE players SET hcp_index = ? WHERE id = ?', (hcp_value, player_id))
+        # Atualizar o HCP do jogador com a data atual
+        conn.execute('UPDATE players SET hcp_index = ?, hcp_last_update = CURRENT_TIMESTAMP WHERE id = ?', (hcp_value, player_id))
         
         # Calcular e atualizar o HCP OGC Tee Branco se o HCP Index foi fornecido
         if hcp_value is not None:
@@ -3815,6 +3815,10 @@ if __name__ == '__main__':
     if 'notes' not in column_names:
         print("Adicionando coluna 'notes' à tabela players...")
         cursor.execute('ALTER TABLE players ADD COLUMN notes TEXT')
+    
+    if 'hcp_last_update' not in column_names:
+        print("Adicionando coluna 'hcp_last_update' à tabela players...")
+        cursor.execute('ALTER TABLE players ADD COLUMN hcp_last_update DATETIME')
     
 
     
