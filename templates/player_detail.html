@@ -112,7 +112,7 @@
                                 
                                 <!-- Formulário para editar HCP (inicialmente oculto) -->
                                 {% if is_own_profile %}
-                                <form id="editHcpForm" action="{{ url_for('update_self_hcp', player_id=player.id) }}" 
+                                <form id="editHcpForm" action="{{ url_for('update_self_hcp') }}" 
                                     method="post" class="d-none mb-3">
                                     <div class="input-group">
                                         <input type="text" class="form-control" name="new_hcp" 
@@ -186,6 +186,65 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Opção de alterar senha (visível apenas para o próprio usuário) -->
+                {% if is_own_profile %}
+                <div class="card mb-3">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Acesso à Conta</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Código do jogador: <strong>{{ player['player_code'] }}</strong></p>
+                        <p>Use este código e sua senha para acessar a plataforma.</p>
+                        <a href="{{ url_for('change_password') }}" class="btn btn-primary">
+                            <i class="fas fa-key"></i> Alterar Minha Senha
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Botão de Reset de Senha (visível apenas para admins) -->
+                {% if is_admin %}
+                <div class="card mb-3">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">Gerenciamento de Acesso</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Código do jogador: <strong>{{ player['player_code'] }}</strong></p>
+                        <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#resetPasswordModal">
+                            <i class="fas fa-key"></i> Resetar Senha
+                        </button>
+                        
+                        <!-- Modal para confirmar reset de senha -->
+                        <div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-warning">
+                                        <h5 class="modal-title" id="resetPasswordModalLabel">Resetar Senha</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <form action="{{ url_for('reset_player_password', player_id=player.id) }}" method="post">
+                                        <div class="modal-body">
+                                            <p>Você está prestes a resetar a senha do jogador <strong>{{ player.name }}</strong>.</p>
+                                            <p>A nova senha será as 3 primeiras letras do nome do jogador em minúsculas.</p>
+                                            <p>Para este jogador, a senha será: <strong>{{ player.name.strip().lower()[:3] }}</strong></p>
+                                            
+                                            <div class="form-group mt-3">
+                                                <label for="senha_reset">Senha de Administrador:</label>
+                                                <input type="password" class="form-control" id="senha_reset" name="senha" required>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-warning">Resetar Senha</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
 
                 <!-- Se houver jogadores disponíveis para desafiar -->
                 {% if player.active == 1 and potential_challenges %}
@@ -262,248 +321,242 @@
                 </div>
                 {% endif %}
                 
-                Entendo o problema. Vou continuar exatamente da parte onde truncou no documento compartilhado, ou seja, a partir da parte da "Seção para Histórico de Posições". Focando apenas no trecho que está faltando.
-
-                ```html
                 <!-- Seção para Histórico de Posições -->
-                                <div class="card mb-3">
-                                    <div class="card-header bg-info text-white">
-                                        <h5 class="mb-0">
-                                            <i class="fas fa-chart-line me-2"></i>Análise de Desempenho
-                                        </h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <p>Acompanhe a evolução da posição no ranking ao longo do tempo:</p>
-                                        <div class="d-grid gap-2">
-                                            <a href="{{ url_for('player_ranking_history', player_id=player.id) }}" class="btn btn-primary">
-                                                <i class="fas fa-chart-line me-2"></i>Ver Histórico de Posições
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                            </div>
-                            <div class="card-footer">
-                                {% if player.active == 1 %}
-                                <div class="d-grid gap-2">
-                                    <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}" class="btn btn-primary">
-                                        <i class="fas fa-trophy"></i> Criar Novo Desafio
-                                    </a>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
+                <div class="card mb-3">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>Análise de Desempenho
+                        </h5>
                     </div>
-                    
-                    <div class="col-md-4">
-                        <div class="card mb-4">
-                            <div class="card-header bg-secondary text-white">
-                                <h4 class="mb-0">Histórico de Ranking</h4>
-                            </div>
-                            <div class="card-body p-0">
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-striped mb-0">
-                                        <thead class="table-dark">
-                                            <tr>
-                                                <th>Data</th>
-                                                <th>Alteração</th>
-                                                <th>Motivo</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for item in history %}
-                                            <tr>
-                                                <td>{{ item['change_date'].split(' ')[0] }}</td>
-                                                <td>
-                                                    {% if item['old_position'] == 0 or item['old_tier'] == "NEW" %}
-                                                    <span class="badge bg-info">Adicionado #{{ item['new_position'] }}</span>
-                                                    {% elif item['old_position'] == item['new_position'] %}
-                                                    <span class="badge bg-secondary">Sem alteração</span>
-                                                    {% elif item['old_position'] > item['new_position'] %}
-                                                    <span class="badge bg-success">↑ {{ item['old_position'] }} → {{ item['new_position'] }}</span>
-                                                    {% elif item['old_position'] < item['new_position'] %}
-                                                    <span class="badge bg-danger">↓ {{ item['old_position'] }} → {{ item['new_position'] }}</span>
-                                                    {% else %}
-                                                    <span class="badge bg-secondary">Status alterado</span>
-                                                    {% endif %}
-                                                </td>
-                                                <td>
-                                                    {% if 'challenge_win' in item['reason'] %}
-                                                    <span class="text-success">Vitória em desafio</span>
-                                                    {% elif 'challenge_loss' in item['reason'] %}
-                                                    <span class="text-danger">Derrota em desafio</span>
-                                                    {% elif 'rerank_after_player' in item['reason'] %}
-                                                    <span>Ajuste de ranking</span>
-                                                    {% elif 'player_inactivated' in item['reason'] %}
-                                                    <span class="text-secondary">Jogador inativado</span>
-                                                    {% elif 'player_reactivated' in item['reason'] %}
-                                                    <span class="text-success">Jogador reativado</span>
-                                                    {% elif 'player_added' in item['reason'] %}
-                                                    <span class="text-success">Jogador adicionado</span>
-                                                    {% else %}
-                                                    <span>{{ item['reason'] }}</span>
-                                                    {% endif %}
-                                                    
-                                                    {% if item['challenge_id'] %}
-                                                    <a href="{{ url_for('challenge_detail', challenge_id=item['challenge_id']) }}" class="ms-1 small text-decoration-none">
-                                                        <i class="fas fa-external-link-alt"></i>
-                                                    </a>
-                                                    {% endif %}
-                                                </td>
-                                            </tr>
-                                            {% endfor %}
-                                            
-                                            {% if not history %}
-                                            <tr>
-                                                <td colspan="3" class="text-center py-3">Sem histórico de alterações</td>
-                                            </tr>
-                                            {% endif %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Desafios como Desafiante -->
-                        <div class="card mb-4">
-                            <div class="card-header bg-info text-white">
-                                <h4 class="mb-0">Desafios como Desafiante</h4>
-                            </div>
-                            <div class="card-body p-0">
-                                <div class="list-group list-group-flush">
-                                    {% for challenge in challenges_as_challenger %}
-                                    <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
-                                        <div class="d-flex w-100 justify-content-between">
-                                            <h6 class="mb-1">vs. {{ challenge['opponent_name'] }}</h6>
-                                            <small>{{ challenge['scheduled_date'] }}</small>
-                                        </div>
-                                        <div class="d-flex w-100 justify-content-between">
-                                            <small>Posição #{{ challenge['opponent_position'] }}</small>
-                                            {% if challenge['status'] == 'pending' %}
-                                            <span class="badge bg-warning text-dark">Pendente</span>
-                                            {% elif challenge['status'] == 'accepted' %}
-                                            <span class="badge bg-info">Aceito</span>
-                                            {% elif challenge['status'] == 'completed' %}
-                                                {% if challenge['result'] == 'challenger_win' %}
-                                                <span class="badge bg-success">Vitória</span>
-                                                {% elif challenge['result'] == 'challenged_win' %}
-                                                <span class="badge bg-danger">Derrota</span>
-                                                {% else %}
-                                                <span class="badge bg-secondary">Concluído</span>
-                                                {% endif %}
-                                            {% elif challenge['status'] == 'rejected' %}
-                                            <span class="badge bg-danger">Rejeitado</span>
-                                            {% elif challenge['status'] == 'cancelled' %}
-                                            <span class="badge bg-secondary">Cancelado</span>
-                                            {% endif %}
-                                        </div>
-                                    </a>
-                                    {% endfor %}
-                                    
-                                    {% if not challenges_as_challenger %}
-                                    <div class="list-group-item py-3 text-center">
-                                        <p class="mb-0">Nenhum desafio como desafiante</p>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                
-                        <!-- Desafios como Desafiado -->
-                        <div class="card mb-4">
-                            <div class="card-header bg-warning text-dark">
-                                <h4 class="mb-0">Desafios como Desafiado</h4>
-                            </div>
-                            <div class="card-body p-0">
-                                <div class="list-group list-group-flush">
-                                    {% for challenge in challenges_as_challenged %}
-                                    <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
-                                        <div class="d-flex w-100 justify-content-between">
-                                            <h6 class="mb-1">de {{ challenge['opponent_name'] }}</h6>
-                                            <small>{{ challenge['scheduled_date'] }}</small>
-                                        </div>
-                                        <div class="d-flex w-100 justify-content-between">
-                                            <small>Posição #{{ challenge['opponent_position'] }}</small>
-                                            {% if challenge['status'] == 'pending' %}
-                                            <span class="badge bg-warning text-dark">Pendente</span>
-                                            {% elif challenge['status'] == 'accepted' %}
-                                            <span class="badge bg-info">Aceito</span>
-                                            {% elif challenge['status'] == 'completed' %}
-                                                {% if challenge['result'] == 'challenged_win' %}
-                                                <span class="badge bg-success">Vitória</span>
-                                                {% elif challenge['result'] == 'challenger_win' %}
-                                                <span class="badge bg-danger">Derrota</span>
-                                                {% else %}
-                                                <span class="badge bg-secondary">Concluído</span>
-                                                {% endif %}
-                                            {% elif challenge['status'] == 'rejected' %}
-                                            <span class="badge bg-danger">Rejeitado</span>
-                                            {% elif challenge['status'] == 'cancelled' %}
-                                            <span class="badge bg-secondary">Cancelado</span>
-                                            {% endif %}
-                                        </div>
-                                    </a>
-                                    {% endfor %}
-                                    
-                                    {% if not challenges_as_challenged %}
-                                    <div class="list-group-item py-3 text-center">
-                                        <p class="mb-0">Nenhum desafio como desafiado</p>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
+                    <div class="card-body">
+                        <p>Acompanhe a evolução da posição no ranking ao longo do tempo:</p>
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('player_ranking_history', player_id=player.id) }}" class="btn btn-primary">
+                                <i class="fas fa-chart-line me-2"></i>Ver Histórico de Posições
+                            </a>
                         </div>
                     </div>
                 </div>
                 
-                <script>
-                // Funções para interatividade da página
-                function toggleEditName() {
-                    const displayElement = document.getElementById('playerNameDisplay');
-                    const formElement = document.getElementById('editNameForm');
-                
-                    if (formElement.classList.contains('d-none')) {
-                        // Mostrar formulário, ocultar display
-                        displayElement.classList.add('d-none');
-                        formElement.classList.remove('d-none');
-                    } else {
-                        // Ocultar formulário, mostrar display
-                        displayElement.classList.remove('d-none');
-                        formElement.classList.add('d-none');
-                    }
-                }
-                
-                function toggleEditContact() {
-                    const displayElement = document.getElementById('playerContactDisplay');
-                    const formElement = document.getElementById('editContactForm');
-                
-                    if (formElement.classList.contains('d-none')) {
-                        // Mostrar formulário, ocultar display
-                        displayElement.classList.add('d-none');
-                        formElement.classList.remove('d-none');
-                    } else {
-                        // Ocultar formulário, mostrar display
-                        displayElement.classList.remove('d-none');
-                        formElement.classList.add('d-none');
-                    }
-                }
-                
-                function toggleEditHcp() {
-                    const displayElement = document.getElementById('hcpIndexDisplay');
-                    const formElement = document.getElementById('editHcpForm');
-                
-                    if (formElement.classList.contains('d-none')) {
-                        // Mostrar formulário, ocultar display
-                        displayElement.classList.add('d-none');
-                        formElement.classList.remove('d-none');
-                    } else {
-                        // Ocultar formulário, mostrar display
-                        displayElement.classList.remove('d-none');
-                        formElement.classList.add('d-none');
-                    }
-                }
-                </script>
-                {% endblock %}
-                ```
-                
-                Este é o código completo a partir da parte que estava truncada. Adicionei a função `toggleEditHcp()` ao bloco de script, que é necessária para o funcionamento da edição do HCP Index.
+            </div>
+            <div class="card-footer">
+                {% if player.active == 1 %}
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}" class="btn btn-primary">
+                        <i class="fas fa-trophy"></i> Criar Novo Desafio
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h4 class="mb-0">Histórico de Ranking</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Data</th>
+                                <th>Alteração</th>
+                                <th>Motivo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in history %}
+                            <tr>
+                                <td>{{ item['change_date'].split(' ')[0] }}</td>
+                                <td>
+                                    {% if item['old_position'] == 0 or item['old_tier'] == "NEW" %}
+                                    <span class="badge bg-info">Adicionado #{{ item['new_position'] }}</span>
+                                    {% elif item['old_position'] == item['new_position'] %}
+                                    <span class="badge bg-secondary">Sem alteração</span>
+                                    {% elif item['old_position'] > item['new_position'] %}
+                                    <span class="badge bg-success">↑ {{ item['old_position'] }} → {{ item['new_position'] }}</span>
+                                    {% elif item['old_position'] < item['new_position'] %}
+                                    <span class="badge bg-danger">↓ {{ item['old_position'] }} → {{ item['new_position'] }}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Status alterado</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if 'challenge_win' in item['reason'] %}
+                                    <span class="text-success">Vitória em desafio</span>
+                                    {% elif 'challenge_loss' in item['reason'] %}
+                                    <span class="text-danger">Derrota em desafio</span>
+                                    {% elif 'rerank_after_player' in item['reason'] %}
+                                    <span>Ajuste de ranking</span>
+                                    {% elif 'player_inactivated' in item['reason'] %}
+                                    <span class="text-secondary">Jogador inativado</span>
+                                    {% elif 'player_reactivated' in item['reason'] %}
+                                    <span class="text-success">Jogador reativado</span>
+                                    {% elif 'player_added' in item['reason'] %}
+                                    <span class="text-success">Jogador adicionado</span>
+                                    {% else %}
+                                    <span>{{ item['reason'] }}</span>
+                                    {% endif %}
+                                    
+                                    {% if item['challenge_id'] %}
+                                    <a href="{{ url_for('challenge_detail', challenge_id=item['challenge_id']) }}" class="ms-1 small text-decoration-none">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            
+                            {% if not history %}
+                            <tr>
+                                <td colspan="3" class="text-center py-3">Sem histórico de alterações</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Desafios como Desafiante -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h4 class="mb-0">Desafios como Desafiante</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for challenge in challenges_as_challenger %}
+                    <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">vs. {{ challenge['opponent_name'] }}</h6>
+                            <small>{{ challenge['scheduled_date'] }}</small>
+                        </div>
+                        <div class="d-flex w-100 justify-content-between">
+                            <small>Posição #{{ challenge['opponent_position'] }}</small>
+                            {% if challenge['status'] == 'pending' %}
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                            {% elif challenge['status'] == 'accepted' %}
+                            <span class="badge bg-info">Aceito</span>
+                            {% elif challenge['status'] == 'completed' %}
+                                {% if challenge['result'] == 'challenger_win' %}
+                                <span class="badge bg-success">Vitória</span>
+                                {% elif challenge['result'] == 'challenged_win' %}
+                                <span class="badge bg-danger">Derrota</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Concluído</span>
+                                {% endif %}
+                            {% elif challenge['status'] == 'rejected' %}
+                            <span class="badge bg-danger">Rejeitado</span>
+                            {% elif challenge['status'] == 'cancelled' %}
+                            <span class="badge bg-secondary">Cancelado</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    {% endfor %}
+                    
+                    {% if not challenges_as_challenger %}
+                    <div class="list-group-item py-3 text-center">
+                        <p class="mb-0">Nenhum desafio como desafiante</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Desafios como Desafiado -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0">Desafios como Desafiado</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for challenge in challenges_as_challenged %}
+                    <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">de {{ challenge['opponent_name'] }}</h6>
+                            <small>{{ challenge['scheduled_date'] }}</small>
+                        </div>
+                        <div class="d-flex w-100 justify-content-between">
+                            <small>Posição #{{ challenge['opponent_position'] }}</small>
+                            {% if challenge['status'] == 'pending' %}
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                            {% elif challenge['status'] == 'accepted' %}
+                            <span class="badge bg-info">Aceito</span>
+                            {% elif challenge['status'] == 'completed' %}
+                                {% if challenge['result'] == 'challenged_win' %}
+                                <span class="badge bg-success">Vitória</span>
+                                {% elif challenge['result'] == 'challenger_win' %}
+                                <span class="badge bg-danger">Derrota</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Concluído</span>
+                                {% endif %}
+                            {% elif challenge['status'] == 'rejected' %}
+                            <span class="badge bg-danger">Rejeitado</span>
+                            {% elif challenge['status'] == 'cancelled' %}
+                            <span class="badge bg-secondary">Cancelado</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    {% endfor %}
+                    
+                    {% if not challenges_as_challenged %}
+                    <div class="list-group-item py-3 text-center">
+                        <p class="mb-0">Nenhum desafio como desafiado</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Funções para interatividade da página
+function toggleEditName() {
+    const displayElement = document.getElementById('playerNameDisplay');
+    const formElement = document.getElementById('editNameForm');
+
+    if (formElement.classList.contains('d-none')) {
+        // Mostrar formulário, ocultar display
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        // Ocultar formulário, mostrar display
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
+}
+
+function toggleEditContact() {
+    const displayElement = document.getElementById('playerContactDisplay');
+    const formElement = document.getElementById('editContactForm');
+
+    if (formElement.classList.contains('d-none')) {
+        // Mostrar formulário, ocultar display
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        // Ocultar formulário, mostrar display
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
+}
+
+function toggleEditHcp() {
+    const displayElement = document.getElementById('hcpIndexDisplay');
+    const formElement = document.getElementById('editHcpForm');
+
+    if (formElement.classList.contains('d-none')) {
+        // Mostrar formulário, ocultar display
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        // Ocultar formulário, mostrar display
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
+}
+</script>
+{% endblock %}

@@ -3857,6 +3857,47 @@ def add_hcp_last_update_column():
     return result
 
 
+@app.route('/reset_player_password/<int:player_id>', methods=['POST'])
+@login_required
+def reset_player_password(player_id):
+    """
+    Permite que um administrador resete a senha de um jogador para o padrão (3 primeiras letras do nome)
+    """
+    # Verificar se é administrador
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Verificar senha de admin
+    senha = request.form.get('senha', '')
+    if senha != '123':
+        flash('Senha incorreta! Operação não autorizada.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    conn = get_db_connection()
+    
+    # Buscar informações do jogador
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Jogador não encontrado!', 'error')
+        return redirect(url_for('index'))
+    
+    # Definir nova senha como as 3 primeiras letras do nome em minúsculas
+    default_password = player['name'].strip().lower()[:3]
+    hashed_password = hash_password(default_password)
+    
+    # Atualizar a senha
+    conn.execute('UPDATE players SET password = ? WHERE id = ?', 
+                (hashed_password, player_id))
+    
+    conn.commit()
+    conn.close()
+    
+    flash(f'Senha do jogador {player["name"]} resetada com sucesso! A nova senha é: {default_password}', 'success')
+    return redirect(url_for('player_detail', player_id=player_id))
+
 
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
