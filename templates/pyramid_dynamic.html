@@ -143,11 +143,12 @@
         padding-bottom: 16px; /* Espaço para a data no rodapé */
     }
 
-    /* Estilo para a bandeira do país */
+    /* Mover a bandeira para o canto superior direito */
     .country-flag {
         position: absolute !important;
-        bottom: 3px !important;
+        top: 3px !important;
         right: 3px !important;
+        bottom: auto !important; /* Remove a posição inferior */
         z-index: 4 !important;
         width: 16px !important;
         height: 12px !important;
@@ -156,6 +157,33 @@
         margin: 0 !important;
         padding: 0 !important;
         display: block !important;
+    }
+
+    /* Ajuste para remover espaço na seta de desafio */
+    .challenge-arrow {
+        position: absolute !important;
+        bottom: 3px !important;
+        right: 3px !important;
+        top: auto !important;
+        font-size: 9px; /* Reduzido para caber melhor */
+        padding: 1px 2px; /* Padding reduzido */
+        border-radius: 3px;
+        z-index: 4 !important;
+        white-space: nowrap;
+        letter-spacing: -0.5px; /* Diminui espaço entre caracteres */
+    }
+
+    /* Estilo para seta de desafiado (quem está sendo desafiado) - fundo preto, texto branco */
+    .arrow-challenged {
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+    }
+
+    /* Estilo para seta de desafiante (quem está desafiando) - fundo branco, texto preto */
+    .arrow-challenger {
+        background-color: rgba(255, 255, 255, 0.9);
+        color: black;
+        border: 1px solid rgba(0, 0, 0, 0.2);
     }
 
     /* Tooltip para mostrar mais informações ao passar o mouse */
@@ -249,31 +277,6 @@
         border: 6px solid #dc3545;  /* Borda vermelha */
     }
 
-    /* Estilos para setas de desafio - Base comum */
-    .challenge-arrow {
-        position: absolute;
-        font-size: 10px;
-        padding: 1px 3px;
-        border-radius: 3px;
-        z-index: 3;
-        white-space: nowrap;
-        top: 3px;
-        right: 3px;
-    }
-
-    /* Estilo para seta de desafiado (quem está sendo desafiado) - fundo preto, texto branco */
-    .arrow-challenged {
-        background-color: rgba(0, 0, 0, 0.7);
-        color: white;
-    }
-
-    /* Estilo para seta de desafiante (quem está desafiando) - fundo branco, texto preto */
-    .arrow-challenger {
-        background-color: rgba(255, 255, 255, 0.9);
-        color: black;
-        border: 1px solid rgba(0, 0, 0, 0.2);
-    }
-
     /* Classes para dispositivos móveis */
     @media (max-width: 767px) {
         .pyramid-container {
@@ -324,21 +327,22 @@
             display: none;
         }
 
-        /* Ajustar setas de desafio em mobile */
-        .challenge-arrow {
-            font-size: 9px;
-            padding: 1px 2px;
-        }
-        
         /* Ajuste da data em dispositivos móveis */
         .challenge-date, .pending-date {
             font-size: 10px;
             padding: 1px 3px;
         }
         
-        /* Ajuste da bandeira em dispositivos móveis */
-        .country-flag {
+        /* Ajustes para dispositivos móveis */
+        .challenge-arrow {
+            font-size: 8px;
+            padding: 1px 2px;
             bottom: 2px !important;
+            right: 2px !important;
+        }
+        
+        .country-flag {
+            top: 2px !important;
             right: 2px !important;
         }
     }
@@ -372,11 +376,6 @@
             margin-right: 0;
         }
 
-        /* Ajustar setas para telas muito pequenas */
-        .challenge-arrow {
-            font-size: 8px;
-        }
-        
         /* Ajuste da data em telas muito pequenas */
         .challenge-date, .pending-date {
             font-size: 9px;
@@ -384,12 +383,19 @@
             left: 22%;
         }
         
-        /* Ajuste da bandeira em telas muito pequenas */
-        .country-flag {
+        /* Ajustes para telas muito pequenas */
+        .challenge-arrow {
+            font-size: 7px; /* Ainda menor para telas muito pequenas */
+            padding: 1px 1px;
             bottom: 2px !important;
             right: 2px !important;
+        }
+        
+        .country-flag {
             width: 14px !important;
             height: 10px !important;
+            top: 2px !important;
+            right: 2px !important;
         }
     }
 </style>
@@ -437,11 +443,11 @@
                 <span style="margin-left: 5px;">Aguardando data</span>
             </div>
             <div class="legend-item">
-                <span style="font-size: 12px; padding: 3px 5px; background-color: rgba(255, 255, 255, 0.95); color: black; border: 2px solid rgba(0, 0, 0, 0.3); border-radius: 3px; font-weight: bold;">#2 → #1</span>
+                <span style="font-size: 12px; padding: 3px 5px; background-color: rgba(255, 255, 255, 0.95); color: black; border: 2px solid rgba(0, 0, 0, 0.3); border-radius: 3px; font-weight: bold;">#2→#1</span>
                 <span style="margin-left: 5px;">Desafiante</span>
             </div>
             <div class="legend-item">
-                <span style="font-size: 12px; padding: 3px 5px; background-color: rgba(0, 0, 0, 0.8); color: white; border-radius: 3px; font-weight: bold;">#2 → #1</span>
+                <span style="font-size: 12px; padding: 3px 5px; background-color: rgba(0, 0, 0, 0.8); color: white; border-radius: 3px; font-weight: bold;">#2→#1</span>
                 <span style="margin-left: 5px;">Desafiado</span>
             </div>
         </div>
@@ -468,17 +474,11 @@
                             
                             <span class="player-position">{{ player.position }}</span>
                             
-                            <!-- Setas de desafio - VERSÃO PADRONIZADA COM CORES DIFERENTES -->
-                            {% if player.challenging_positions %}
-                                <!-- Se o jogador está desafiando alguém - fundo branco, texto preto -->
-                                <span class="challenge-arrow arrow-challenger">
-                                    {{ player.position }} → {% for pos in player.challenging_positions %}{{ pos }}{% if not loop.last %}, {% endif %}{% endfor %}
-                                </span>
-                            {% elif player.challenged_by_positions %}
-                                <!-- Se o jogador está sendo desafiado por alguém - fundo preto, texto branco -->
-                                <span class="challenge-arrow arrow-challenged">
-                                    {% for pos in player.challenged_by_positions %}{{ pos }}{% if not loop.last %}, {% endif %}{% endfor %} → {{ player.position }}
-                                </span>
+                            <!-- Bandeira no canto superior direito -->
+                            {% if player.country %}
+                                <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
+                                     alt="{{ player.country }}" class="country-flag" 
+                                     title="{{ player.country }}">
                             {% endif %}
                             
                             <!-- Tooltip com informações adicionais -->
@@ -551,12 +551,19 @@
                                 {% endif %}
                             {% endfor %}
                             
-                            <!-- Bandeira do país - FORA da tag player-name -->
-                            {% if player.country %}
-                                <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
-                                     alt="{{ player.country }}" class="country-flag" 
-                                     title="{{ player.country }}">
+                            <!-- Setas de desafio no canto inferior direito (SEM ESPAÇOS) -->
+                            {% if player.challenging_positions %}
+                                <!-- Se o jogador está desafiando alguém - fundo branco, texto preto -->
+                                <span class="challenge-arrow arrow-challenger">
+                                    {{player.position}}→{% for pos in player.challenging_positions %}{{pos}}{% if not loop.last %},{% endif %}{% endfor %}
+                                </span>
+                            {% elif player.challenged_by_positions %}
+                                <!-- Se o jogador está sendo desafiado por alguém - fundo preto, texto branco -->
+                                <span class="challenge-arrow arrow-challenged">
+                                    {% for pos in player.challenged_by_positions %}{{pos}}{% if not loop.last %},{% endif %}{% endfor %}→{{player.position}}
+                                </span>
                             {% endif %}
+                            
                         </div>
                     {% endfor %}
                 </div>
