@@ -36,11 +36,12 @@
         text-align: center;
         font-size: 14px;
         font-weight: bold;
-        position: relative;
+        position: relative !important;
         cursor: pointer;
         padding: 3px;
         box-sizing: border-box;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
+        overflow: visible !important;
     }
 
     /* Cores e efeitos de hover para células */
@@ -93,7 +94,7 @@
         background-color: rgba(0,0,0,0.1);
     }
     
-    /* NOVO: Estilo para a data do desafio aceito */
+    /* Estilo para a data do desafio aceito */
     .challenge-date {
         font-size: 11px;
         font-weight: normal;
@@ -103,10 +104,11 @@
         border-radius: 3px;
         position: absolute;
         bottom: 3px;
-        left: 50%;
+        left: 25%;
         transform: translateX(-50%);
         white-space: nowrap;
         box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        z-index: 3;
     }
     
     /* Estilo para desafios pendentes */
@@ -119,10 +121,11 @@
         border-radius: 3px;
         position: absolute;
         bottom: 3px;
-        left: 50%;
+        left: 25%;
         transform: translateX(-50%);
         white-space: nowrap;
         box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        z-index: 3;
     }
 
     .player-name {
@@ -138,6 +141,21 @@
         -webkit-box-orient: vertical;
         max-height: 43px;
         padding-bottom: 16px; /* Espaço para a data no rodapé */
+    }
+
+    /* Estilo para a bandeira do país */
+    .country-flag {
+        position: absolute !important;
+        bottom: 3px !important;
+        right: 3px !important;
+        z-index: 4 !important;
+        width: 16px !important;
+        height: 12px !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;
+        border-radius: 1px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block !important;
     }
 
     /* Tooltip para mostrar mais informações ao passar o mouse */
@@ -313,9 +331,15 @@
         }
         
         /* Ajuste da data em dispositivos móveis */
-        .challenge-date {
+        .challenge-date, .pending-date {
             font-size: 10px;
             padding: 1px 3px;
+        }
+        
+        /* Ajuste da bandeira em dispositivos móveis */
+        .country-flag {
+            bottom: 2px !important;
+            right: 2px !important;
         }
     }
 
@@ -354,9 +378,18 @@
         }
         
         /* Ajuste da data em telas muito pequenas */
-        .challenge-date {
+        .challenge-date, .pending-date {
             font-size: 9px;
             padding: 1px 2px;
+            left: 22%;
+        }
+        
+        /* Ajuste da bandeira em telas muito pequenas */
+        .country-flag {
+            bottom: 2px !important;
+            right: 2px !important;
+            width: 14px !important;
+            height: 10px !important;
         }
     }
 </style>
@@ -474,6 +507,11 @@
                                 <small>Clique para detalhes</small>
                             </div>
                             
+                            <!-- Nome do jogador -->
+                            <span class="player-name">
+                                {{ player.name }}
+                            </span>
+                            
                             <!-- NOVO: Data do jogo para desafios aceitos ou indicação para pendentes -->
                             {% set displayed = false %}
                             
@@ -513,15 +551,12 @@
                                 {% endif %}
                             {% endfor %}
                             
-                            <!-- Nome do jogador -->
-                            <span class="player-name">
-                                {% if player.country %}
-                                    <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
-                                         alt="{{ player.country }}" class="me-1" width="16" height="12" 
-                                         title="{{ player.country }}">
-                                {% endif %}
-                                {{ player.name }}
-                            </span>
+                            <!-- Bandeira do país - FORA da tag player-name -->
+                            {% if player.country %}
+                                <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
+                                     alt="{{ player.country }}" class="country-flag" 
+                                     title="{{ player.country }}">
+                            {% endif %}
                         </div>
                     {% endfor %}
                 </div>
