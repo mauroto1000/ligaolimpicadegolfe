@@ -46,7 +46,57 @@ def format_datetime(value, format='%d/%m/%Y %H:%M'):
     except:
         return value
 
-
+@app.template_filter('country_code')
+def country_code_filter(country_name):
+    """
+    Converte o nome do país para o código ISO de 2 letras usado para exibir bandeiras.
+    """
+    # Mapeamento de nomes de países para códigos ISO de 2 letras
+    country_mapping = {
+        'Brasil': 'br',
+        'Argentina': 'ar',
+        'Portugal': 'pt',
+        'Estados Unidos': 'us',
+        'Espanha': 'es',
+        'Itália': 'it',
+        'França': 'fr',
+        'Alemanha': 'de',
+        'Reino Unido': 'gb',
+        'Inglaterra': 'gb-eng',
+        'Escócia': 'gb-sct',
+        'País de Gales': 'gb-wls',
+        'Irlanda do Norte': 'gb-nir',
+        'Japão': 'jp',
+        'Coreia do Sul': 'kr',
+        'China': 'cn',
+        'Austrália': 'au',
+        'Canadá': 'ca',
+        'México': 'mx',
+        'Chile': 'cl',
+        'Colômbia': 'co',
+        'Uruguai': 'uy',
+        'Paraguai': 'py',
+        'Peru': 'pe',
+        'África do Sul': 'za',
+        'Suíça': 'ch',
+        'Suécia': 'se',
+        'Noruega': 'no',
+        'Dinamarca': 'dk',
+        'Holanda': 'nl',
+        'Países Baixos': 'nl',
+        'Bélgica': 'be',
+        'Irlanda': 'ie',
+        'Nova Zelândia': 'nz',
+        'Índia': 'in',
+        'Rússia': 'ru',
+        'Polônia': 'pl',
+        'Áustria': 'at',
+        'Grécia': 'gr',
+        'Turquia': 'tr'
+    }
+    
+    # Retorna o código ISO ou o nome do país em minúsculas como fallback
+    return country_mapping.get(country_name, country_name.lower())
 
 # Adicione este código perto do início do seu arquivo app.py, após a definição da aplicação Flask
 
@@ -1859,6 +1909,78 @@ def update_player_name(player_id):
     
     return redirect(url_for('player_detail', player_id=player_id))
 
+@app.route('/update_player_country/<int:player_id>', methods=['POST'])
+def update_player_country(player_id):
+    """
+    Atualiza o país do jogador
+    """
+    conn = get_db_connection()
+    
+    # Verificar se o jogador existe
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Jogador não encontrado!', 'error')
+        return redirect(url_for('index'))
+    
+    # Determinar se o usuário está alterando seu próprio perfil
+    is_own_profile = False
+    try:
+        user_id = session.get('user_id')
+        if isinstance(user_id, int):
+            is_own_profile = user_id == player_id
+        elif isinstance(user_id, str) and user_id.isdigit():
+            is_own_profile = int(user_id) == player_id
+    except (ValueError, TypeError, AttributeError):
+        is_own_profile = False
+    
+    # Verificar senha apenas se não for o próprio perfil
+    if not is_own_profile:
+        senha = request.form.get('senha', '')
+        if senha != '123':
+            conn.close()
+            flash('Senha incorreta! Operação não autorizada.', 'error')
+            return redirect(url_for('player_detail', player_id=player_id))
+    
+    # Obter novo país
+    new_country = request.form.get('new_country', '').strip()
+    old_country = player['country']
+    
+    # Se o país não mudou, não fazer nada
+    if new_country == old_country:
+        conn.close()
+        flash('Nenhuma alteração foi realizada.', 'info')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    try:
+        # Atualizar o país do jogador
+        conn.execute('UPDATE players SET country = ? WHERE id = ?', (new_country, player_id))
+        
+        # Opcional: Registrar alteração nas notas
+        notes = f"País alterado de '{old_country or 'não informado'}' para '{new_country or 'não informado'}' em {datetime.now().strftime('%d/%m/%Y')}"
+        
+        # Se o jogador já tem notas, adicionar à frente
+        if player['notes']:
+            notes = f"{player['notes']} | {notes}"
+        
+        # Atualizar as notas
+        conn.execute('UPDATE players SET notes = ? WHERE id = ?', (notes, player_id))
+        
+        conn.commit()
+        flash(f'País atualizado com sucesso para "{new_country}".', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao atualizar o país: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('player_detail', player_id=player_id))
+
+
+
+
 @app.route('/')
 def index():
     conn = get_db_connection()
@@ -2895,11 +3017,14 @@ def generate_player_code(conn):
     return new_code
 
 # Modificação da função add_player para incluir a geração automática do player_code
+# Esta é uma versão modificada da função add_player que inclui a seleção de país
+# Você pode substituir a função existente por esta versão
+
 @app.route('/add_player', methods=['GET', 'POST'])
 def add_player():
     """
     Adiciona um novo jogador ao sistema, colocando-o na última posição do ranking.
-    Agora gera automaticamente o player_code no formato 'LO' + número sequencial.
+    Agora inclui a seleção de país/nacionalidade.
     
     GET: Mostra formulário para adicionar jogador
     POST: Processa a adição do jogador
@@ -2907,8 +3032,9 @@ def add_player():
     if request.method == 'POST':
         # Obter dados do formulário
         name = request.form.get('name', '').strip()
-        hcp_index = request.form.get('hcp_index', '').strip()  # Garante que não seja None
+        hcp_index = request.form.get('hcp_index', '').strip()
         email = request.form.get('email', '').strip()
+        country = request.form.get('country', 'Brasil').strip()  # Nova linha: obter país do formulário
         notes = request.form.get('notes', '').strip()
         senha = request.form.get('senha', '')
         
@@ -2977,6 +3103,10 @@ def add_player():
             if 'email' in column_names and email:
                 columns.append('email')
                 values.append(email)
+            
+            if 'country' in column_names:  # Nova verificação para coluna de país
+                columns.append('country')
+                values.append(country)
             
             if 'notes' in column_names and notes:
                 columns.append('notes')
@@ -3899,6 +4029,81 @@ def reset_player_password(player_id):
     return redirect(url_for('player_detail', player_id=player_id))
 
 
+
+
+def add_country_column():
+    conn = get_db_connection()
+    
+    # Verificar se a coluna já existe
+    columns_info = conn.execute('PRAGMA table_info(players)').fetchall()
+    column_names = [col[1] for col in columns_info]
+    
+    if 'country' not in column_names:
+        conn.execute('ALTER TABLE players ADD COLUMN country TEXT DEFAULT NULL')
+        conn.commit()
+        print("Coluna 'country' adicionada à tabela players com valor padrão NULL.")
+    else:
+        print("Coluna 'country' já existe na tabela players.")
+    
+    conn.close()
+
+
+
+# Adicione este código ao app.py para criar um filtro personalizado
+
+@app.template_filter('country_code')
+def country_code_filter(country_name):
+    """
+    Converte o nome do país para o código ISO de 2 letras usado para exibir bandeiras.
+    """
+    # Mapeamento de nomes de países para códigos ISO de 2 letras
+    country_mapping = {
+        'Brasil': 'br',
+        'Argentina': 'ar',
+        'Portugal': 'pt',
+        'Estados Unidos': 'us',
+        'Espanha': 'es',
+        'Itália': 'it',
+        'França': 'fr',
+        'Alemanha': 'de',
+        'Reino Unido': 'gb',
+        'Inglaterra': 'gb-eng',
+        'Escócia': 'gb-sct',
+        'País de Gales': 'gb-wls',
+        'Irlanda do Norte': 'gb-nir',
+        'Japão': 'jp',
+        'Coreia do Sul': 'kr',
+        'China': 'cn',
+        'Austrália': 'au',
+        'Canadá': 'ca',
+        'México': 'mx',
+        'Chile': 'cl',
+        'Colômbia': 'co',
+        'Uruguai': 'uy',
+        'Paraguai': 'py',
+        'Peru': 'pe',
+        'África do Sul': 'za',
+        'Suíça': 'ch',
+        'Suécia': 'se',
+        'Noruega': 'no',
+        'Dinamarca': 'dk',
+        'Holanda': 'nl',
+        'Países Baixos': 'nl',
+        'Bélgica': 'be',
+        'Irlanda': 'ie',
+        'Nova Zelândia': 'nz',
+        'Índia': 'in',
+        'Rússia': 'ru',
+        'Polônia': 'pl',
+        'Áustria': 'at',
+        'Grécia': 'gr',
+        'Turquia': 'tr'
+    }
+    
+    # Retorna o código ISO ou o nome do país em minúsculas como fallback
+    return country_mapping.get(country_name, country_name.lower())
+
+
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
     if not os.path.exists(DATABASE):
@@ -3941,6 +4146,10 @@ if __name__ == '__main__':
     
     # Adicionar coluna de prazo de resposta à tabela de desafios
     add_response_deadline_column()
+
+
+    # Adicionar coluna de país se não existir
+    add_country_column()
 
   
     # Verificar e corrigir a estrutura da pirâmide

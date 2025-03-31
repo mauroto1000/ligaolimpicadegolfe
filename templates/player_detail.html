@@ -78,6 +78,76 @@
                         </form>
                     </div>
                 </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h5>País</h5>
+                        <p class="d-flex align-items-center">
+                            <span id="playerCountryDisplay">
+                                {% if player['country'] %}
+                                    <img src="https://flagcdn.com/16x12/{{ player['country']|country_code }}.png" 
+                                         alt="{{ player['country'] }}" class="me-1" width="16" height="12">
+                                    {{ player['country'] }}
+                                {% else %}
+                                    Não informado
+                                {% endif %}
+                            </span>
+                            <button type="button" class="btn btn-sm text-primary border-0 px-1" 
+                                    onclick="toggleEditCountry()" title="Editar país">
+                                <i class="fas fa-pencil-alt fa-sm"></i>
+                            </button>
+                        </p>
+                        
+                        <!-- Formulário para editar país (inicialmente oculto) -->
+                        <form id="editCountryForm" action="{{ url_for('update_player_country', player_id=player.id) }}" 
+                            method="post" class="d-none mb-3">
+                            <div class="input-group">
+                                <select class="form-control" name="new_country">
+                                    <option value="" {% if not player['country'] %}selected{% endif %}>Selecione um país</option>
+                                    <option value="Brasil" {% if player['country'] == 'Brasil' %}selected{% endif %}>Brasil</option>
+                                    <option value="Argentina" {% if player['country'] == 'Argentina' %}selected{% endif %}>Argentina</option>
+                                    <option value="Portugal" {% if player['country'] == 'Portugal' %}selected{% endif %}>Portugal</option>
+                                    <option value="Estados Unidos" {% if player['country'] == 'Estados Unidos' %}selected{% endif %}>Estados Unidos</option>
+                                    <option value="Espanha" {% if player['country'] == 'Espanha' %}selected{% endif %}>Espanha</option>
+                                    <option value="Itália" {% if player['country'] == 'Itália' %}selected{% endif %}>Itália</option>
+                                    <option value="França" {% if player['country'] == 'França' %}selected{% endif %}>França</option>
+                                    <option value="Alemanha" {% if player['country'] == 'Alemanha' %}selected{% endif %}>Alemanha</option>
+                                    <option value="Reino Unido" {% if player['country'] == 'Reino Unido' %}selected{% endif %}>Reino Unido</option>
+                                    <option value="Japão" {% if player['country'] == 'Japão' %}selected{% endif %}>Japão</option>
+                                    <option value="Coreia do Sul" {% if player['country'] == 'Coreia do Sul' %}selected{% endif %}>Coreia do Sul</option>
+                                    <option value="China" {% if player['country'] == 'China' %}selected{% endif %}>China</option>
+                                    <option value="Austrália" {% if player['country'] == 'Austrália' %}selected{% endif %}>Austrália</option>
+                                    <option value="Canadá" {% if player['country'] == 'Canadá' %}selected{% endif %}>Canadá</option>
+                                    <option value="México" {% if player['country'] == 'México' %}selected{% endif %}>México</option>
+                                    <option value="Chile" {% if player['country'] == 'Chile' %}selected{% endif %}>Chile</option>
+                                    <option value="Colômbia" {% if player['country'] == 'Colômbia' %}selected{% endif %}>Colômbia</option>
+                                    <option value="Uruguai" {% if player['country'] == 'Uruguai' %}selected{% endif %}>Uruguai</option>
+                                    <option value="Paraguai" {% if player['country'] == 'Paraguai' %}selected{% endif %}>Paraguai</option>
+                                    <option value="Peru" {% if player['country'] == 'Peru' %}selected{% endif %}>Peru</option>
+                                    <option value="África do Sul" {% if player['country'] == 'África do Sul' %}selected{% endif %}>África do Sul</option>
+                                    <option value="Suíça" {% if player['country'] == 'Suíça' %}selected{% endif %}>Suíça</option>
+                                    <option value="Suécia" {% if player['country'] == 'Suécia' %}selected{% endif %}>Suécia</option>
+                                    <option value="Noruega" {% if player['country'] == 'Noruega' %}selected{% endif %}>Noruega</option>
+                                    <option value="Dinamarca" {% if player['country'] == 'Dinamarca' %}selected{% endif %}>Dinamarca</option>
+                                    <option value="Holanda" {% if player['country'] == 'Holanda' %}selected{% endif %}>Holanda</option>
+                                    <option value="Bélgica" {% if player['country'] == 'Bélgica' %}selected{% endif %}>Bélgica</option>
+                                    <option value="Escócia" {% if player['country'] == 'Escócia' %}selected{% endif %}>Escócia</option>
+                                    <option value="Irlanda" {% if player['country'] == 'Irlanda' %}selected{% endif %}>Irlanda</option>
+                                </select>
+                                <button type="submit" class="btn btn-primary">Salvar</button>
+                                <button type="button" class="btn btn-secondary" 
+                                        onclick="toggleEditCountry()">Cancelar</button>
+                            </div>
+                            {% if not is_own_profile %}
+                            <div class="form-group mt-2">
+                                <label for="senha_country" class="small">Senha de Administrador:</label>
+                                <input type="password" class="form-control form-control-sm" 
+                                    id="senha_country" name="senha" required>
+                            </div>
+                            {% endif %}
+                        </form>
+                    </div>
+                </div>
                 
                 <!-- Seção com Posição e Tier -->
                 <div class="row mb-3">
@@ -420,143 +490,158 @@
             </div>
         </div>
         
-        <!-- Desafios como Desafiante -->
-        <div class="card mb-4">
-            <div class="card-header bg-info text-white">
-                <h4 class="mb-0">Desafios como Desafiante</h4>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush">
-                    {% for challenge in challenges_as_challenger %}
-                    <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
-                        <div class="d-flex w-100 justify-content-between">
-                            <h6 class="mb-1">vs. {{ challenge['opponent_name'] }}</h6>
-                            <small>{{ challenge['scheduled_date'] }}</small>
-                        </div>
-                        <div class="d-flex w-100 justify-content-between">
-                            <small>Posição #{{ challenge['opponent_position'] }}</small>
-                            {% if challenge['status'] == 'pending' %}
-                            <span class="badge bg-warning text-dark">Pendente</span>
-                            {% elif challenge['status'] == 'accepted' %}
-                            <span class="badge bg-info">Aceito</span>
-                            {% elif challenge['status'] == 'completed' %}
-                                {% if challenge['result'] == 'challenger_win' %}
-                                <span class="badge bg-success">Vitória</span>
-                                {% elif challenge['result'] == 'challenged_win' %}
-                                <span class="badge bg-danger">Derrota</span>
-                                {% else %}
-                                <span class="badge bg-secondary">Concluído</span>
-                                {% endif %}
-                            {% elif challenge['status'] == 'rejected' %}
-                            <span class="badge bg-danger">Rejeitado</span>
-                            {% elif challenge['status'] == 'cancelled' %}
-                            <span class="badge bg-secondary">Cancelado</span>
-                            {% endif %}
-                        </div>
-                    </a>
-                    {% endfor %}
-                    
-                    {% if not challenges_as_challenger %}
-                    <div class="list-group-item py-3 text-center">
-                        <p class="mb-0">Nenhum desafio como desafiante</p>
-                    </div>
+<!-- Desafios como Desafiante -->
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <h4 class="mb-0">Desafios como Desafiante</h4>
+    </div>
+    <div class="card-body p-0">
+        <div class="list-group list-group-flush">
+            {% for challenge in challenges_as_challenger %}
+            <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">vs. {{ challenge['opponent_name'] }}</h6>
+                    <small>{{ challenge['scheduled_date'] }}</small>
+                </div>
+                <div class="d-flex w-100 justify-content-between">
+                    <small>Posição #{{ challenge['opponent_position'] }}</small>
+                    {% if challenge['status'] == 'pending' %}
+                    <span class="badge bg-warning text-dark">Pendente</span>
+                    {% elif challenge['status'] == 'accepted' %}
+                    <span class="badge bg-info">Aceito</span>
+                    {% elif challenge['status'] == 'completed' %}
+                        {% if challenge['result'] == 'challenger_win' %}
+                        <span class="badge bg-success">Vitória</span>
+                        {% elif challenge['result'] == 'challenged_win' %}
+                        <span class="badge bg-danger">Derrota</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Concluído</span>
+                        {% endif %}
+                    {% elif challenge['status'] == 'rejected' %}
+                    <span class="badge bg-danger">Rejeitado</span>
+                    {% elif challenge['status'] == 'cancelled' %}
+                    <span class="badge bg-secondary">Cancelado</span>
                     {% endif %}
                 </div>
+            </a>
+            {% endfor %}
+            
+            {% if not challenges_as_challenger %}
+            <div class="list-group-item py-3 text-center">
+                <p class="mb-0">Nenhum desafio como desafiante</p>
             </div>
-        </div>
-
-        <!-- Desafios como Desafiado -->
-        <div class="card mb-4">
-            <div class="card-header bg-warning text-dark">
-                <h4 class="mb-0">Desafios como Desafiado</h4>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush">
-                    {% for challenge in challenges_as_challenged %}
-                    <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
-                        <div class="d-flex w-100 justify-content-between">
-                            <h6 class="mb-1">de {{ challenge['opponent_name'] }}</h6>
-                            <small>{{ challenge['scheduled_date'] }}</small>
-                        </div>
-                        <div class="d-flex w-100 justify-content-between">
-                            <small>Posição #{{ challenge['opponent_position'] }}</small>
-                            {% if challenge['status'] == 'pending' %}
-                            <span class="badge bg-warning text-dark">Pendente</span>
-                            {% elif challenge['status'] == 'accepted' %}
-                            <span class="badge bg-info">Aceito</span>
-                            {% elif challenge['status'] == 'completed' %}
-                                {% if challenge['result'] == 'challenged_win' %}
-                                <span class="badge bg-success">Vitória</span>
-                                {% elif challenge['result'] == 'challenger_win' %}
-                                <span class="badge bg-danger">Derrota</span>
-                                {% else %}
-                                <span class="badge bg-secondary">Concluído</span>
-                                {% endif %}
-                            {% elif challenge['status'] == 'rejected' %}
-                            <span class="badge bg-danger">Rejeitado</span>
-                            {% elif challenge['status'] == 'cancelled' %}
-                            <span class="badge bg-secondary">Cancelado</span>
-                            {% endif %}
-                        </div>
-                    </a>
-                    {% endfor %}
-                    
-                    {% if not challenges_as_challenged %}
-                    <div class="list-group-item py-3 text-center">
-                        <p class="mb-0">Nenhum desafio como desafiado</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
+            {% endif %}
         </div>
     </div>
+</div>
+
+<!-- Desafios como Desafiado -->
+<div class="card mb-4">
+    <div class="card-header bg-warning text-dark">
+        <h4 class="mb-0">Desafios como Desafiado</h4>
+    </div>
+    <div class="card-body p-0">
+        <div class="list-group list-group-flush">
+            {% for challenge in challenges_as_challenged %}
+            <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">de {{ challenge['opponent_name'] }}</h6>
+                    <small>{{ challenge['scheduled_date'] }}</small>
+                </div>
+                <div class="d-flex w-100 justify-content-between">
+                    <small>Posição #{{ challenge['opponent_position'] }}</small>
+                    {% if challenge['status'] == 'pending' %}
+                    <span class="badge bg-warning text-dark">Pendente</span>
+                    {% elif challenge['status'] == 'accepted' %}
+                    <span class="badge bg-info">Aceito</span>
+                    {% elif challenge['status'] == 'completed' %}
+                        {% if challenge['result'] == 'challenged_win' %}
+                        <span class="badge bg-success">Vitória</span>
+                        {% elif challenge['result'] == 'challenger_win' %}
+                        <span class="badge bg-danger">Derrota</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Concluído</span>
+                        {% endif %}
+                    {% elif challenge['status'] == 'rejected' %}
+                    <span class="badge bg-danger">Rejeitado</span>
+                    {% elif challenge['status'] == 'cancelled' %}
+                    <span class="badge bg-secondary">Cancelado</span>
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+            
+            {% if not challenges_as_challenged %}
+            <div class="list-group-item py-3 text-center">
+                <p class="mb-0">Nenhum desafio como desafiado</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+</div>
 </div>
 
 <script>
 // Funções para interatividade da página
 function toggleEditName() {
-    const displayElement = document.getElementById('playerNameDisplay');
-    const formElement = document.getElementById('editNameForm');
+const displayElement = document.getElementById('playerNameDisplay');
+const formElement = document.getElementById('editNameForm');
 
-    if (formElement.classList.contains('d-none')) {
-        // Mostrar formulário, ocultar display
-        displayElement.classList.add('d-none');
-        formElement.classList.remove('d-none');
-    } else {
-        // Ocultar formulário, mostrar display
-        displayElement.classList.remove('d-none');
-        formElement.classList.add('d-none');
-    }
+if (formElement.classList.contains('d-none')) {
+// Mostrar formulário, ocultar display
+displayElement.classList.add('d-none');
+formElement.classList.remove('d-none');
+} else {
+// Ocultar formulário, mostrar display
+displayElement.classList.remove('d-none');
+formElement.classList.add('d-none');
+}
 }
 
 function toggleEditContact() {
-    const displayElement = document.getElementById('playerContactDisplay');
-    const formElement = document.getElementById('editContactForm');
+const displayElement = document.getElementById('playerContactDisplay');
+const formElement = document.getElementById('editContactForm');
 
-    if (formElement.classList.contains('d-none')) {
-        // Mostrar formulário, ocultar display
-        displayElement.classList.add('d-none');
-        formElement.classList.remove('d-none');
-    } else {
-        // Ocultar formulário, mostrar display
-        displayElement.classList.remove('d-none');
-        formElement.classList.add('d-none');
-    }
+if (formElement.classList.contains('d-none')) {
+// Mostrar formulário, ocultar display
+displayElement.classList.add('d-none');
+formElement.classList.remove('d-none');
+} else {
+// Ocultar formulário, mostrar display
+displayElement.classList.remove('d-none');
+formElement.classList.add('d-none');
+}
 }
 
 function toggleEditHcp() {
-    const displayElement = document.getElementById('hcpIndexDisplay');
-    const formElement = document.getElementById('editHcpForm');
+const displayElement = document.getElementById('hcpIndexDisplay');
+const formElement = document.getElementById('editHcpForm');
 
-    if (formElement.classList.contains('d-none')) {
-        // Mostrar formulário, ocultar display
-        displayElement.classList.add('d-none');
-        formElement.classList.remove('d-none');
-    } else {
-        // Ocultar formulário, mostrar display
-        displayElement.classList.remove('d-none');
-        formElement.classList.add('d-none');
-    }
+if (formElement.classList.contains('d-none')) {
+// Mostrar formulário, ocultar display
+displayElement.classList.add('d-none');
+formElement.classList.remove('d-none');
+} else {
+// Ocultar formulário, mostrar display
+displayElement.classList.remove('d-none');
+formElement.classList.add('d-none');
+}
+}
+
+function toggleEditCountry() {
+const displayElement = document.getElementById('playerCountryDisplay');
+const formElement = document.getElementById('editCountryForm');
+
+if (formElement.classList.contains('d-none')) {
+// Mostrar formulário, ocultar display
+displayElement.classList.add('d-none');
+formElement.classList.remove('d-none');
+} else {
+// Ocultar formulário, mostrar display
+displayElement.classList.remove('d-none');
+formElement.classList.add('d-none');
+}
 }
 </script>
 {% endblock %}
