@@ -2358,6 +2358,60 @@ def new_challenge():
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (challenger_id, challenged_id, 'pending', scheduled_date, current_datetime, response_deadline))
         
+        # NOVO CÓDIGO: Registrar a criação do desafio no log
+        
+        # Obter o ID do desafio recém-criado
+        challenge_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        
+        # Registrar a criação do desafio no log
+        try:
+            # Verificar se a tabela de logs existe
+            table_exists = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='challenge_logs'").fetchone()
+            
+            if not table_exists:
+                # Criar a tabela se não existir
+                conn.execute('''
+                    CREATE TABLE challenge_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        challenge_id INTEGER,
+                        user_id TEXT NOT NULL,
+                        modified_by TEXT NOT NULL,
+                        old_status TEXT,
+                        new_status TEXT,
+                        old_result TEXT,
+                        new_result TEXT,
+                        notes TEXT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+            
+            # Determinar quem está criando o desafio
+            if is_admin:
+                creator_type = "Admin"
+            else:
+                creator_type = "Jogador"
+            
+            # Inserir o log de criação
+            conn.execute('''
+                INSERT INTO challenge_logs 
+                (challenge_id, user_id, modified_by, old_status, new_status, old_result, new_result, notes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                challenge_id, 
+                session.get('user_id', 'unknown'),
+                creator_type,
+                None,
+                'pending',
+                None,
+                None,
+                f"Desafio criado. Marcado para {scheduled_date}",
+                current_datetime
+            ))
+            
+        except Exception as e:
+            print(f"Erro ao registrar log de criação: {e}")
+            # Continuar mesmo se o log falhar
+        
         conn.commit()
         conn.close()
         
