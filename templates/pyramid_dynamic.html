@@ -453,6 +453,9 @@
                                 <strong>{{ player.name }}</strong><br>
                                 Posição: #{{ player.position }}<br>
                                 Nível: {{ tier_letter }}<br>
+                                {% if player.country %}
+                                País: {{ player.country }}<br>
+                                {% endif %}
                                 {% if player.hcp_index is not none %}
                                 HCP: {{ player.hcp_index }}<br>
                                 {% endif %}
@@ -511,7 +514,14 @@
                             {% endfor %}
                             
                             <!-- Nome do jogador -->
-                            <span class="player-name">{{ player.name }}</span>
+                            <span class="player-name">
+                                {% if player.country %}
+                                    <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
+                                         alt="{{ player.country }}" class="me-1" width="16" height="12" 
+                                         title="{{ player.country }}">
+                                {% endif %}
+                                {{ player.name }}
+                            </span>
                         </div>
                     {% endfor %}
                 </div>

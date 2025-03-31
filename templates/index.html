@@ -115,7 +115,14 @@
                             <tr>
                                 <td class="text-center">{{ player['position'] }}</td>
                                 <td class="text-center">{{ player['player_code'] }}</td>
-                                <td>{{ player['name'] }}</td>
+                                <td>
+                                    {% if player['country'] %}
+                                        <img src="https://flagcdn.com/16x12/{{ player['country']|country_code }}.png" 
+                                             alt="{{ player['country'] }}" class="me-1" width="16" height="12" 
+                                             title="{{ player['country'] }}">
+                                    {% endif %}
+                                    {{ player['name'] }}
+                                </td>
                                 <td class="text-center">{{ player['tier'] }}</td>
                                 <td class="text-center actions-cell">
                                     <div class="d-flex justify-content-center gap-1">
@@ -164,7 +171,14 @@
                             {% for player in inactive_players %}
                             <tr>
                                 <td class="text-center">{{ player.player_code }}</td>
-                                <td>{{ player.name }}</td>
+                                <td>
+                                    {% if player['country'] %}
+                                        <img src="https://flagcdn.com/16x12/{{ player['country']|country_code }}.png" 
+                                             alt="{{ player['country'] }}" class="me-1" width="16" height="12" 
+                                             title="{{ player['country'] }}">
+                                    {% endif %}
+                                    {{ player.name }}
+                                </td>
                                 <td>
                                     {% if player.notes %}
                                         {% set notes = player.notes.split('.') %}
