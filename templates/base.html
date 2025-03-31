@@ -233,18 +233,15 @@
         <!-- Aviso sobre suspensão parcial de desafios -->
         <div class="alert alert-warning text-center mb-2" role="alert">
             <i class="fas fa-exclamation-triangle me-2"></i>
-            <strong>ATUALIZAÇÃO DA PLATAFORMA:</strong> 
-            <p class="mb-1">Nossa atualização será no domingo à tarde (30/03/2025).</p>
-            <p class="mb-1">Devido ao PGA, até 07/04/2025 não serão permitidos novos desafios no Campo Olímpico.</p>
-            <p class="mb-1">Conforme regulamento, desafios em outros campos continuam permitidos: Itanhangá, Golden Green, Gávea, Teresópolis e Petrópolis, mediante acordo entre participantes.</p>
-            <p class="mb-2"><strong>ATENÇÃO:</strong> Nesta semana específica, não será aplicado W.O. caso não haja consenso nas datas.</p>
-            <p class="mb-0">Após 07/04, todos os desafios serão normalizados no Campo Olímpico.</p>
+            <strong>ATENÇÃO GOLFISTAS:</strong> 
+            <p class="mb-1">Alô Golfistas. Em razão da realização do PGA, os jogos desafios da Liga recomeçarão dia 07 de abril de 2025. Atualizaremos as posições do ranking hoje no final do dia. O sistema estará liberado para novos desafios em 31/03 para que os jogos recomecem em 07/04 (máximo de 7 dias entre a data do desafio e a realização do jogo conforme regulamento).</p>
+            <p class="mb-0">ANTES DE DESAFIAR, OBSERVE sua posição na pirâmide, após a atualização, para que seu jogo desafio seja elegível no sistema. Dúvidas e sugestões, estaremos sempre à disposição.</p>
         </div>
         
         <!-- Novo aviso sobre atualização de HCP Index -->
         <div class="alert alert-info text-center" role="alert">
             <i class="fas fa-info-circle me-2"></i>
-            <strong>LEMBRETE:</strong> Atualize seu HCP Index no seu Perfil de Jogador
+            <strong>LEMBRETE:</strong> Atualize seu HCP Index e sua Nacionalidade/País no seu Perfil de Jogador
             {% if session.user_id and not session.is_admin %}
             <a href="{{ url_for('player_detail', player_id=session.user_id) }}" class="alert-link ms-2">
                 <i class="fas fa-arrow-right"></i> Acessar meu perfil
