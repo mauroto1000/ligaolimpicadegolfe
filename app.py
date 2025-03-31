@@ -1916,49 +1916,69 @@ def update_player_country(player_id):
     """
     conn = get_db_connection()
     
-    # Verificar se o jogador existe
-    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
-    
-    if not player:
-        conn.close()
-        flash('Jogador não encontrado!', 'error')
-        return redirect(url_for('index'))
-    
-    # Determinar se o usuário está alterando seu próprio perfil
-    is_own_profile = False
     try:
+        # Verificar se o jogador existe
+        player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+        
+        if not player:
+            conn.close()
+            flash('Jogador não encontrado!', 'error')
+            return redirect(url_for('index'))
+        
+        # Verificar se é o próprio usuário editando seu perfil
+        is_own_profile = False
         user_id = session.get('user_id')
-        if isinstance(user_id, int):
+        
+        # Verificar se é um admin (o ID pode ser no formato 'admin_1')
+        if isinstance(user_id, str) and user_id.startswith('admin_'):
+            is_own_profile = False
+        elif isinstance(user_id, int):
             is_own_profile = user_id == player_id
         elif isinstance(user_id, str) and user_id.isdigit():
             is_own_profile = int(user_id) == player_id
-    except (ValueError, TypeError, AttributeError):
-        is_own_profile = False
-    
-    # Verificar senha apenas se não for o próprio perfil
-    if not is_own_profile:
-        senha = request.form.get('senha', '')
-        if senha != '123':
+        
+        # Verificar senha apenas para administradores
+        if not is_own_profile:
+            senha = request.form.get('senha', '')
+            if senha != '123':
+                conn.close()
+                flash('Senha incorreta! Operação não autorizada.', 'error')
+                return redirect(url_for('player_detail', player_id=player_id))
+        
+        # Obter novo país
+        new_country = request.form.get('new_country', '').strip()
+        
+        # Verificar se a coluna 'country' existe no objeto player
+        try:
+            old_country = player['country']
+        except (KeyError, IndexError):
+            # Se a coluna não existe, considerar como None
+            old_country = None
+        
+        # Se o país não mudou, não fazer nada
+        if new_country == old_country:
             conn.close()
-            flash('Senha incorreta! Operação não autorizada.', 'error')
+            flash('Nenhuma alteração foi realizada.', 'info')
             return redirect(url_for('player_detail', player_id=player_id))
-    
-    # Obter novo país
-    new_country = request.form.get('new_country', '').strip()
-    old_country = player['country']
-    
-    # Se o país não mudou, não fazer nada
-    if new_country == old_country:
-        conn.close()
-        flash('Nenhuma alteração foi realizada.', 'info')
-        return redirect(url_for('player_detail', player_id=player_id))
-    
-    try:
+        
+        # Verificar se a coluna 'country' existe na tabela players
+        columns_info = conn.execute('PRAGMA table_info(players)').fetchall()
+        column_names = [col[1] for col in columns_info]
+        
+        if 'country' not in column_names:
+            # Se a coluna não existe, criar ela
+            conn.execute('ALTER TABLE players ADD COLUMN country TEXT DEFAULT NULL')
+            conn.commit()
+            print("Coluna 'country' adicionada à tabela players.")
+        
         # Atualizar o país do jogador
         conn.execute('UPDATE players SET country = ? WHERE id = ?', (new_country, player_id))
         
         # Opcional: Registrar alteração nas notas
-        notes = f"País alterado de '{old_country or 'não informado'}' para '{new_country or 'não informado'}' em {datetime.now().strftime('%d/%m/%Y')}"
+        old_country_display = old_country if old_country else 'não informado'
+        new_country_display = new_country if new_country else 'não informado'
+        
+        notes = f"País alterado de '{old_country_display}' para '{new_country_display}' em {datetime.now().strftime('%d/%m/%Y')}"
         
         # Se o jogador já tem notas, adicionar à frente
         if player['notes']:
@@ -1968,7 +1988,7 @@ def update_player_country(player_id):
         conn.execute('UPDATE players SET notes = ? WHERE id = ?', (notes, player_id))
         
         conn.commit()
-        flash(f'País atualizado com sucesso para "{new_country}".', 'success')
+        flash(f'País atualizado com sucesso para "{new_country_display}"', 'success')
         
     except Exception as e:
         conn.rollback()
@@ -1977,7 +1997,6 @@ def update_player_country(player_id):
         conn.close()
     
     return redirect(url_for('player_detail', player_id=player_id))
-
 
 
 
