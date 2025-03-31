@@ -4276,6 +4276,13 @@ def country_code_filter(country_name):
     return country_mapping.get(country_name, country_name.lower())
 
 
+@app.route('/regulamento')
+def regulamento():
+    return render_template('regulamento.html')
+
+
+
+
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
     if not os.path.exists(DATABASE):
