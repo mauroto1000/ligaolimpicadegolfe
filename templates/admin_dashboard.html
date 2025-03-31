@@ -17,7 +17,7 @@
             <div class="card shadow-sm bg-primary text-white">
                 <div class="card-body">
                     <h3 class="mb-0">Dashboard Administrativo</h3>
-                    <p class="mb-0">Bem-vindo, {{ session.user_name }}</p>
+                    <p class="mb-0">Bem-vindo, {{ session.username }}</p>
                 </div>
             </div>
         </div>
@@ -83,6 +83,35 @@
         </div>
     </div>
     
+    <!-- Status de marcação de desafios -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">Marcação de Desafios</h5>
+                            <p class="mb-0">
+                                {% if challenges_locked %}
+                                <span class="badge bg-danger">BLOQUEADA</span> Os jogadores não podem criar novos desafios.
+                                {% else %}
+                                <span class="badge bg-success">LIBERADA</span> Os jogadores podem criar novos desafios normalmente.
+                                {% endif %}
+                            </p>
+                        </div>
+                        <a href="{{ url_for('toggle_challenges') }}" class="btn btn-{% if challenges_locked %}success{% else %}danger{% endif %}">
+                            {% if challenges_locked %}
+                            <i class="fas fa-unlock"></i> Liberar Marcação
+                            {% else %}
+                            <i class="fas fa-lock"></i> Bloquear Marcação
+                            {% endif %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Acesso administrativo rápido -->
     <div class="row mb-4">
         <div class="col-12">
@@ -117,6 +146,11 @@
                         <div class="col-md-3 mb-2">
                             <a href="{{ url_for('admin_challenge_logs') }}" class="btn btn-outline-primary d-block">
                                 <i class="fas fa-history fa-fw"></i> Logs de Desafios
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('toggle_challenges') }}" class="btn btn-outline-{% if challenges_locked %}success{% else %}danger{% endif %} d-block">
+                                <i class="fas fa-{% if challenges_locked %}unlock{% else %}lock{% endif %} fa-fw"></i> Controle de Desafios
                             </a>
                         </div>
                     </div>

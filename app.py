@@ -244,6 +244,29 @@ def create_authentication_tables():
     conn.close()
     print("Tabelas de autenticação verificadas com sucesso.")
 
+
+def create_system_settings_table():
+    conn = get_db_connection()
+    conn.execute('''
+    CREATE TABLE IF NOT EXISTS system_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
+    # Inserir configuração padrão para desafios
+    conn.execute('''
+    INSERT OR IGNORE INTO system_settings (key, value)
+    VALUES ('challenges_locked', 'false')
+    ''')
+    
+    conn.commit()
+    conn.close()
+    print("Tabela de configurações do sistema criada/verificada com sucesso.")
+
+
+
 # Rota de login
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -603,6 +626,31 @@ def admin_dashboard():
     pending_challenges = conn.execute('SELECT COUNT(*) as count FROM challenges WHERE status IN ("pending", "accepted")').fetchone()
     stats['pending_challenges'] = pending_challenges['count']
     
+    # Verificar se a tabela system_settings existe
+    table_exists = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'").fetchone()
+    challenges_locked = False
+    
+    if table_exists:
+        # Verificar se os desafios estão bloqueados
+        setting = conn.execute('SELECT value FROM system_settings WHERE key = ?', ('challenges_locked',)).fetchone()
+        challenges_locked = setting and setting['value'] == 'true'
+    else:
+        # Criar a tabela se não existir
+        conn.execute('''
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
+        # Inserir configuração padrão para desafios
+        conn.execute('''
+        INSERT OR IGNORE INTO system_settings (key, value)
+        VALUES ('challenges_locked', 'false')
+        ''')
+        conn.commit()
+    
     # Desafios recentes
     recent_challenges = conn.execute('''
         SELECT c.*, 
@@ -627,7 +675,11 @@ def admin_dashboard():
     return render_template('admin_dashboard.html', 
                           stats=stats,
                           recent_challenges=recent_challenges,
-                          never_logged=never_logged)
+                          never_logged=never_logged,
+                          challenges_locked=challenges_locked)
+
+
+
 
 # Inicialização da aplicação
 if __name__ == '__main__':
@@ -2189,12 +2241,22 @@ def challenges_list():
 @app.route('/new_challenge', methods=['GET', 'POST'])
 @login_required
 def new_challenge():
+    # Verificar se os desafios estão bloqueados
+    conn = get_db_connection()
+    setting = conn.execute('SELECT value FROM system_settings WHERE key = ?', ('challenges_locked',)).fetchone()
+    challenges_locked = setting and setting['value'] == 'true'
+    
+    # Se os desafios estão bloqueados e o usuário não é admin, bloquear
+    is_admin = session.get('is_admin', False)
+    if challenges_locked and not is_admin:
+        conn.close()
+        flash('A criação de desafios está temporariamente bloqueada pelo administrador.', 'error')
+        return redirect(url_for('dashboard'))
+    
     if request.method == 'POST':
         challenger_id = request.form['challenger_id']
         challenged_id = request.form['challenged_id']
         scheduled_date = request.form['scheduled_date']
-        
-        conn = get_db_connection()
         
         # NOVA VALIDAÇÃO: Verificar se a data do desafio está dentro de 7 dias A PARTIR DE HOJE
         try:
@@ -2232,9 +2294,6 @@ def new_challenge():
             conn.close()
             flash('Um dos jogadores está inativo e não pode participar de desafios.', 'error')
             return redirect(url_for('new_challenge'))
-        
-        # Verificar se é um administrador
-        is_admin = session.get('is_admin', False)
         
         # NOVA REGRA: Se não for admin, verificar regras normais
         error = None
@@ -2306,8 +2365,6 @@ def new_challenge():
         return redirect(url_for('challenges_calendar'))
     
     # Para requisições GET, mostrar formulário
-    conn = get_db_connection()
-    
     # Verificar se o usuário é um administrador
     is_admin = session.get('is_admin', False)
     
@@ -2421,7 +2478,49 @@ def new_challenge():
                           preselected_challenger=preselected_challenger_id,
                           challenger_info=challenger_info,
                           today_date=today_date,
-                          is_admin=is_admin)
+                          is_admin=is_admin,
+                          challenges_locked=challenges_locked)
+
+
+@app.route('/admin/toggle_challenges', methods=['GET', 'POST'])
+@login_required
+def toggle_challenges():
+    # Verificar se é um administrador
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    conn = get_db_connection()
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        senha = request.form.get('senha', '')
+        
+        if senha != '123':
+            conn.close()
+            flash('Senha incorreta! Operação não autorizada.', 'error')
+            return redirect(url_for('toggle_challenges'))
+        
+        if action == 'lock':
+            conn.execute('UPDATE system_settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?', 
+                       ('true', 'challenges_locked'))
+            conn.commit()
+            flash('Criação de desafios BLOQUEADA com sucesso!', 'success')
+        elif action == 'unlock':
+            conn.execute('UPDATE system_settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?', 
+                       ('false', 'challenges_locked'))
+            conn.commit()
+            flash('Criação de desafios LIBERADA com sucesso!', 'success')
+    
+    # Obter status atual
+    setting = conn.execute('SELECT value, updated_at FROM system_settings WHERE key = ?', ('challenges_locked',)).fetchone()
+    is_locked = setting and setting['value'] == 'true'
+    updated_at = setting['updated_at'] if setting else None
+    
+    conn.close()
+    
+    return render_template('toggle_challenges.html', is_locked=is_locked, updated_at=updated_at)
+
 
 
 # Alteração na rota delete_challenge
@@ -4169,6 +4268,12 @@ if __name__ == '__main__':
 
     # Adicionar coluna de país se não existir
     add_country_column()
+
+
+    # Criar tabela de configurações do sistema
+    create_system_settings_table()
+
+
 
   
     # Verificar e corrigir a estrutura da pirâmide
