@@ -66,7 +66,7 @@
             flex: 1;
             overflow: hidden;
             position: relative;
-            height: 30px;
+            height: 24px; /* Reduzido para ser mais estreito */
         }
         
         .ticker-moving {
@@ -83,6 +83,17 @@
             100% {
                 transform: translateX(-100%);
             }
+        }
+        
+        /* Animação da seta piscante */
+        .blinking-arrow {
+            animation: blinkArrow 1s infinite;
+        }
+        
+        @keyframes blinkArrow {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
         }
         
         @media (max-width: 768px) {
@@ -262,13 +273,13 @@
         </nav>
     </header>
     
-    <!-- Ticker de Frases Motivacionais com efeito de movimento -->
-    <div class="motivational-ticker bg-primary text-white py-2">
+    <!-- Ticker de Frases Motivacionais com altura reduzida e seta piscante -->
+    <div class="motivational-ticker bg-primary text-white py-1">
         <div class="container">
             <div class="ticker-wrapper">
                 <div class="d-flex align-items-center">
                     <div class="ticker-icon me-2">
-                        <i class="fas fa-quote-left text-warning"></i>
+                        <i class="fas fa-chevron-right blinking-arrow text-warning"></i>
                     </div>
                     <div class="ticker-container">
                         <div class="ticker-moving" id="ticker-text">
@@ -534,21 +545,28 @@
             const randomIndex = Math.floor(Math.random() * quotes.length);
             const selectedQuote = quotes[randomIndex];
             
-            // Coloca a frase na página
-            document.getElementById('random-quote').textContent = selectedQuote;
+            // Remove as aspas duplas do início, se houver
+            let cleanedQuote = selectedQuote;
+            if (cleanedQuote.startsWith('"')) {
+                cleanedQuote = cleanedQuote.substring(1);
+            }
             
+            // Coloca a frase na página (sem as aspas iniciais)
+            document.getElementById('random-quote').textContent = cleanedQuote;
+            
+           
             // Ajusta a duração da animação com base no comprimento do texto
             const tickerElement = document.getElementById('ticker-text');
-            const quoteLength = selectedQuote.length;
-            
-            // Quanto mais longo o texto, mais lenta deve ser a animação para leitura
-            const duration = Math.max(25, quoteLength * 0.25);
+                        const quoteLength = cleanedQuote.length;
                         
-            tickerElement.style.animationDuration = duration + 's';
-        });
-    </script>
-    
-    <!-- Scripts adicionais -->
-    {% block scripts %}{% endblock %}
-</body>
-</html>
+                        // Velocidade mais lenta para ambiente de produção
+                        const duration = Math.max(25, quoteLength * 0.25);
+                        
+                        tickerElement.style.animationDuration = duration + 's';
+                    });
+                </script>
+                
+                <!-- Scripts adicionais -->
+                {% block scripts %}{% endblock %}
+            </body>
+            </html>
