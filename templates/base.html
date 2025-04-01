@@ -491,80 +491,116 @@
     </script>
     
     <!-- Script para o ticker de frases motivacionais com movimento -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Array com as 44 frases motivacionais sobre golfe fornecidas
-            const quotes = [
-                '"O golfe é um jogo de precisão, não de força." – Jack Nicklaus',
-                '"A confiança é o mais importante no golfe. Se você acredita que pode acertar o golpe, quase sempre o fará." – Jack Nicklaus',
-                '"Quanto mais eu pratico, mais sorte eu tenho." – Gary Player',
-                '"Um bom golfista tem a determinação para vencer e a paciência para esperar pelas oportunidades." – Gary Player',
-                '"Eu jogo de forma agressiva porque é assim que eu sou." – Seve Ballesteros',
-                '"O segredo do golfe é transformar três tacadas em duas." – Seve Ballesteros',
-                '"Você não pode comprar um bom swing." – Sam Snead',
-                '"Esqueça seus oponentes; sempre jogue contra o par." – Sam Snead',
-                '"Se você está em um campo de golfe durante uma tempestade e tem medo de raios, segure um ferro 1. Nem mesmo Deus consegue acertar um ferro 1." – Lee Trevino',
-                '"Você pode ganhar muito dinheiro com este jogo. Basta perguntar às minhas ex-esposas. Ambas são tão ricas que nenhum de seus maridos trabalha." – Lee Trevino',
-                '"O golfe é o jogo mais divertido que você pode jogar sem tirar a roupa." – Chi Chi Rodríguez',
-                '"A melhor madeira na bolsa de muitos golfistas amadores é o lápis." – Chi Chi Rodríguez',
-                '"A felicidade é uma longa caminhada com um putter na mão." – Greg Norman',
-                '"Eu acredito que o sucesso vem para aqueles que têm paixão e dedicação." – Greg Norman',
-                '"O putt é principalmente uma questão de sensação, toque e bom julgamento de distância." – Tom Watson',
-                '"O golfe é um jogo de integridade. O jogador é responsável por sua própria pontuação." – Tom Watson',
-                '"Eu tenho que acreditar em mim mesmo. Sei o que posso fazer, o que posso alcançar." – Sergio García',
-                '"Se você se preocupa em fazer bogeys, torna o jogo muito mais difícil." – Sergio García',
-                '"Acho que é mais do que vencer ou perder. É ter aquela oportunidade na rodada final, nos últimos nove buracos, de chegar com uma chance de vencer." – Phil Mickelson',
-                '"O golfe é um jogo de ajustes contínuos." – Phil Mickelson',
-                '"Você não tem o jogo que jogou no ano passado ou na semana passada. Você só tem o jogo de hoje." – Walter Hagen',
-                '"Não se apresse no golfe. Aproveite o jogo." – Walter Hagen',
-                '"Para este jogo, você precisa, acima de tudo, estar em um estado de espírito tranquilo." – Harry Vardon',
-                '"Nunca jogue golfe demais. Duas rodadas por dia são suficientes." – Harry Vardon',
-                '"Com os anos, o fairway se torna mais longo e o diâmetro dos buracos menor." – Bobby Locke',
-                '"O segredo do golfe é jogar menos e pensar mais." – Bobby Locke',
-                '"O golfe é um jogo em que você tenta menosprezar seu oponente, mas sem que ele perceba." – David Feherty',
-                '"Dizem que o golfe é como a vida, mas não acredite neles. O golfe é muito mais complicado." – Gardner Dickinson',
-                '"O golfe é um jogo de paciência e perseverança." – Payne Stewart',
-                '"A coisa mais importante no golfe, depois de fazer boas tacadas, é não perder a calma." – Harry Vardon',
-                '"O golfe é um jogo cujo objetivo é atingir uma bola muito pequena em um buraco ainda menor, com equipamentos inadequados." – Winston Churchill',
-                '"O golfe é um jogo que é jogado em um campo de cinco polegadas: o espaço entre suas orelhas." – Bobby Jones',
-                '"O golfe é um jogo de misses. Quem errar melhor, vence." – Ben Hogan',
-                '"O golfe é um jogo de detalhes. Pequenas coisas fazem uma grande diferença." – Jack Nicklaus',
-                '"O golfe é um jogo de confiança. Se você não acredita que pode vencer, não tem chance." – Rory McIlroy',
-                '"O golfe é um jogo de respeito e esportividade." – Arnold Palmer',
-                '"O golfe é um jogo de disciplina e autocontrole." – Tiger Woods',
-                '"O golfe é um jogo de aprendizado contínuo. Você nunca para de aprender." – Phil Mickelson',
-                '"O golfe é um jogo de tradição e história." – Gary Player',
-                '"O golfe é um jogo de amizade e camaradagem." – Seve Ballesteros',
-                '"O golfe é um jogo de desafios e superação." – Annika Sörenstam',
-                '"O golfe é um jogo de precisão e paciência." – Lee Trevino',
-                '"O golfe é um jogo de estratégia e planejamento." – Tom Watson',
-                '"O golfe é um jogo de equilíbrio entre mente e corpo." – Greg Norman'
-            ];
 
-            // Seleciona uma frase aleatória
-            const randomIndex = Math.floor(Math.random() * quotes.length);
-            const selectedQuote = quotes[randomIndex];
-            
-            // Remove as aspas duplas do início, se houver
-            let cleanedQuote = selectedQuote;
-            if (cleanedQuote.startsWith('"')) {
-                cleanedQuote = cleanedQuote.substring(1);
-            }
-            
-            // Coloca a frase na página (sem as aspas iniciais)
-            document.getElementById('random-quote').textContent = cleanedQuote;
-            
-           
-            // Ajusta a duração da animação com base no comprimento do texto
-            const tickerElement = document.getElementById('ticker-text');
-                        const quoteLength = cleanedQuote.length;
-                        
-                        // Velocidade mais lenta para ambiente de produção
+                <script>
+                    document.addEventListener('DOMContentLoaded', function () {
+                        const quotes = [
+
+                            '"O golfe é um jogo de precisão, não de força." – Jack Nicklaus',
+                            '"A confiança é o mais importante no golfe. Se você acredita que pode acertar o golpe, quase sempre o fará." – Jack Nicklaus',
+                            '"Quanto mais eu pratico, mais sorte eu tenho." – Gary Player',
+                            '"Um bom golfista tem a determinação para vencer e a paciência para esperar pelas oportunidades." – Gary Player',
+                            '"Eu jogo de forma agressiva porque é assim que eu sou." – Seve Ballesteros',
+                            '"O segredo do golfe é transformar três tacadas em duas." – Seve Ballesteros',
+                            '"Você não pode comprar um bom swing." – Sam Snead',
+                            '"Esqueça seus oponentes; sempre jogue contra o par." – Sam Snead',
+                            '"Se você está em um campo de golfe durante uma tempestade e tem medo de raios, segure um ferro 1. Nem mesmo Deus consegue acertar um ferro 1." – Lee Trevino',
+                            '"Você pode ganhar muito dinheiro com este jogo. Basta perguntar às minhas ex-esposas. Ambas são tão ricas que nenhum de seus maridos trabalha." – Lee Trevino',
+                            '"O golfe é o jogo mais divertido que você pode jogar sem tirar a roupa." – Chi Chi Rodríguez',
+                            '"A melhor madeira na bolsa de muitos golfistas amadores é o lápis." – Chi Chi Rodríguez',
+                            '"A felicidade é uma longa caminhada com um putter na mão." – Greg Norman',
+                            '"Eu acredito que o sucesso vem para aqueles que têm paixão e dedicação." – Greg Norman',
+                            '"O putt é principalmente uma questão de sensação, toque e bom julgamento de distância." – Tom Watson',
+                            '"O golfe é um jogo de integridade. O jogador é responsável por sua própria pontuação." – Tom Watson',
+                            '"Eu tenho que acreditar em mim mesmo. Sei o que posso fazer, o que posso alcançar." – Sergio García',
+                            '"Se você se preocupa em fazer bogeys, torna o jogo muito mais difícil." – Sergio García',
+                            '"Acho que é mais do que vencer ou perder. É ter aquela oportunidade na rodada final, nos últimos nove buracos, de chegar com uma chance de vencer." – Phil Mickelson',
+                            '"O golfe é um jogo de ajustes contínuos." – Phil Mickelson',
+                            '"Você não tem o jogo que jogou no ano passado ou na semana passada. Você só tem o jogo de hoje." – Walter Hagen',
+                            '"Não se apresse no golfe. Aproveite o jogo." – Walter Hagen',
+                            '"Para este jogo, você precisa, acima de tudo, estar em um estado de espírito tranquilo." – Harry Vardon',
+                            '"Nunca jogue golfe demais. Duas rodadas por dia são suficientes." – Harry Vardon',
+                            '"Com os anos, o fairway se torna mais longo e o diâmetro dos buracos menor." – Bobby Locke',
+                            '"O segredo do golfe é jogar menos e pensar mais." – Bobby Locke',
+                            '"O golfe é um jogo em que você tenta menosprezar seu oponente, mas sem que ele perceba." – David Feherty',
+                            '"Dizem que o golfe é como a vida, mas não acredite neles. O golfe é muito mais complicado." – Gardner Dickinson',
+                            '"O golfe é um jogo de paciência e perseverança." – Payne Stewart',
+                            '"A coisa mais importante no golfe, depois de fazer boas tacadas, é não perder a calma." – Harry Vardon',
+                            '"O golfe é um jogo cujo objetivo é atingir uma bola muito pequena em um buraco ainda menor, com equipamentos inadequados." – Winston Churchill',
+                            '"O golfe é um jogo que é jogado em um campo de cinco polegadas: o espaço entre suas orelhas." – Bobby Jones',
+                            '"O golfe é um jogo de misses. Quem errar melhor, vence." – Ben Hogan',
+                            '"O golfe é um jogo de detalhes. Pequenas coisas fazem uma grande diferença." – Jack Nicklaus',
+                            '"O golfe é um jogo de confiança. Se você não acredita que pode vencer, não tem chance." – Rory McIlroy',
+                            '"O golfe é um jogo de respeito e esportividade." – Arnold Palmer',
+                            '"O golfe é um jogo de disciplina e autocontrole." – Tiger Woods',
+                            '"O golfe é um jogo de aprendizado contínuo. Você nunca para de aprender." – Phil Mickelson',
+                            '"O golfe é um jogo de tradição e história." – Gary Player',
+                            '"O golfe é um jogo de amizade e camaradagem." – Seve Ballesteros',
+                            '"O golfe é um jogo de desafios e superação." – Annika Sörenstam',
+                            '"O golfe é um jogo de precisão e paciência." – Lee Trevino',
+                            '"O golfe é um jogo de estratégia e planejamento." – Tom Watson',
+                            '"O golfe é um jogo de equilíbrio entre mente e corpo." – Greg Norman',
+
+
+                            '"Golf is a game of precision, not power." – Jack Nicklaus',
+                            '"Confidence is the most important thing in golf. If you believe you can hit the shot, you almost always will." – Jack Nicklaus',
+                            '"The more I practice, the luckier I get." – Gary Player',
+                            '"A good golfer has the determination to win and the patience to wait for the opportunities." – Gary Player',
+                            '"I play aggressively because that’s who I am." – Seve Ballesteros',
+                            '"The secret of golf is turning three shots into two." – Seve Ballesteros',
+                            '"You can\'t buy a good swing." – Sam Snead',
+                            '"Forget your opponents; always play against par." – Sam Snead',
+                            '"If you\'re caught on a golf course during a storm and are afraid of lightning, hold up a 1-iron. Not even God can hit a 1-iron." – Lee Trevino',
+                            '"You can make a lot of money in this game. Just ask my ex-wives. Both are so rich that neither of their husbands works." – Lee Trevino',
+                            '"Golf is the most fun you can have without taking your clothes off." – Chi Chi Rodríguez',
+                            '"The best wood in many amateur golfers’ bags is the pencil." – Chi Chi Rodríguez',
+                            '"Happiness is a long walk with a putter." – Greg Norman',
+                            '"I believe success comes to those who have passion and dedication." – Greg Norman',
+                            '"Putting is mostly about feel, touch, and good distance judgment." – Tom Watson',
+                            '"Golf is a game of integrity. The player is responsible for his own score." – Tom Watson',
+                            '"I have to believe in myself. I know what I can do, what I can achieve." – Sergio García',
+                            '"If you worry about making bogeys, it makes the game much harder." – Sergio García',
+                            '"It’s not just about winning or losing. It’s about having that opportunity on the final nine holes to fight for the win." – Phil Mickelson',
+                            '"Golf is a game of constant adjustments." – Phil Mickelson',
+                            '"You don’t have last year’s game or last week’s game. You only have today’s game." – Walter Hagen',
+                            '"Don’t rush golf. Enjoy the game." – Walter Hagen',
+                            '"For this game, you need above all to be in a tranquil state of mind." – Harry Vardon',
+                            '"Never play too much golf. Two rounds a day are enough." – Harry Vardon',
+                            '"Over time, the fairway gets longer and the hole gets smaller." – Bobby Locke',
+                            '"The secret of golf is to play less and think more." – Bobby Locke',
+                            '"Golf is a game where you try to subtly insult your opponent without them noticing." – David Feherty',
+                            '"They say golf is like life, but don’t believe them. Golf is much more complicated." – Gardner Dickinson',
+                            '"Golf is a game of patience and perseverance." – Payne Stewart',
+                            '"The most important thing in golf after good shots is not to lose your temper." – Harry Vardon',
+                            '"Golf is a game whose goal is to hit a small ball into an even smaller hole with unsuitable equipment." – Winston Churchill',
+                            '"Golf is played on a course of five inches – the distance between your ears." – Bobby Jones',
+                            '"Golf is a game of misses. The one who misses best wins." – Ben Hogan',
+                            '"Golf is a game of details. Small things make a big difference." – Jack Nicklaus',
+                            '"Golf is a game of confidence. If you don’t believe you can win, you have no chance." – Rory McIlroy',
+                            '"Golf is a game of respect and sportsmanship." – Arnold Palmer',
+                            '"Golf is a game of discipline and self-control." – Tiger Woods',
+                            '"Golf is a game of continuous learning. You never stop." – Phil Mickelson',
+                            '"Golf is a game of tradition and history." – Gary Player',
+                            '"Golf is a game of friendship and camaraderie." – Seve Ballesteros',
+                            '"Golf is a game of challenges and rising above them." – Annika Sörenstam',
+                            '"Golf is a game of precision and patience." – Lee Trevino',
+                            '"Golf is a game of strategy and planning." – Tom Watson',
+                            '"Golf is a balance between mind and body." – Greg Norman',
+                        ];
+                
+                        const randomIndex = Math.floor(Math.random() * quotes.length);
+                        const selectedQuote = quotes[randomIndex];
+                
+                        document.getElementById('random-quote').textContent = selectedQuote;
+                
+                        const tickerElement = document.querySelector('.ticker-moving');
+                        const quoteLength = selectedQuote.length;
                         const duration = Math.max(25, quoteLength * 0.25);
-                        
                         tickerElement.style.animationDuration = duration + 's';
                     });
                 </script>
+                
+
                 
                 <!-- Scripts adicionais -->
                 {% block scripts %}{% endblock %}
