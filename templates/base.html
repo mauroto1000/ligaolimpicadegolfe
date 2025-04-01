@@ -86,10 +86,11 @@
         }
         
         /* Animação da seta piscante */
+        /* Animação da seta piscante - versão mais lenta */
         .blinking-arrow {
-            animation: blinkArrow 1s infinite;
+            animation: blinkArrow 2s ease-in-out infinite;
         }
-        
+
         @keyframes blinkArrow {
             0% { opacity: 1; }
             50% { opacity: 0.3; }
