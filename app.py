@@ -4281,6 +4281,11 @@ def regulamento():
     return render_template('regulamento.html')
 
 
+@app.route('/relatorio')
+def relatorio():
+    return render_template('relatorio.html')
+
+
 
 
 if __name__ == '__main__':
