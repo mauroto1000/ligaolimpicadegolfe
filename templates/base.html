@@ -54,6 +54,42 @@
             z-index: 1050;
             box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
         }
+        
+        /* Estilos para o ticker motivacional com movimento */
+        .motivational-ticker {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: linear-gradient(to right, #0062cc, #007bff);
+        }
+        
+        .ticker-container {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            height: 30px;
+        }
+        
+        .ticker-moving {
+            position: absolute;
+            white-space: nowrap;
+            will-change: transform;
+            animation: tickerMove linear infinite;
+        }
+        
+        @keyframes tickerMove {
+            0% {
+                transform: translateX(100%);
+            }
+            100% {
+                transform: translateX(-100%);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .ticker-moving p {
+                font-size: 0.9rem;
+            }
+        }
     </style>
     
     {% block head %}{% endblock %}
@@ -225,6 +261,24 @@
             </div>
         </nav>
     </header>
+    
+    <!-- Ticker de Frases Motivacionais com efeito de movimento -->
+    <div class="motivational-ticker bg-primary text-white py-2">
+        <div class="container">
+            <div class="ticker-wrapper">
+                <div class="d-flex align-items-center">
+                    <div class="ticker-icon me-2">
+                        <i class="fas fa-quote-left text-warning"></i>
+                    </div>
+                    <div class="ticker-container">
+                        <div class="ticker-moving" id="ticker-text">
+                            <p class="mb-0 fw-light fst-italic" id="random-quote"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <!-- Mensagens Flash -->
     <div class="container mt-3">
@@ -422,6 +476,75 @@
                     }
                 }
             });
+        });
+    </script>
+    
+    <!-- Script para o ticker de frases motivacionais com movimento -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Array com as 44 frases motivacionais sobre golfe fornecidas
+            const quotes = [
+                '"O golfe é um jogo de precisão, não de força." – Jack Nicklaus',
+                '"A confiança é o mais importante no golfe. Se você acredita que pode acertar o golpe, quase sempre o fará." – Jack Nicklaus',
+                '"Quanto mais eu pratico, mais sorte eu tenho." – Gary Player',
+                '"Um bom golfista tem a determinação para vencer e a paciência para esperar pelas oportunidades." – Gary Player',
+                '"Eu jogo de forma agressiva porque é assim que eu sou." – Seve Ballesteros',
+                '"O segredo do golfe é transformar três tacadas em duas." – Seve Ballesteros',
+                '"Você não pode comprar um bom swing." – Sam Snead',
+                '"Esqueça seus oponentes; sempre jogue contra o par." – Sam Snead',
+                '"Se você está em um campo de golfe durante uma tempestade e tem medo de raios, segure um ferro 1. Nem mesmo Deus consegue acertar um ferro 1." – Lee Trevino',
+                '"Você pode ganhar muito dinheiro com este jogo. Basta perguntar às minhas ex-esposas. Ambas são tão ricas que nenhum de seus maridos trabalha." – Lee Trevino',
+                '"O golfe é o jogo mais divertido que você pode jogar sem tirar a roupa." – Chi Chi Rodríguez',
+                '"A melhor madeira na bolsa de muitos golfistas amadores é o lápis." – Chi Chi Rodríguez',
+                '"A felicidade é uma longa caminhada com um putter na mão." – Greg Norman',
+                '"Eu acredito que o sucesso vem para aqueles que têm paixão e dedicação." – Greg Norman',
+                '"O putt é principalmente uma questão de sensação, toque e bom julgamento de distância." – Tom Watson',
+                '"O golfe é um jogo de integridade. O jogador é responsável por sua própria pontuação." – Tom Watson',
+                '"Eu tenho que acreditar em mim mesmo. Sei o que posso fazer, o que posso alcançar." – Sergio García',
+                '"Se você se preocupa em fazer bogeys, torna o jogo muito mais difícil." – Sergio García',
+                '"Acho que é mais do que vencer ou perder. É ter aquela oportunidade na rodada final, nos últimos nove buracos, de chegar com uma chance de vencer." – Phil Mickelson',
+                '"O golfe é um jogo de ajustes contínuos." – Phil Mickelson',
+                '"Você não tem o jogo que jogou no ano passado ou na semana passada. Você só tem o jogo de hoje." – Walter Hagen',
+                '"Não se apresse no golfe. Aproveite o jogo." – Walter Hagen',
+                '"Para este jogo, você precisa, acima de tudo, estar em um estado de espírito tranquilo." – Harry Vardon',
+                '"Nunca jogue golfe demais. Duas rodadas por dia são suficientes." – Harry Vardon',
+                '"Com os anos, o fairway se torna mais longo e o diâmetro dos buracos menor." – Bobby Locke',
+                '"O segredo do golfe é jogar menos e pensar mais." – Bobby Locke',
+                '"O golfe é um jogo em que você tenta menosprezar seu oponente, mas sem que ele perceba." – David Feherty',
+                '"Dizem que o golfe é como a vida, mas não acredite neles. O golfe é muito mais complicado." – Gardner Dickinson',
+                '"O golfe é um jogo de paciência e perseverança." – Payne Stewart',
+                '"A coisa mais importante no golfe, depois de fazer boas tacadas, é não perder a calma." – Harry Vardon',
+                '"O golfe é um jogo cujo objetivo é atingir uma bola muito pequena em um buraco ainda menor, com equipamentos inadequados." – Winston Churchill',
+                '"O golfe é um jogo que é jogado em um campo de cinco polegadas: o espaço entre suas orelhas." – Bobby Jones',
+                '"O golfe é um jogo de misses. Quem errar melhor, vence." – Ben Hogan',
+                '"O golfe é um jogo de detalhes. Pequenas coisas fazem uma grande diferença." – Jack Nicklaus',
+                '"O golfe é um jogo de confiança. Se você não acredita que pode vencer, não tem chance." – Rory McIlroy',
+                '"O golfe é um jogo de respeito e esportividade." – Arnold Palmer',
+                '"O golfe é um jogo de disciplina e autocontrole." – Tiger Woods',
+                '"O golfe é um jogo de aprendizado contínuo. Você nunca para de aprender." – Phil Mickelson',
+                '"O golfe é um jogo de tradição e história." – Gary Player',
+                '"O golfe é um jogo de amizade e camaradagem." – Seve Ballesteros',
+                '"O golfe é um jogo de desafios e superação." – Annika Sörenstam',
+                '"O golfe é um jogo de precisão e paciência." – Lee Trevino',
+                '"O golfe é um jogo de estratégia e planejamento." – Tom Watson',
+                '"O golfe é um jogo de equilíbrio entre mente e corpo." – Greg Norman'
+            ];
+
+            // Seleciona uma frase aleatória
+            const randomIndex = Math.floor(Math.random() * quotes.length);
+            const selectedQuote = quotes[randomIndex];
+            
+            // Coloca a frase na página
+            document.getElementById('random-quote').textContent = selectedQuote;
+            
+            // Ajusta a duração da animação com base no comprimento do texto
+            const tickerElement = document.getElementById('ticker-text');
+            const quoteLength = selectedQuote.length;
+            
+            // Quanto mais longo o texto, mais lenta deve ser a animação para leitura
+            const duration = Math.max(15, quoteLength * 0.15); // ajuste o multiplicador conforme necessário
+            
+            tickerElement.style.animationDuration = duration + 's';
         });
     </script>
     
