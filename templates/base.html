@@ -253,7 +253,7 @@
                         {% else %}
                             <!-- Opções para visitantes -->
                             <a href="{{ url_for('login') }}" class="btn btn-outline-light me-2">
-                                <i class="fas fa-sign-in-alt"></i> Login
+                                <i class="fas fa-sign-in-alt"></i> Acessar conta
                             </a>
                         {% endif %}
                         
@@ -307,36 +307,27 @@
     </div>
     
     <!-- Avisos importantes -->
-    <!-- Avisos importantes -->
-    <div class="container mt-2 mb-3">
+    <div class="container mt-1 mb-0 px-1">
         <!-- Aviso sobre suspensão parcial de desafios -->
-        <div class="alert alert-warning text-center mb-2" role="alert">
-            <i class="fas fa-exclamation-triangle me-2"></i>
+        <div class="alert alert-danger text-center mb-1 py-1 px-2" role="alert">
+            <i class="fas fa-bell me-1"></i>
+            <span class="badge bg-light border border-success text-success fw-bold me-1" style="font-size: 0.8rem;">DESAFIOS LIBERADOS</span>
             <strong>ATENÇÃO:</strong> 
-            <p class="mb-0">Atualizem o novo endereço: www.ligaolimpicadegolfe.com.br</p>
-        </div>
-        
-        <!-- Novo aviso sobre registros de desafios -->
-        <div class="alert alert-danger text-center mb-2" role="alert">
-            <i class="fas fa-bell me-2"></i>
-            <span class="badge bg-light border border-success text-success fw-bold me-2" style="font-size: 0.9rem;">DESAFIOS LIBERADOS</span>
-            <strong>ATENÇÃO:</strong> 
-            <p class="mb-0">Por enquanto, no momento, <strong><u>os desafios deverão ser comunicados aqui no grupo</u></strong> e apenas os administradores efetuarão o registro na plataforma.</p>
-            <p class="mb-0 mt-1"><small>(ATTENTION: For now, <strong><u>challenges must be communicated here in the group</u></strong> and only administrators will register them on the platform.)</small></p>
+            <small>Por enquanto, <strong><u>os desafios deverão ser comunicados aqui no grupo</u></strong> e apenas os administradores efetuarão o registro.</small>
         </div>
         
         <!-- Aviso sobre atualização de HCP Index -->
-        <div class="alert alert-info text-center" role="alert">
-            <i class="fas fa-info-circle me-2"></i>
-            <strong>LEMBRETE:</strong> Atualize seu HCP Index e sua Nacionalidade/País no seu Perfil de Jogador
+        <div class="alert alert-info text-center py-1 px-2" role="alert">
+            <i class="fas fa-info-circle me-1"></i>
+            <small><strong>LEMBRETE:</strong> Atualize seu HCP Index e sua Nacionalidade/País no seu Perfil de Jogador</small>
             {% if session.user_id and not session.is_admin %}
-            <a href="{{ url_for('player_detail', player_id=session.user_id) }}" class="alert-link ms-2">
-                <i class="fas fa-arrow-right"></i> Acessar meu perfil
+            <a href="{{ url_for('player_detail', player_id=session.user_id) }}" class="alert-link ms-1">
+                <i class="fas fa-arrow-right"></i> Perfil
             </a>
             {% endif %}
         </div>
     </div>
-    
+  
     <!-- Conteúdo Principal -->
     <main class="container py-4">
         {% block content %}{% endblock %}
@@ -609,9 +600,7 @@
                         tickerElement.style.animationDuration = duration + 's';
                     });
                 </script>
-                
 
-                
                 <!-- Scripts adicionais -->
                 {% block scripts %}{% endblock %}
             </body>
