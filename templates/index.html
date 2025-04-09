@@ -3,6 +3,40 @@
 {% block title %}Ranking - Liga Olímpica de Golfe{% endblock %}
 
 {% block content %}
+<style>
+    /* Remover espaços desnecessários */
+    main.container {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+    
+    .alert {
+        margin-bottom: 0.5rem !important;
+        padding: 0.5rem !important;
+    }
+    
+    .row {
+        margin-top: 0 !important;
+    }
+    
+    h2 {
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    /* Impedir quebra de linha nas células de ações */
+    .actions-cell {
+        white-space: nowrap;
+    }
+    
+    /* Ajustes para dispositivos móveis muito pequenos */
+    @media (max-width: 360px) {
+        .actions-cell .btn {
+            padding: 0.25rem 0.4rem;
+        }
+    }
+</style>
+
 <!-- Banner de Consentimento de Cookies - Adicionar ao final do body ou como primeiro elemento -->
 <div id="cookie-consent-banner" class="position-fixed bottom-0 start-0 end-0 p-3 bg-dark text-white" style="z-index: 1050; display: none;">
     <div class="container">
@@ -75,28 +109,23 @@
 </div>
 
 {% if 'user_id' not in session %}
-<div class="alert alert-danger mb-4">
+<div class="alert alert-danger mt-0 py-1">
     <div class="d-flex align-items-center">
-        <i class="fas fa-exclamation-circle me-3 fs-3"></i>
-        <div>
-            <h4 class="alert-heading text-danger fw-bold">Acesse sua conta agora!</h4>
-            <p class="mb-0 text-danger">Para desafiar outros jogadores ou verificar se você foi desafiado, faça <a href="{{ url_for('login') }}" class="alert-link text-danger"><u>login na sua conta</u></a>. Tenha acesso a todas as funcionalidades da Liga Olímpica de Golfe.</p>
-        </div>
+        <i class="fas fa-sign-in-alt me-2"></i>
+        <small><a href="{{ url_for('login') }}" class="alert-link text-danger"><u>Faça login</u></a> para desafiar jogadores e acessar todas as funcionalidades.</small>
     </div>
 </div>
 {% endif %}
 
-<div class="row">
-    <div class="col-12 mb-3">
-        <div class="d-flex justify-content-between align-items-center">
-            <h2>Ranking de Jogadores</h2>
-        </div>
+<div class="row g-2">
+    <div class="col-12">
+        <h2 class="mb-2 fs-4">Ranking de Jogadores</h2>
     </div>
     
     <div class="col-12">
-        <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">Tabela de Classificação</h4>
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white py-1">
+                <h4 class="mb-0 fs-5">Tabela de Classificação</h4>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -126,15 +155,15 @@
                                 <td class="text-center">{{ player['tier'] }}</td>
                                 <td class="text-center actions-cell">
                                     <div class="d-flex justify-content-center gap-1">
-                                        <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-primary">
+                                        <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-primary py-0 px-1">
                                             <i class="fas fa-user"></i> <span class="d-none d-md-inline">Detalhes</span>
                                         </a>
                                         {% if 'user_id' in session %}
-                                        <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}" class="btn btn-sm btn-outline-success">
+                                        <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}" class="btn btn-sm btn-outline-success py-0 px-1">
                                             <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
                                         </a>
                                         {% else %}
-                                        <a href="{{ url_for('login') }}" class="btn btn-sm btn-danger" title="Faça login para desafiar">
+                                        <a href="{{ url_for('login') }}" class="btn btn-sm btn-danger py-0 px-1" title="Faça login para desafiar">
                                             <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
                                         </a>
                                         {% endif %}
@@ -151,9 +180,9 @@
     
     {% if inactive_players %}
     <div class="col-12">
-        <div class="card mt-2 mb-4">
-            <div class="card-header bg-secondary text-white">
-                <h4 class="mb-0">Jogadores Inativos</h4>
+        <div class="card mt-1 mb-3">
+            <div class="card-header bg-secondary text-white py-1">
+                <h4 class="mb-0 fs-5">Jogadores Inativos</h4>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -205,9 +234,9 @@
                                 </td>
                                 <td class="text-center actions-cell">
                                     <div class="d-flex justify-content-center gap-1">
-                                        <a href="{{ url_for('player_detail', player_id=player.id) }}" class="btn btn-sm btn-outline-info">Detalhes</a>
+                                        <a href="{{ url_for('player_detail', player_id=player.id) }}" class="btn btn-sm btn-outline-info py-0 px-1">Detalhes</a>
                                         {% if 'user_id' in session and session.is_admin %}
-                                        <a href="{{ url_for('reactivate_player', player_id=player.id) }}" class="btn btn-sm btn-outline-success">Reativar</a>
+                                        <a href="{{ url_for('reactivate_player', player_id=player.id) }}" class="btn btn-sm btn-outline-success py-0 px-1">Reativar</a>
                                         {% endif %}
                                     </div>
                                 </td>
@@ -221,20 +250,6 @@
     </div>
     {% endif %}
 </div>
-
-<style>
-    /* Impedir quebra de linha nas células de ações */
-    .actions-cell {
-        white-space: nowrap;
-    }
-    
-    /* Ajustes para dispositivos móveis muito pequenos */
-    @media (max-width: 360px) {
-        .actions-cell .btn {
-            padding: 0.25rem 0.4rem;
-        }
-    }
-</style>
 
 <script>
 // Script para gerenciamento de cookies e consentimento LGPD
