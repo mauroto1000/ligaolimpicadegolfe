@@ -3150,23 +3150,22 @@ def add_columns():
         return "Nenhuma alteração necessária."
 
 # Função para gerar automaticamente um novo player_code
-# Função para gerar automaticamente um novo player_code
 def generate_player_code(conn):
     """
-    Gera um novo código de jogador único no formato 'LO' + número sequencial de 3 dígitos
+    Gera um novo código de jogador único no formato 'LOG1' + número sequencial de 2 dígitos
     baseado no maior código existente no banco de dados.
     
     Args:
         conn: Conexão com o banco de dados
     
     Returns:
-        str: Novo código de jogador no formato 'LO001'
+        str: Novo código de jogador no formato 'LOG100', 'LOG101', etc.
     """
     # Buscar o maior código de jogador atual
     result = conn.execute('''
         SELECT player_code FROM players 
-        WHERE player_code LIKE 'LO%' 
-        ORDER BY LENGTH(player_code) DESC, player_code DESC 
+        WHERE player_code LIKE 'LOG1%' 
+        ORDER BY CAST(SUBSTR(player_code, 5) AS INTEGER) DESC
         LIMIT 1
     ''').fetchone()
     
@@ -3174,23 +3173,42 @@ def generate_player_code(conn):
         # Se existir algum código, extrair o número e incrementar
         current_code = result['player_code']
         try:
-            # Remover o prefixo 'LO' e converter para inteiro
-            current_number = int(current_code[2:])
-            # Incrementar o número e gerar o novo código com 3 dígitos
-            new_number = current_number + 1
-            new_code = f"LO{new_number:03d}"  # Formata como 3 dígitos (001, 002, etc.)
-        except ValueError:
-            # Caso haja algum problema ao extrair o número, começar do 1
-            new_code = "LO001"
+            # Remover o prefixo 'LOG1' e converter para inteiro
+            # Tratar apenas caracteres numéricos após o prefixo
+            numeric_part = ''.join(filter(str.isdigit, current_code[4:]))
+            if numeric_part:
+                current_number = int(numeric_part)
+                # Incrementar o número e gerar o novo código com 2 dígitos
+                new_number = current_number + 1
+            else:
+                # Se não houver parte numérica válida, começar do 0
+                new_number = 0
+            
+            new_code = f"LOG1{new_number:02d}"  # Formata como 2 dígitos (00, 01, etc.)
+        except (ValueError, IndexError):
+            # Caso haja algum problema ao extrair o número, começar do 0
+            new_code = "LOG100"
     else:
-        # Se não existir nenhum código, começar do 1
-        new_code = "LO001"
+        # Se não existir nenhum código, começar do 0
+        new_code = "LOG100"
+    
+    # Verificar se o código já existe (para evitar duplicatas)
+    existing = conn.execute('SELECT COUNT(*) as count FROM players WHERE player_code = ?', 
+                           (new_code,)).fetchone()
+    
+    if existing and existing['count'] > 0:
+        # Se já existe, incrementar até encontrar um código disponível
+        base_number = int(new_code[4:])
+        while True:
+            base_number += 1
+            test_code = f"LOG1{base_number:02d}"
+            check = conn.execute('SELECT COUNT(*) as count FROM players WHERE player_code = ?', 
+                               (test_code,)).fetchone()
+            if not check or check['count'] == 0:
+                return test_code
     
     return new_code
 
-# Modificação da função add_player para incluir a geração automática do player_code
-# Esta é uma versão modificada da função add_player que inclui a seleção de país
-# Você pode substituir a função existente por esta versão
 
 @app.route('/add_player', methods=['GET', 'POST'])
 def add_player():
