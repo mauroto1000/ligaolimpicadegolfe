@@ -2320,23 +2320,28 @@ def new_challenge():
         
         # Regras existentes sobre tiers que se aplicam mesmo a admins 
         # (garantindo consistência da pirâmide)
-        if not error and not is_admin:  # Corrigido: Não aplicar regras de tier para admins
+        # No arquivo app.py, na função new_challenge, modificar a verificação de tiers:
+        if not error and not is_admin:  # Não aplicar regras de tier para admins
             # Regra: Desafio apenas uma linha acima
             challenger_tier = challenger['tier']
             challenged_tier = challenged['tier']
             
-            # Calcular a diferença de níveis (em termos de "distância alfabética")
-            tier_difference = ord(challenger_tier) - ord(challenged_tier)
-            
-            # Se o tier_difference é negativo, o desafiado está abaixo do desafiante (erro)
-            if tier_difference < 0:
-                error = "Você só pode desafiar jogadores de níveis acima do seu."
-            # Se o tier_difference > 1, o desafiado está mais que uma linha acima (erro)
-            elif tier_difference > 1:
-                error = "Você só pode desafiar jogadores até uma linha acima da sua."
-            # Verificar se o desafiado tem posição melhor (menor numericamente)
-            elif challenged['position'] > challenger['position']:
-                error = "Você só pode desafiar jogadores em posições melhores que a sua."
+            # Verificar se o tier é A ou B (níveis especiais de play-off)
+            if challenged_tier in ['A', 'B']:
+                error = "Não é possível desafiar jogadores dos níveis A ou B. Esses níveis são reservados para os vencedores do play-off."
+            else:
+                # Calcular a diferença de níveis (em termos de "distância alfabética")
+                tier_difference = ord(challenger_tier) - ord(challenged_tier)
+                
+                # Se o tier_difference é negativo, o desafiado está abaixo do desafiante (erro)
+                if tier_difference < 0:
+                    error = "Você só pode desafiar jogadores de níveis acima do seu."
+                # Se o tier_difference > 1, o desafiado está mais que uma linha acima (erro)
+                elif tier_difference > 1:
+                    error = "Você só pode desafiar jogadores até uma linha acima da sua."
+                # Verificar se o desafiado tem posição melhor (menor numericamente)
+                elif challenged['position'] > challenger['position']:
+                    error = "Você só pode desafiar jogadores em posições melhores que a sua."
         
         if error:
             conn.close()
