@@ -277,89 +277,6 @@
         border: 6px solid #dc3545;  /* Borda vermelha */
     }
 
-    /* Estilos para o quadro de play-offs */
-    .playoffs-container {
-        border: 2px dashed #28a745;
-        padding: 15px;
-        margin-bottom: 20px;
-        border-radius: 5px;
-        background-color: #f8f9fa;
-    }
-
-    .playoffs-title {
-        text-align: center;
-        margin-bottom: 15px;
-        color: #28a745;
-        font-weight: bold;
-    }
-
-    .playoffs-bracket {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-    }
-
-    .match {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .match-player {
-        width: 180px;
-        background-color: white;
-        border: 1px solid #002970;
-        padding: 8px;
-        margin: 3px 0;
-        text-align: left;
-        position: relative;
-        font-size: 14px;
-    }
-
-    .match-connector {
-        width: 20px;
-        height: 50px;
-        border-right: 2px solid #002970;
-        border-top: 2px solid #002970;
-        border-bottom: 2px solid #002970;
-    }
-
-    .match-vs {
-        margin: 5px 0;
-        font-weight: bold;
-        color: #555;
-    }
-
-    .final-connector {
-        width: 50px;
-        height: 2px;
-        background-color: #002970;
-        margin: 0 10px;
-    }
-
-    .final-result {
-        width: 180px;
-        background-color: white;
-        border: 2px solid #002970;
-        padding: 12px;
-        text-align: center;
-        font-weight: bold;
-        margin-top: 42px;
-    }
-
-    .player-number {
-        font-weight: bold;
-        margin-right: 5px;
-    }
-
-    .playoffs-date {
-        text-align: right;
-        font-style: italic;
-        color: #666;
-        margin-top: 10px;
-    }
-
     /* Classes para dispositivos móveis */
     @media (max-width: 767px) {
         .pyramid-container {
@@ -428,28 +345,6 @@
             top: 2px !important;
             right: 2px !important;
         }
-
-        /* Ajustes playoffs para mobile */
-        .playoffs-bracket {
-            flex-direction: column;
-            gap: 30px;
-        }
-
-        .match-connector {
-            display: none;
-        }
-
-        .final-connector {
-            display: none;
-        }
-
-        .final-result {
-            margin-top: 0;
-        }
-
-        .match-player {
-            width: 150px;
-        }
     }
 
     /* Para telas muito pequenas */
@@ -502,11 +397,6 @@
             top: 2px !important;
             right: 2px !important;
         }
-
-        .match-player {
-            width: 130px;
-            font-size: 12px;
-        }
     }
 </style>
 {% endblock %}
@@ -532,102 +422,6 @@
             </div>
             
             <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">Voltar para Lista</a>
-        </div>
-        
-        <!-- Quadro de Play-offs -->
-        <div class="playoffs-container">
-            <div class="playoffs-title">PLAY-OFFS NOVEMBRO/2025</div>
-            
-            <div class="playoffs-bracket">
-                <!-- Semifinais -->
-                <div class="semifinals">
-                    <!-- Semifinal 1 -->
-                    <div class="match">
-                        {% set player1 = None %}
-                        {% set player4 = None %}
-                        
-                        {% for tier_letter, tier_players in tiers %}
-                            {% if tier_letter == 'C' %}
-                                {% for player in tier_players %}
-                                    {% if player.position == 1 %}
-                                        {% set player1 = player %}
-                                    {% elif player.position == 4 %}
-                                        {% set player4 = player %}
-                                    {% endif %}
-                                {% endfor %}
-                            {% endif %}
-                        {% endfor %}
-                        
-                        <div class="match-player">
-                            <span class="player-number">#1 –</span>
-                            {% if player1 %}
-                                {{ player1.name }}
-                            {% else %}
-                                Jogador #1
-                            {% endif %}
-                        </div>
-                        <div class="match-vs">vs</div>
-                        <div class="match-player">
-                            <span class="player-number">#4 –</span>
-                            {% if player4 %}
-                                {{ player4.name }}
-                            {% else %}
-                                Jogador #4
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="match-connector"></div>
-                
-                <!-- Final -->
-                <div class="final-connector"></div>
-                <div class="final-result">
-                    CAMPEÃO<br>(29/11/2025)
-                </div>
-                <div class="final-connector"></div>
-                
-                <!-- Semifinais -->
-                <div class="match-connector"></div>
-                
-                <div class="semifinals">
-                    <!-- Semifinal 2 -->
-                    <div class="match">
-                        {% set player2 = None %}
-                        {% set player3 = None %}
-                        
-                        {% for tier_letter, tier_players in tiers %}
-                            {% if tier_letter == 'C' %}
-                                {% for player in tier_players %}
-                                    {% if player.position == 2 %}
-                                        {% set player2 = player %}
-                                    {% elif player.position == 3 %}
-                                        {% set player3 = player %}
-                                    {% endif %}
-                                {% endfor %}
-                            {% endif %}
-                        {% endfor %}
-                        
-                        <div class="match-player">
-                            <span class="player-number">#2 –</span>
-                            {% if player2 %}
-                                {{ player2.name }}
-                            {% else %}
-                                Jogador #2
-                            {% endif %}
-                        </div>
-                        <div class="match-vs">vs</div>
-                        <div class="match-player">
-                            <span class="player-number">#3 –</span>
-                            {% if player3 %}
-                                {{ player3.name }}
-                            {% else %}
-                                Jogador #3
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
         
         <!-- Legenda - Versão final -->
