@@ -693,21 +693,19 @@ if __name__ == '__main__':
     # Criar tabelas de autenticação
     create_authentication_tables()
 
-# Definição fixa da estrutura da pirâmide: quais posições pertencem a cada nível
-# Seguindo o padrão tradicional de pirâmide: 1 posição no topo, depois 2, 3, 4, etc.
+# NOVA ESTRUTURA DA PIRAMIDE
 PYRAMID_STRUCTURE = {
-    'A': [1],                      # Nível A: 1 posição
-    'B': [2, 3],                   # Nível B: 2 posições
-    'C': [4, 5, 6],                # Nível C: 3 posições
-    'D': [7, 8, 9, 10],            # Nível D: 4 posições
-    'E': [11, 12, 13, 14, 15],     # Nível E: 5 posições
-    'F': [16, 17, 18, 19, 20, 21], # Nível F: 6 posições
-    'G': [22, 23, 24, 25, 26, 27, 28], # Nível G: 7 posições
-    'H': [29, 30, 31, 32, 33, 34, 35, 36], # Nível H: 8 posições
-    'I': [37, 38, 39, 40, 41, 42, 43, 44, 45], # Nível I: 9 posições
-    'J': [46, 47, 48, 49, 50, 51, 52, 53, 54, 55], # Nível J: 10 posições
-    'K': [56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66] # Nível K: 11 posições
+    'C': [1, 2, 3, 4],                       # Nível A: 4 posições
+    'D': [5, 6, 7, 8, 9, 10],                # Nível B: 6 posições
+    'E': [11, 12, 13, 14, 15, 16, 17, 18],   # Nível C: 8 posições
+    'F': [19, 20, 21, 22, 23, 24, 25, 26, 27, 28], # Nível D: 10 posições
+    'G': [29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40], # Nível E: 12 posições
+    'H': [41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54], # Nível F: 14 posições
+    'I': [55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70], # Nível G: 16 posições
+    'J': [71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88], # Nível H: 18 posições
+    # Se precisar continuar com mais níveis, basta adicionar seguindo o mesmo padrão
 }
+
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
@@ -1164,7 +1162,7 @@ def fix_history():
 def get_tier_from_position(position):
     """
     Determina o nível (tier) com base na posição na pirâmide.
-    Segue o padrão tradicional de pirâmide: n posições no nível n.
+    Nova versão que começa do tier C.
     """
     # Verificar em cada tier definido na estrutura
     for tier, positions in PYRAMID_STRUCTURE.items():
@@ -1174,29 +1172,28 @@ def get_tier_from_position(position):
     # Para posições que excederam a estrutura definida
     # Cálculo automático para tiers adicionais
     
-    # Primeiro, determinar o último número do último tier definido
+    # Primeiro, determinar a posição inicial do próximo tier após os definidos
     last_tier_letter = list(PYRAMID_STRUCTURE.keys())[-1]
-    last_tier_number = ord(last_tier_letter) - ord('A') + 1  # A=1, B=2, etc.
-    last_position = max(PYRAMID_STRUCTURE[last_tier_letter])
+    last_tier_positions = PYRAMID_STRUCTURE[last_tier_letter]
+    next_position = max(last_tier_positions) + 1
     
-    # Agora calcular para posições maiores
-    current_tier_number = last_tier_number
-    current_tier_start = last_position + 1
+    # Cálculo do tamanho do próximo tier (2 a mais que o anterior)
+    tier_index = ord(last_tier_letter) - ord('C')  # C=0, D=1, etc. (modificado para começar de C)
+    next_tier_size = 4 + (2 * tier_index) + 2  # 4 + (2*tier_index) é o tamanho do último tier, +2 para o próximo
     
-    while True:
-        current_tier_number += 1
-        current_tier_size = current_tier_number  # Cada tier tem tantas posições quanto seu número
-        current_tier_end = current_tier_start + current_tier_size - 1
-        
-        if position >= current_tier_start and position <= current_tier_end:
-            # Converter número do tier de volta para letra (12 = L, 13 = M, etc.)
-            return chr(ord('A') + current_tier_number - 1)
-        
-        current_tier_start = current_tier_end + 1
-        
-        # Salvaguarda para evitar loop infinito
-        if current_tier_number > 100:
-            return 'Z'  # Tier final para posições extremamente altas
+    # Calcular em qual tier a posição se encaixa
+    tier_letter = last_tier_letter
+    current_position = next_position
+    current_tier_size = next_tier_size
+    
+    while current_position <= position:
+        # Avançar para o próximo tier
+        tier_letter = chr(ord(tier_letter) + 1)
+        current_position += current_tier_size
+        current_tier_size += 2  # Cada tier tem 2 posições a mais que o anterior
+    
+    # Voltar um tier, pois fomos longe demais
+    return chr(ord(tier_letter) - 1)
 
 # Função para atualizar todos os tiers baseado nas posições atuais
 def update_all_tiers(conn):
