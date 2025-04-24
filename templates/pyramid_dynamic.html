@@ -277,6 +277,20 @@
         border: 6px solid #dc3545;  /* Borda vermelha */
     }
 
+    /* Estilos para blocos especiais A e B */
+    .pyramid-cell.special-block {
+        background-color: white !important;
+        color: #003366 !important;
+        border: 2px solid #003366 !important;
+        border-radius: 0 !important;
+        cursor: default !important;
+    }
+
+    .pyramid-cell.special-block:hover {
+        transform: none !important;
+        box-shadow: none !important;
+    }
+
     /* Classes para dispositivos móveis */
     @media (max-width: 767px) {
         .pyramid-container {
@@ -450,7 +464,43 @@
                 
         <!-- Container da pirâmide -->
         <div class="pyramid-container">
-            <!-- As linhas da pirâmide serão construídas aqui -->
+            <!-- Níveis A e B: Blocos especiais para Play-off -->
+            <div class="pyramid-row" data-tier="A">
+                <!-- Célula com a letra do tier -->
+                <div class="pyramid-cell first-col">
+                    A
+                </div>
+                
+                <!-- Célula para o campeão -->
+                <div class="pyramid-cell special-block">
+                    <span class="player-name">
+                        CAMPEÃO
+                    </span>
+                </div>
+            </div>
+            
+            <div class="pyramid-row" data-tier="B">
+                <!-- Célula com a letra do tier -->
+                <div class="pyramid-cell first-col">
+                    B
+                </div>
+                
+                <!-- Célula para o vice-campeão -->
+                <div class="pyramid-cell special-block">
+                    <span class="player-name">
+                        VICE CAMPEÃO
+                    </span>
+                </div>
+                
+                <!-- Célula para o 3º lugar -->
+                <div class="pyramid-cell special-block">
+                    <span class="player-name">
+                        3o. LUGAR
+                    </span>
+                </div>
+            </div>
+            
+            <!-- As linhas da pirâmide para os níveis C e abaixo -->
             {% for tier_letter, players in tiers %}
                 <div class="pyramid-row" data-tier="{{ tier_letter }}">
                     <!-- Célula com a letra do tier -->
@@ -601,7 +651,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const clearSearch = document.getElementById('clearSearch');
     const searchResults = document.getElementById('searchResults');
     const pyramidRows = document.querySelectorAll('.pyramid-row');
-    const playerCells = document.querySelectorAll('.pyramid-cell:not(.first-col)');
+    const playerCells = document.querySelectorAll('.pyramid-cell:not(.first-col):not(.special-block)');
     const mobileMenuToggle = document.getElementById('mobileMenuToggle');
     const mobileMenu = document.getElementById('mobileMenu');
     
@@ -612,83 +662,94 @@ document.addEventListener('DOMContentLoaded', function() {
         let visiblePlayers = 0;
         let visibleRows = new Set();
         
-        // Esconder todas as linhas primeiro
+        // Nunca esconder os níveis A e B
         pyramidRows.forEach(row => {
-            row.style.display = 'none';
+            const tier = row.getAttribute('data-tier');
+            if (tier === 'A' || tier === 'B') {
+                row.style.display = 'flex';
+                visibleRows.add(tier);
+            } else {
+                row.style.display = 'none';
+            }
         });
         
         // Filtrar jogadores
         playerCells.forEach(cell => {
-                    const playerName = cell.getAttribute('data-player-name');
-                    const playerTier = cell.closest('.pyramid-row').getAttribute('data-tier');
-                    
-                    // Verificar se atende o critério de busca
-                    const matchesSearch = searchTerm === '' || playerName.includes(searchTerm);
-                    
-                    // Aplicar visibilidade
-                    if (matchesSearch) {
-                        cell.style.display = 'flex';
-                        visiblePlayers++;
-                        visibleRows.add(playerTier);
-                        
-                        // Destaque ao pesquisar
-                        if (searchTerm !== '') {
-                            cell.style.transform = 'scale(1.05)';
-                            cell.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
-                            cell.style.zIndex = '5';
-                            
-                            // Remover destaque após 2 segundos
-                            setTimeout(() => {
-                                cell.style.transform = '';
-                                cell.style.boxShadow = '';
-                                cell.style.zIndex = '';
-                            }, 2000);
-                        } else {
-                            cell.style.transform = '';
-                            cell.style.boxShadow = '';
-                            cell.style.zIndex = '';
-                        }
-                    } else {
-                        cell.style.display = 'none';
-                    }
-                });
-                
-                // Mostrar linhas com jogadores visíveis
-                pyramidRows.forEach(row => {
-                    const tier = row.getAttribute('data-tier');
-                    if (visibleRows.has(tier)) {
-                        row.style.display = 'flex';
-                    }
-                });
-                
-                // Atualizar mensagem de resultados
-                if (visiblePlayers === 0 && searchTerm !== '') {
-                    searchResults.style.display = 'block';
-                } else {
-                    searchResults.style.display = 'none';
-                }
+            const playerName = cell.getAttribute('data-player-name');
+            const playerTier = cell.closest('.pyramid-row').getAttribute('data-tier');
+            
+            // Pular células dos níveis A e B
+            if (playerTier === 'A' || playerTier === 'B') {
+                return;
             }
             
-            // Event listeners para busca
-            playerSearch.addEventListener('input', applySearch);
+            // Verificar se atende o critério de busca
+            const matchesSearch = searchTerm === '' || playerName.includes(searchTerm);
             
-            // Limpar pesquisa
-            clearSearch.addEventListener('click', function() {
-                playerSearch.value = '';
-                applySearch();
-            });
-            
-            // Toggle do menu móvel
-            mobileMenuToggle.addEventListener('click', function() {
-                mobileMenu.classList.toggle('show');
-            });
-            
-            // Fechar menu móvel ao clicar fora dele
-            document.addEventListener('click', function(event) {
-                if (!mobileMenu.contains(event.target) && event.target !== mobileMenuToggle) {
-                    mobileMenu.classList.remove('show');
+            // Aplicar visibilidade
+            if (matchesSearch) {
+                cell.style.display = 'flex';
+                visiblePlayers++;
+                visibleRows.add(playerTier);
+                
+                // Destaque ao pesquisar
+                if (searchTerm !== '') {
+                    cell.style.transform = 'scale(1.05)';
+                    cell.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                    cell.style.zIndex = '5';
+                    
+                    // Remover destaque após 2 segundos
+                    setTimeout(() => {
+                        cell.style.transform = '';
+                        cell.style.boxShadow = '';
+                        cell.style.zIndex = '';
+                    }, 2000);
+                } else {
+                    cell.style.transform = '';
+                    cell.style.boxShadow = '';
+                    cell.style.zIndex = '';
                 }
-            });
+            } else {
+                cell.style.display = 'none';
+            }
         });
-        </script>
+        
+        // Mostrar linhas com jogadores visíveis
+        pyramidRows.forEach(row => {
+            const tier = row.getAttribute('data-tier');
+            if (visibleRows.has(tier)) {
+                row.style.display = 'flex';
+            }
+        });
+        
+        // Atualizar mensagem de resultados
+        if (visiblePlayers === 0 && searchTerm !== '') {
+            searchResults.style.display = 'block';
+        } else {
+            searchResults.style.display = 'none';
+        }
+    }
+    
+    // Event listeners para busca
+    playerSearch.addEventListener('input', applySearch);
+    
+    // Limpar pesquisa
+    clearSearch.addEventListener('click', function() {
+        playerSearch.value = '';
+        applySearch();
+    });
+    
+    // Toggle do menu móvel
+    mobileMenuToggle.addEventListener('click', function() {
+        mobileMenu.classList.toggle('show');
+    });
+    
+    // Fechar menu móvel ao clicar fora dele
+    document.addEventListener('click', function(event) {
+        if (!mobileMenu.contains(event.target) && event.target !== mobileMenuToggle) {
+            mobileMenu.classList.remove('show');
+        }
+    });
+});
+</script>
 {% endblock %}
