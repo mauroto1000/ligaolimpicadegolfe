@@ -450,7 +450,7 @@
                 
         <!-- Container da pirâmide -->
         <div class="pyramid-container">
-            <!-- As linhas da pirâmide serão construídas aqui -->
+            <!-- As linhas da pirâmide para os níveis C e abaixo -->
             {% for tier_letter, players in tiers %}
                 <div class="pyramid-row" data-tier="{{ tier_letter }}">
                     <!-- Célula com a letra do tier -->
@@ -619,76 +619,76 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Filtrar jogadores
         playerCells.forEach(cell => {
-                    const playerName = cell.getAttribute('data-player-name');
-                    const playerTier = cell.closest('.pyramid-row').getAttribute('data-tier');
-                    
-                    // Verificar se atende o critério de busca
-                    const matchesSearch = searchTerm === '' || playerName.includes(searchTerm);
-                    
-                    // Aplicar visibilidade
-                    if (matchesSearch) {
-                        cell.style.display = 'flex';
-                        visiblePlayers++;
-                        visibleRows.add(playerTier);
-                        
-                        // Destaque ao pesquisar
-                        if (searchTerm !== '') {
-                            cell.style.transform = 'scale(1.05)';
-                            cell.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
-                            cell.style.zIndex = '5';
-                            
-                            // Remover destaque após 2 segundos
-                            setTimeout(() => {
-                                cell.style.transform = '';
-                                cell.style.boxShadow = '';
-                                cell.style.zIndex = '';
-                            }, 2000);
-                        } else {
-                            cell.style.transform = '';
-                            cell.style.boxShadow = '';
-                            cell.style.zIndex = '';
-                        }
-                    } else {
-                        cell.style.display = 'none';
-                    }
-                });
+            const playerName = cell.getAttribute('data-player-name');
+            const playerTier = cell.closest('.pyramid-row').getAttribute('data-tier');
+            
+            // Verificar se atende o critério de busca
+            const matchesSearch = searchTerm === '' || playerName.includes(searchTerm);
+            
+            // Aplicar visibilidade
+            if (matchesSearch) {
+                cell.style.display = 'flex';
+                visiblePlayers++;
+                visibleRows.add(playerTier);
                 
-                // Mostrar linhas com jogadores visíveis
-                pyramidRows.forEach(row => {
-                    const tier = row.getAttribute('data-tier');
-                    if (visibleRows.has(tier)) {
-                        row.style.display = 'flex';
-                    }
-                });
-                
-                // Atualizar mensagem de resultados
-                if (visiblePlayers === 0 && searchTerm !== '') {
-                    searchResults.style.display = 'block';
+                // Destaque ao pesquisar
+                if (searchTerm !== '') {
+                    cell.style.transform = 'scale(1.05)';
+                    cell.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                    cell.style.zIndex = '5';
+                    
+                    // Remover destaque após 2 segundos
+                    setTimeout(() => {
+                        cell.style.transform = '';
+                        cell.style.boxShadow = '';
+                        cell.style.zIndex = '';
+                    }, 2000);
                 } else {
-                    searchResults.style.display = 'none';
+                    cell.style.transform = '';
+                    cell.style.boxShadow = '';
+                    cell.style.zIndex = '';
                 }
+            } else {
+                cell.style.display = 'none';
             }
-            
-            // Event listeners para busca
-            playerSearch.addEventListener('input', applySearch);
-            
-            // Limpar pesquisa
-            clearSearch.addEventListener('click', function() {
-                playerSearch.value = '';
-                applySearch();
-            });
-            
-            // Toggle do menu móvel
-            mobileMenuToggle.addEventListener('click', function() {
-                mobileMenu.classList.toggle('show');
-            });
-            
-            // Fechar menu móvel ao clicar fora dele
-            document.addEventListener('click', function(event) {
-                if (!mobileMenu.contains(event.target) && event.target !== mobileMenuToggle) {
-                    mobileMenu.classList.remove('show');
-                }
-            });
         });
-        </script>
+        
+        // Mostrar linhas com jogadores visíveis
+        pyramidRows.forEach(row => {
+            const tier = row.getAttribute('data-tier');
+            if (visibleRows.has(tier)) {
+                row.style.display = 'flex';
+            }
+        });
+        
+        // Atualizar mensagem de resultados
+        if (visiblePlayers === 0 && searchTerm !== '') {
+            searchResults.style.display = 'block';
+        } else {
+            searchResults.style.display = 'none';
+        }
+    }
+    
+    // Event listeners para busca
+    playerSearch.addEventListener('input', applySearch);
+    
+    // Limpar pesquisa
+    clearSearch.addEventListener('click', function() {
+        playerSearch.value = '';
+        applySearch();
+    });
+    
+    // Toggle do menu móvel
+    mobileMenuToggle.addEventListener('click', function() {
+        mobileMenu.classList.toggle('show');
+    });
+    
+    // Fechar menu móvel ao clicar fora dele
+    document.addEventListener('click', function(event) {
+        if (!mobileMenu.contains(event.target) && event.target !== mobileMenuToggle) {
+            mobileMenu.classList.remove('show');
+        }
+    });
+});
+</script>
 {% endblock %}
