@@ -43,6 +43,30 @@
         transition: transform 0.2s ease, box-shadow 0.2s ease;
         overflow: visible !important;
     }
+    
+    /* Estilo especial para células dos níveis A e B */
+    .pyramid-cell.top-tier {
+        background-color: white;
+        color: #002970;
+        border: 1px solid #002970;
+    }
+    
+    .pyramid-cell.top-tier .player-position {
+        color: #002970;
+        background-color: rgba(0,0,0,0.1);
+    }
+    
+    .pyramid-cell.top-tier .title-text {
+        font-weight: bold;
+        font-size: 14px;
+        color: #002970;
+    }
+    
+    .pyramid-cell.top-tier .date-text {
+        font-size: 12px;
+        color: red;
+        margin-top: 5px;
+    }
 
     /* Cores e efeitos de hover para células */
     .pyramid-cell {
@@ -450,6 +474,50 @@
                 
         <!-- Container da pirâmide -->
         <div class="pyramid-container">
+            <!-- NOVO: Adicionar linhas para os níveis A e B no topo da pirâmide -->
+            <!-- Nível A -->
+            <div class="pyramid-row" data-tier="A">
+                <!-- Célula com a letra do tier -->
+                <div class="pyramid-cell first-col">
+                    A
+                </div>
+                <!-- Célula para CAMPEÃO -->
+                <div class="pyramid-cell top-tier" onclick="window.location='#'">
+                    <div class="pyramid-tooltip">
+                        <strong>CAMPEÃO</strong><br>
+                        <small>Posição ilustrativa</small>
+                    </div>
+                    <span class="title-text">CAMPEÃO</span>
+                    <span class="date-text">29/11/2025</span>
+                </div>
+            </div>
+            
+            <!-- Nível B -->
+            <div class="pyramid-row" data-tier="B">
+                <!-- Célula com a letra do tier -->
+                <div class="pyramid-cell first-col">
+                    B
+                </div>
+                <!-- Célula para VICE-CAMPEÃO -->
+                <div class="pyramid-cell top-tier" onclick="window.location='#'">
+                    <div class="pyramid-tooltip">
+                        <strong>VICE-CAMPEÃO</strong><br>
+                        <small>Posição ilustrativa</small>
+                    </div>
+                    <span class="title-text">VICE-CAMPEÃO</span>
+                    <span class="date-text">29/11/2025</span>
+                </div>
+                <!-- Célula para 3o. LUGAR -->
+                <div class="pyramid-cell top-tier" onclick="window.location='#'">
+                    <div class="pyramid-tooltip">
+                        <strong>3o. LUGAR</strong><br>
+                        <small>Posição ilustrativa</small>
+                    </div>
+                    <span class="title-text">3o. LUGAR</span>
+                    <span class="date-text">29/11/2025</span>
+                </div>
+            </div>
+            
             <!-- As linhas da pirâmide para os níveis C e abaixo -->
             {% for tier_letter, players in tiers %}
                 <div class="pyramid-row" data-tier="{{ tier_letter }}">
@@ -623,7 +691,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const playerTier = cell.closest('.pyramid-row').getAttribute('data-tier');
             
             // Verificar se atende o critério de busca
-            const matchesSearch = searchTerm === '' || playerName.includes(searchTerm);
+            const matchesSearch = searchTerm === '' || playerName && playerName.includes(searchTerm);
             
             // Aplicar visibilidade
             if (matchesSearch) {
@@ -660,6 +728,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 row.style.display = 'flex';
             }
         });
+        
+        // Sempre mostrar os níveis A e B, que são ilustrativos
+        const tierARow = document.querySelector('.pyramid-row[data-tier="A"]');
+        const tierBRow = document.querySelector('.pyramid-row[data-tier="B"]');
+        if (tierARow) tierARow.style.display = 'flex';
+        if (tierBRow) tierBRow.style.display = 'flex';
         
         // Atualizar mensagem de resultados
         if (visiblePlayers === 0 && searchTerm !== '') {
