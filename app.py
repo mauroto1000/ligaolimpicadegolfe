@@ -4,7 +4,8 @@ from datetime import datetime, timedelta
 import os
 from functools import wraps
 import hashlib
-from datetime import datetime, timedelta
+from werkzeug.utils import secure_filename  # Adicione esta linha
+import json
 
 # Adicionando session config
 app = Flask(__name__)
@@ -47,59 +48,70 @@ def allowed_file(filename):
 @app.route('/upload_profile_photo/<int:player_id>', methods=['POST'])
 @login_required
 def upload_profile_photo(player_id):
-    # Verificar se é o próprio jogador ou um admin
-    if not (session.get('user_id') == player_id or session.get('is_admin', False)):
-        flash('Acesso negado. Você só pode alterar sua própria foto de perfil.', 'error')
-        return redirect(url_for('player_detail', player_id=player_id))
+    try:
+        # Verificar se é o próprio jogador ou um admin
+        if not (session.get('user_id') == player_id or session.get('is_admin', False)):
+            flash('Acesso negado. Você só pode alterar sua própria foto de perfil.', 'error')
+            return redirect(url_for('player_detail', player_id=player_id))
+        
+        # Verificar se o arquivo foi enviado
+        if 'profile_photo' not in request.files:
+            flash('Nenhum arquivo enviado.', 'error')
+            return redirect(url_for('player_detail', player_id=player_id))
+        
+        file = request.files['profile_photo']
+        
+        # Se usuário não selecionar um arquivo, o navegador envia um arquivo vazio
+        if file.filename == '':
+            flash('Nenhum arquivo selecionado.', 'error')
+            return redirect(url_for('player_detail', player_id=player_id))
+        
+        if file and allowed_file(file.filename):
+            # Criar nome de arquivo seguro e único
+            filename = secure_filename(f"player_{player_id}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            
+            # Salvar o arquivo
+            file.save(file_path)
+            
+            # Atualizar o banco de dados
+            conn = get_db_connection()
+            
+            # Obter o caminho da foto anterior (se existir)
+            old_photo = conn.execute('SELECT profile_photo FROM players WHERE id = ?', 
+                                  (player_id,)).fetchone()
+            
+            # Atualizar para o novo caminho
+            conn.execute('UPDATE players SET profile_photo = ? WHERE id = ?', 
+                        (filename, player_id))
+            conn.commit()
+            
+            # Remover a foto antiga se existir
+            if old_photo and old_photo['profile_photo']:
+                try:
+                    old_file_path = os.path.join(app.config['UPLOAD_FOLDER'], old_photo['profile_photo'])
+                    if os.path.exists(old_file_path):
+                        os.remove(old_file_path)
+                except Exception as e:
+                    print(f"Erro ao remover arquivo antigo: {e}")
+            
+            conn.close()
+            
+            flash('Foto de perfil atualizada com sucesso!', 'success')
+            return redirect(url_for('player_detail', player_id=player_id))
+        else:
+            flash('Tipo de arquivo não permitido. Use apenas JPG, PNG ou GIF.', 'error')
+            return redirect(url_for('player_detail', player_id=player_id))
     
-    # Verificar se o arquivo foi enviado
-    if 'profile_photo' not in request.files:
-        flash('Nenhum arquivo enviado.', 'error')
+    except Exception as e:
+        # Imprimir o erro no console do servidor para depuração
+        import traceback
+        print(f"Erro no upload de foto: {str(e)}")
+        print(traceback.format_exc())
+        flash(f'Erro ao processar o upload: {str(e)}', 'error')
         return redirect(url_for('player_detail', player_id=player_id))
-    
-    file = request.files['profile_photo']
-    
-    # Se usuário não selecionar um arquivo, o navegador envia um arquivo vazio
-    if file.filename == '':
-        flash('Nenhum arquivo selecionado.', 'error')
-        return redirect(url_for('player_detail', player_id=player_id))
-    
-    if file and allowed_file(file.filename):
-        # Criar nome de arquivo seguro e único
-        filename = secure_filename(f"player_{player_id}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
-        # Salvar o arquivo
-        file.save(file_path)
-        
-        # Atualizar o banco de dados
-        conn = get_db_connection()
-        
-        # Obter o caminho da foto anterior (se existir)
-        old_photo = conn.execute('SELECT profile_photo FROM players WHERE id = ?', 
-                              (player_id,)).fetchone()
-        
-        # Atualizar para o novo caminho
-        conn.execute('UPDATE players SET profile_photo = ? WHERE id = ?', 
-                   (filename, player_id))
-        conn.commit()
-        
-        # Remover a foto antiga se existir
-        if old_photo and old_photo['profile_photo']:
-            try:
-                old_file_path = os.path.join(app.config['UPLOAD_FOLDER'], old_photo['profile_photo'])
-                if os.path.exists(old_file_path):
-                    os.remove(old_file_path)
-            except Exception as e:
-                print(f"Erro ao remover arquivo antigo: {e}")
-        
-        conn.close()
-        
-        flash('Foto de perfil atualizada com sucesso!', 'success')
-        return redirect(url_for('player_detail', player_id=player_id))
-    else:
-        flash('Tipo de arquivo não permitido. Use apenas JPG, PNG ou GIF.', 'error')
-        return redirect(url_for('player_detail', player_id=player_id))
+
+
 
 @app.route('/remove_profile_photo/<int:player_id>', methods=['POST'])
 @login_required
@@ -4779,15 +4791,15 @@ if __name__ == '__main__':
         print("Adicionando coluna 'hcp_last_update' à tabela players...")
         cursor.execute('ALTER TABLE players ADD COLUMN hcp_last_update DATETIME')
     
-
+    if 'profile_photo' not in column_names:
+        print("Adicionando coluna 'profile_photo' à tabela players...")
+        cursor.execute('ALTER TABLE players ADD COLUMN profile_photo TEXT DEFAULT NULL')
     
     conn.commit()
     conn.close()
 
-   # Criar a tabela de histórico de HCP
+    # Criar a tabela de histórico de HCP
     create_hcp_history_table()
-
-
     
     # Criar a tabela de histórico diário se não existir
     create_daily_history_table()
@@ -4795,17 +4807,15 @@ if __name__ == '__main__':
     # Adicionar coluna de prazo de resposta à tabela de desafios
     add_response_deadline_column()
 
-
     # Adicionar coluna de país se não existir
     add_country_column()
 
-
     # Criar tabela de configurações do sistema
     create_system_settings_table()
-
-
-
-  
+    
+    # Garantir que a pasta para fotos existe
+    os.makedirs('static/profile_photos', exist_ok=True)
+    
     # Verificar e corrigir a estrutura da pirâmide
     print("Realizando verificação inicial da pirâmide...")
     conn = get_db_connection()
