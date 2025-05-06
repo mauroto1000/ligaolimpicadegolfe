@@ -134,8 +134,19 @@ def get_db_connection():
 
 # Função auxiliar para gerar hash de senha
 def hash_password(password):
-    # Método simples de hash para senhas
-    return hashlib.sha256(password.encode()).hexdigest()
+    """
+    Método consistente de hash para senhas usando SHA-256.
+    Garante que o mesmo password sempre produza o mesmo hash.
+    """
+    # Garante que a senha é uma string
+    if not isinstance(password, str):
+        password = str(password)
+    
+    # Codifica a senha para bytes e aplica o hash
+    encoded_password = password.encode('utf-8')
+    hashed = hashlib.sha256(encoded_password).hexdigest()
+    
+    return hashed
 
 # Função para criar tabela de usuários e campos de senha na tabela players
 def create_authentication_tables():
@@ -275,30 +286,23 @@ def login():
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        player_code = request.form.get('player_code', '').strip().upper()
+        player_code = request.form.get('player_code', '').strip()  # Não converter para uppercase
         password = request.form.get('password', '')
         
         conn = get_db_connection()
         
-        # Verificar se é uma tentativa de login de administrador 
-        # (verificando se o código tem formato 'admin' ou 'ADMIN')
-        if player_code.lower() == 'admin':
-            # Login como administrador
-            admin = conn.execute('''
-                SELECT * FROM admins 
-                WHERE username = ?
-            ''', ('admin',)).fetchone()
-            
-            if admin and admin['password'] == hash_password(password):
-                # Registrar login bem-sucedido
-                conn.execute('''
-                    UPDATE admins 
-                    SET last_login = CURRENT_TIMESTAMP 
-                    WHERE id = ?
-                ''', (admin['id'],))
+        # SOLUÇÃO MELHORADA: 
+        # 1. Verificar na tabela de administradores primeiro
+        admin = conn.execute('SELECT * FROM admins WHERE username = ?', (player_code,)).fetchone()
+        
+        if admin:
+            # É um administrador, verificar a senha
+            if admin['password'] == hash_password(password):
+                # Login bem-sucedido como administrador
+                conn.execute('UPDATE admins SET last_login = CURRENT_TIMESTAMP WHERE id = ?', (admin['id'],))
                 conn.commit()
                 
-                # Guardar ID do admin na sessão com prefixo para diferenciar de jogadores
+                # Guardar ID do admin na sessão
                 session['user_id'] = f"admin_{admin['id']}"
                 session['username'] = admin['username']
                 session['is_admin'] = True
@@ -307,21 +311,20 @@ def login():
                 flash(f'Bem-vindo, {admin["name"]}!', 'success')
                 return redirect(url_for('admin_dashboard'))
             else:
-                flash('Credenciais de administrador inválidas. Tente novamente.', 'error')
+                print(f"Senha incorreta para admin: {player_code}")
+                flash('Credenciais inválidas. Tente novamente.', 'error')
         else:
-            # Login como jogador
+            # 2. Se não for admin, verificar se é jogador
+            player_code_upper = player_code.upper()  # Converter para uppercase para busca de jogador
+            
             player = conn.execute('''
                 SELECT * FROM players 
                 WHERE player_code = ? AND active = 1
-            ''', (player_code,)).fetchone()
+            ''', (player_code_upper,)).fetchone()
             
             if player and player['password'] == hash_password(password):
-                # Registrar login bem-sucedido
-                conn.execute('''
-                    UPDATE players 
-                    SET last_login = CURRENT_TIMESTAMP 
-                    WHERE id = ?
-                ''', (player['id'],))
+                # Login bem-sucedido como jogador
+                conn.execute('UPDATE players SET last_login = CURRENT_TIMESTAMP WHERE id = ?', (player['id'],))
                 conn.commit()
                 
                 # Guardar ID do jogador na sessão
@@ -338,6 +341,10 @@ def login():
         conn.close()
     
     return render_template('login.html')
+
+
+
+
 
 # Rota de logout
 @app.route('/logout')
@@ -415,19 +422,64 @@ def forgot_password():
         
         conn = get_db_connection()
         
-        # Buscar jogador pelo player_code
-        player = conn.execute('''
-            SELECT * FROM players 
-            WHERE player_code = ? AND active = 1
-        ''', (player_code,)).fetchone()
+        # Verificar se é um administrador pelo formato do código (admin ou admin_xyz)
+        is_admin_code = player_code.lower() == 'admin' or player_code.lower().startswith('admin_')
         
-        if not player:
+        if is_admin_code:
+            # Extrai o username do admin
+            admin_username = player_code.split('_')[1] if '_' in player_code else 'admin'
+            
+            # Buscar admin pelo username
+            admin = conn.execute('SELECT * FROM admins WHERE username = ?', (admin_username,)).fetchone()
+            
+            if admin:
+                # Resetar a senha do admin para o próprio username
+                new_password = admin_username
+                hashed_password = hash_password(new_password)
+                
+                conn.execute('UPDATE admins SET password = ? WHERE id = ?', 
+                           (hashed_password, admin['id']))
+                
+                conn.commit()
+                conn.close()
+                
+                flash(f'Senha de administrador redefinida com sucesso. A nova senha é igual ao nome de usuário. Por favor, faça login e altere sua senha.', 'success')
+                return redirect(url_for('login'))
+            else:
+                conn.close()
+                flash('Administrador não encontrado.', 'error')
+                return redirect(url_for('forgot_password'))
+        else:
+            # Buscar jogador pelo player_code
+            player = conn.execute('''
+                SELECT * FROM players 
+                WHERE player_code = ? AND active = 1
+            ''', (player_code,)).fetchone()
+            
+            if not player:
+                conn.close()
+                flash('Jogador não encontrado.', 'error')
+                return redirect(url_for('forgot_password'))
+            
+            # Para fins de simplicidade, vamos resetar a senha para as 3 primeiras letras do nome
+            default_password = player['name'].strip().lower()[:3]
+            hashed_password = hash_password(default_password)
+            
+            # Atualizar a senha no banco de dados
+            conn.execute('UPDATE players SET password = ? WHERE id = ?', 
+                        (hashed_password, player['id']))
+            
+            conn.commit()
             conn.close()
-            flash('Jogador não encontrado.', 'error')
-            return redirect(url_for('forgot_password'))
-        
-        # Gerar token de reset (resto do código permanece o mesmo)
-        # ...
+            
+            flash(f'A senha foi redefinida para as 3 primeiras letras do seu nome em minúsculas. Por favor, faça login e altere sua senha.', 'success')
+            return redirect(url_for('login'))
+    
+    # Mostrar a página de "esqueci minha senha"
+    return render_template('forgot_password.html')
+
+
+
 
 # Rota para redefinir senha com token
 @app.route('/reset_password/<token>', methods=['GET', 'POST'])
@@ -4304,6 +4356,273 @@ def regulamento():
 @app.route('/relatorio')
 def relatorio():
     return render_template('relatorio.html')
+
+
+@app.route('/admin/create_admin', methods=['GET', 'POST'])
+@login_required
+def create_admin():
+    # Verificar se é um administrador
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        # Obter dados do formulário
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip()
+        admin_password = request.form.get('admin_password', '').strip()
+        
+        # Validar campos obrigatórios
+        if not username or not password or not name:
+            flash('Campos obrigatórios não preenchidos.', 'error')
+            return redirect(url_for('create_admin'))
+        
+        # Verificar senha do admin atual
+        if admin_password != '123':
+            flash('Senha de administrador incorreta! Operação não autorizada.', 'error')
+            return redirect(url_for('create_admin'))
+        
+        # Verificar se as senhas coincidem
+        if password != confirm_password:
+            flash('A senha e a confirmação não coincidem.', 'error')
+            return redirect(url_for('create_admin'))
+        
+        conn = get_db_connection()
+        
+        try:
+            # Verificar se o nome de usuário já existe
+            existing_admin = conn.execute('SELECT * FROM admins WHERE username = ?', (username,)).fetchone()
+            
+            if existing_admin:
+                conn.close()
+                flash(f'O nome de usuário "{username}" já está em uso. Escolha outro.', 'error')
+                return redirect(url_for('create_admin'))
+            
+            # Criar o hash da senha - verificar a implementação
+            hashed_password = hash_password(password)
+            
+            # Imprimir para debug (remover em produção)
+            print(f"Criando admin: {username}, Senha original: {password}, Hash: {hashed_password}")
+            
+            # Inserir o novo administrador
+            conn.execute('''
+                INSERT INTO admins (username, password, name, email, created_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (username, hashed_password, name, email))
+            
+            # Registrar em log para debug (opcional)
+            conn.execute('''
+                INSERT INTO system_settings (key, value, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            ''', (f"admin_creation_{username}", f"Admin {name} criado em {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"))
+            
+            conn.commit()
+            flash(f'Administrador "{name}" criado com sucesso! Use o nome de usuário "{username}" para login.', 'success')
+            
+            # Listar administradores para verificação
+            admins = conn.execute('SELECT username, password FROM admins').fetchall()
+            print("Lista de admins no banco:")
+            for admin in admins:
+                print(f"Username: {admin['username']}, Hash senha: {admin['password']}")
+            
+            return redirect(url_for('admin_dashboard'))
+            
+        except Exception as e:
+            conn.rollback()
+            flash(f'Erro ao criar administrador: {str(e)}', 'error')
+        finally:
+            conn.close()
+        
+        return redirect(url_for('create_admin'))
+    
+    # Para requisição GET, mostrar formulário
+    return render_template('create_admin.html')
+
+
+
+# Rota para listar todos os administradores
+@app.route('/admin/list_admins')
+@login_required
+def list_admins():
+    # Verificar se é um administrador
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    conn = get_db_connection()
+    admins = conn.execute('SELECT id, username, name, email, created_at, last_login FROM admins ORDER BY name').fetchall()
+    conn.close()
+    
+    return render_template('list_admins.html', admins=admins)
+
+
+@app.route('/admin/fix_admin_passwords', methods=['GET', 'POST'])
+@login_required
+def fix_admin_passwords():
+    # Verificar se é um administrador
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    conn = get_db_connection()
+    
+    if request.method == 'POST':
+        admin_password = request.form.get('admin_password', '')
+        
+        # Verificar senha do admin atual
+        if admin_password != '123':
+            conn.close()
+            flash('Senha de administrador incorreta! Operação não autorizada.', 'error')
+            return redirect(url_for('fix_admin_passwords'))
+        
+        # Obter todos os administradores
+        admins = conn.execute('SELECT id, username FROM admins WHERE username != "admin"').fetchall()
+        
+        # Redefinir as senhas para os nomes de usuário
+        for admin in admins:
+            # A nova senha será o próprio nome de usuário
+            new_password = admin['username']
+            hashed_password = hash_password(new_password)
+            
+            # Atualizar a senha
+            conn.execute('UPDATE admins SET password = ? WHERE id = ?', (hashed_password, admin['id']))
+            
+            # Registrar a alteração
+            print(f"Redefinida senha do admin {admin['username']}: {new_password} -> {hashed_password}")
+        
+        conn.commit()
+        flash('As senhas de todos os administradores foram redefinidas. A nova senha é igual ao nome de usuário.', 'success')
+        return redirect(url_for('list_admins'))
+    
+    # Para requisição GET, mostrar formulário
+    return render_template('fix_admin_passwords.html')
+
+
+@app.route('/admin/reset_admin_password/<int:admin_id>', methods=['POST'])
+@login_required
+def reset_admin_password(admin_id):
+    # Verificar se é um administrador
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    admin_password = request.form.get('admin_password', '')
+    
+    # Verificar senha do admin atual
+    if admin_password != '123':
+        flash('Senha incorreta! Operação não autorizada.', 'error')
+        return redirect(url_for('list_admins'))
+    
+    conn = get_db_connection()
+    
+    try:
+        # Buscar o admin a ter a senha resetada
+        admin = conn.execute('SELECT * FROM admins WHERE id = ?', (admin_id,)).fetchone()
+        
+        if not admin:
+            conn.close()
+            flash('Administrador não encontrado.', 'error')
+            return redirect(url_for('list_admins'))
+        
+        # Não permitir resetar a senha do admin principal
+        if admin['username'] == 'admin':
+            conn.close()
+            flash('Não é possível resetar a senha do administrador principal.', 'error')
+            return redirect(url_for('list_admins'))
+        
+        # A nova senha será o próprio nome de usuário
+        new_password = admin['username']
+        hashed_password = hash_password(new_password)
+        
+        # Atualizar a senha
+        conn.execute('UPDATE admins SET password = ? WHERE id = ?', (hashed_password, admin_id))
+        conn.commit()
+        
+        flash(f'Senha de {admin["name"]} resetada com sucesso. A nova senha é: {new_password}', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao resetar senha: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('list_admins'))
+
+
+
+@app.route('/admin/delete_admin/<int:admin_id>', methods=['GET', 'POST'])
+@login_required
+def delete_admin(admin_id):
+    # Verificar se é um administrador
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    conn = get_db_connection()
+    
+    # Buscar o admin a ser excluído
+    admin = conn.execute('SELECT * FROM admins WHERE id = ?', (admin_id,)).fetchone()
+    
+    if not admin:
+        conn.close()
+        flash('Administrador não encontrado!', 'error')
+        return redirect(url_for('list_admins'))
+    
+    # Verificar se é o admin principal (não pode ser excluído)
+    if admin['username'] == 'admin':
+        conn.close()
+        flash('O administrador principal não pode ser excluído.', 'error')
+        return redirect(url_for('list_admins'))
+    
+    # Verificar se é o próprio usuário tentando se excluir
+    admin_current_id = session.get('user_id', '').split('_')[1] if isinstance(session.get('user_id', ''), str) else None
+    if admin_current_id and int(admin_current_id) == admin_id:
+        conn.close()
+        flash('Você não pode excluir sua própria conta de administrador.', 'error')
+        return redirect(url_for('list_admins'))
+    
+    # Para requisição GET, mostrar tela de confirmação
+    if request.method == 'GET':
+        conn.close()
+        return render_template('delete_admin.html', admin=admin)
+    
+    # Para requisição POST, processar a exclusão
+    senha = request.form.get('admin_password', '')
+    confirm_delete = request.form.get('confirm_delete', 'no') == 'yes'
+    
+    if senha != '123':
+        conn.close()
+        flash('Senha incorreta! Operação não autorizada.', 'error')
+        return redirect(url_for('delete_admin', admin_id=admin_id))
+    
+    if not confirm_delete:
+        conn.close()
+        flash('Você precisa confirmar a exclusão marcando a caixa de confirmação.', 'error')
+        return redirect(url_for('delete_admin', admin_id=admin_id))
+    
+    try:
+        # Registrar a ação de exclusão em um log
+        conn.execute('''
+            INSERT INTO system_settings (key, value, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+        ''', (f"admin_deletion_{admin['username']}", f"Admin {admin['name']} excluído em {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} pelo administrador {session.get('username', 'desconhecido')}"))
+        
+        # Excluir o administrador
+        conn.execute('DELETE FROM admins WHERE id = ?', (admin_id,))
+        
+        conn.commit()
+        flash(f'Administrador "{admin["name"]}" (username: {admin["username"]}) foi excluído com sucesso.', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao excluir administrador: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('list_admins'))
 
 
 
