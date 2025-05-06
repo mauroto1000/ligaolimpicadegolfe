@@ -153,6 +153,16 @@
                                 <i class="fas fa-{% if challenges_locked %}unlock{% else %}lock{% endif %} fa-fw"></i> Controle de Desafios
                             </a>
                         </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('list_admins') }}" class="btn btn-outline-primary d-block">
+                                <i class="fas fa-users-cog fa-fw"></i> Listar Admins
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('create_admin') }}" class="btn btn-outline-success d-block">
+                                <i class="fas fa-user-plus fa-fw"></i> Novo Admin
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -281,7 +291,28 @@
                                 <div class="card-body">
                                     <h5 class="card-title">Gerenciar Usuários</h5>
                                     <p class="card-text">Administrar contas de usuários e permissões.</p>
-                                    <a href="{{ url_for('change_password') }}" class="btn btn-sm btn-outline-primary">Alterar minha senha</a>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <a href="{{ url_for('change_password') }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-key"></i> Alterar Senha
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">Administradores</h5>
+                                    <p class="card-text">Gerenciar acesso administrativo ao sistema.</p>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <a href="{{ url_for('list_admins') }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-users-cog"></i> Listar Admins
+                                        </a>
+                                        <a href="{{ url_for('create_admin') }}" class="btn btn-sm btn-outline-success">
+                                            <i class="fas fa-user-plus"></i> Novo Admin
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         </div>

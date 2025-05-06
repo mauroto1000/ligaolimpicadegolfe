@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Excluir Administrador - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-danger text-white">
+            <h3 class="card-title mb-0">Excluir Administrador</h3>
+        </div>
+        <div class="card-body">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <div class="alert alert-warning">
+                <h5 class="alert-heading">Atenção!</h5>
+                <p>Você está prestes a excluir o administrador <strong>{{ admin.name }}</strong> ({{ admin.username }}).</p>
+                <p>Esta operação não pode ser desfeita. Tem certeza que deseja continuar?</p>
+            </div>
+            
+            <form method="POST" action="{{ url_for('delete_admin', admin_id=admin.id) }}">
+                <div class="form-group mb-3">
+                    <label for="admin_password">Sua Senha de Administrador *</label>
+                    <input type="password" class="form-control" id="admin_password" name="admin_password" required>
+                    <small class="form-text text-muted">Para confirmar sua identidade, insira sua senha de administrador.</small>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="confirm_delete" name="confirm_delete" value="yes">
+                    <label class="form-check-label" for="confirm_delete">
+                        Confirmo que desejo excluir permanentemente este administrador
+                    </label>
+                </div>
+                
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-danger">Excluir Administrador</button>
+                    <a href="{{ url_for('list_admins') }}" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
