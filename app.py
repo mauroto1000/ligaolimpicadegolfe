@@ -2654,16 +2654,29 @@ def new_challenge():
                     preselected_challenger_id = None
         
         # Buscar jogadores com desafios pendentes
-        players_with_challenges = set()
-        pending_challenges = conn.execute('''
-            SELECT challenger_id, challenged_id 
-            FROM challenges 
-            WHERE status IN ('pending', 'accepted')
+        # Buscar jogadores com desafios
+        challenges = conn.execute('''
+            SELECT DISTINCT c.challenger_id, c.challenged_id, c.status, c.scheduled_date,
+                p1.position as challenger_position, p2.position as challenged_position
+            FROM challenges c
+            JOIN players p1 ON c.challenger_id = p1.id
+            JOIN players p2 ON c.challenged_id = p2.id
+            WHERE c.status IN ('pending', 'accepted')
         ''').fetchall()
-        
-        for challenge in pending_challenges:
-            players_with_challenges.add(challenge['challenger_id'])
-            players_with_challenges.add(challenge['challenged_id'])
+
+        # Remover a referência ao status 'completed_pending' nos loops
+        players_with_challenges = set()
+        for challenge in challenges:
+            challenger_id = challenge['challenger_id']
+            challenged_id = challenge['challenged_id']
+            
+            # Remover esta verificação específica
+            # if challenge['status'] == 'completed_pending':
+            #     players_with_completed_pending[challenger_id] = 'completed_pending'
+            #     players_with_completed_pending[challenged_id] = 'completed_pending'
+            # else:
+            players_with_challenges.add(challenger_id)
+            players_with_challenges.add(challenged_id)
         
         if preselected_challenger_id:
             if preselected_challenger_id in players_with_challenges:
@@ -2969,8 +2982,8 @@ def update_challenge(challenge_id):
         flash('Apenas o desafiado ou um administrador pode aceitar um desafio.', 'error')
         return redirect(url_for('challenge_detail', challenge_id=challenge_id))
     
-    # Para qualquer mudança de status para 'completed' ou 'completed_pending', apenas admin ou participantes podem fazer
-    if (status == 'completed' or status == 'completed_pending'):
+    # Para qualquer mudança de status para 'completed', apenas admin ou participantes podem fazer
+    if status == 'completed':
         if not (is_admin or is_challenger or is_challenged):
             conn.close()
             flash('Apenas participantes do desafio ou administradores podem marcar um desafio como concluído.', 'error')
@@ -3033,10 +3046,6 @@ def update_challenge(challenge_id):
         # Processar o resultado do desafio (alterando a pirâmide)
         process_challenge_result(conn, challenge_id, status, result)
         flash('Status do desafio atualizado para Concluído e ranking atualizado.', 'success')
-    elif status == 'completed_pending' and result:
-        # Processar como concluído com pendência (sem alterar a pirâmide)
-        process_challenge_result(conn, challenge_id, status, result)
-        flash('Status do desafio atualizado para Concluído (com pendência). O ranking não foi alterado.', 'success')
     else:
         # Apenas atualizar o status
         conn.execute('UPDATE challenges SET status = ? WHERE id = ?', (status, challenge_id))
@@ -3046,6 +3055,9 @@ def update_challenge(challenge_id):
     conn.close()
     
     return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+
+
+
 
 @app.route('/history')
 def history():
