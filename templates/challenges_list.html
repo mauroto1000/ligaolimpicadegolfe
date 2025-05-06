@@ -31,11 +31,6 @@
         vertical-align: middle;
     }
     
-    .table .col-date {
-        min-width: 100px;
-        white-space: nowrap;
-    }
-    
     .table .col-player {
         min-width: 180px; /* Aumenta espaço para nomes de jogadores */
     }
@@ -181,7 +176,6 @@
                     <table class="table table-striped table-hover" id="challengesTable">
                         <thead class="table-dark">
                             <tr>
-                                <th class="col-date">Data</th>
                                 <th class="col-player">Desafiante</th>
                                 <th class="col-player">Desafiado</th>
                                 <th class="col-scheduled">Data Agendada</th>
@@ -190,12 +184,11 @@
                                 <th class="col-actions">Ações</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="challengesTableBody">
                             {% for challenge in challenges %}
                             <tr data-status="{{ challenge['status'] }}" 
                                 data-player="{{ challenge['challenger_name']|lower }} {{ challenge['challenged_name']|lower }}"
                                 data-date="{{ challenge['scheduled_date'] }}">
-                                <td class="col-date">{{ challenge['created_at'].split(' ')[0] }}</td>
                                 <td class="col-player">
                                     <strong>{{ challenge['challenger_name'] }}</strong>
                                     <small class="text-muted d-block">
@@ -355,6 +348,34 @@ document.addEventListener('DOMContentLoaded', function() {
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
+    
+    // Ordenar tabela por data agendada em ordem decrescente (mais recente primeiro)
+    function sortChallengesByDate() {
+        var tbody = document.getElementById('challengesTableBody');
+        var rows = Array.from(tbody.querySelectorAll('tr'));
+        
+        // Ordenar as linhas
+        rows.sort(function(a, b) {
+            var dateA = a.getAttribute('data-date') || '';
+            var dateB = b.getAttribute('data-date') || '';
+            
+            // Tratar casos onde a data não está definida ('Não agendado')
+            if (!dateA && !dateB) return 0;
+            if (!dateA) return 1; // Datas não definidas ficam no final
+            if (!dateB) return -1;
+            
+            // Ordenar em ordem decrescente (mais recente primeiro)
+            return dateB.localeCompare(dateA);
+        });
+        
+        // Reposicionar as linhas na tabela
+        rows.forEach(function(row) {
+            tbody.appendChild(row);
+        });
+    }
+    
+    // Chamar a função de ordenação na inicialização
+    sortChallengesByDate();
     
     // Filtros para a tabela
     var statusFilter = document.getElementById('statusFilter');
