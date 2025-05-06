@@ -2307,24 +2307,17 @@ def new_challenge():
         challenged_id = request.form['challenged_id']
         scheduled_date = request.form['scheduled_date']
         
-        # NOVA VALIDAÇÃO: Verificar se a data do desafio está dentro de 7 dias A PARTIR DE HOJE
+        # Validação da data do desafio (não pode ser no passado e deve estar dentro de 7 dias)
         try:
-            # Converter a data agendada para um objeto datetime
             scheduled_date_obj = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
-            
-            # Obter a data atual (apenas a data, sem o horário)
             today_date = datetime.now().date()
-            
-            # Calcular a data máxima permitida (hoje + 7 dias)
             max_date = today_date + timedelta(days=7)
             
-            # Verificar se a data está dentro do intervalo permitido
             if scheduled_date_obj > max_date:
                 conn.close()
                 flash(f'A data do desafio não pode ser superior a 7 dias a partir de hoje. Data máxima permitida: {max_date.strftime("%d/%m/%Y")}', 'error')
                 return redirect(url_for('new_challenge', challenger_id=challenger_id))
             
-            # Verificar se a data não é anterior à data atual
             if scheduled_date_obj < today_date:
                 conn.close()
                 flash('A data do desafio não pode ser anterior à data atual.', 'error')
@@ -2334,7 +2327,6 @@ def new_challenge():
             flash('Formato de data inválido.', 'error')
             return redirect(url_for('new_challenge', challenger_id=challenger_id))
         
-        # Verificar se o desafio é válido conforme as regras
         # Verificar se ambos jogadores estão ativos
         challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', (challenger_id,)).fetchone()
         challenged = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', (challenged_id,)).fetchone()
@@ -2344,54 +2336,48 @@ def new_challenge():
             flash('Um dos jogadores está inativo e não pode participar de desafios.', 'error')
             return redirect(url_for('new_challenge'))
         
-        # NOVA REGRA: Se não for admin, verificar regras normais
+        # Regras aplicáveis a todos os usuários, incluindo administradores
         error = None
         
-        if not is_admin:
-            # Verificar se algum dos jogadores já tem desafios pendentes ou aceitos
-            pending_challenges = conn.execute('''
-                SELECT * FROM challenges 
-                WHERE (challenger_id = ? OR challenged_id = ? OR challenger_id = ? OR challenged_id = ?)
-                AND status IN ('pending', 'accepted')
-            ''', (challenger_id, challenger_id, challenged_id, challenged_id)).fetchall()
-            
-            # Se encontrou desafios pendentes ou aceitos
-            if pending_challenges:
-                # Verificar se o desafio pendente é entre estes mesmos jogadores
-                same_players_challenge = False
-                for challenge in pending_challenges:
-                    if ((challenge['challenger_id'] == int(challenger_id) and challenge['challenged_id'] == int(challenged_id)) or
-                        (challenge['challenger_id'] == int(challenged_id) and challenge['challenged_id'] == int(challenger_id))):
-                        same_players_challenge = True
-                        break
-                
-                if same_players_challenge:
-                    error = "Já existe um desafio pendente ou aceito entre estes jogadores."
-                else:
-                    error = "Um dos jogadores já está envolvido em um desafio pendente ou aceito. Conclua o desafio atual antes de criar um novo."
+        # Verificar se algum dos jogadores já tem desafios pendentes ou aceitos
+        pending_challenges = conn.execute('''
+            SELECT * FROM challenges 
+            WHERE (challenger_id = ? OR challenged_id = ? OR challenger_id = ? OR challenged_id = ?)
+            AND status IN ('pending', 'accepted')
+        ''', (challenger_id, challenger_id, challenged_id, challenged_id)).fetchall()
         
-        # Regras existentes sobre tiers que se aplicam mesmo a admins 
-        # (garantindo consistência da pirâmide)
-        # No arquivo app.py, na função new_challenge, modificar a verificação de tiers:
-        if not error and not is_admin:  # Não aplicar regras de tier para admins
-            # Regra: Desafio apenas uma linha acima
+        if pending_challenges:
+            # Verificar se o desafio pendente é entre estes mesmos jogadores
+            same_players_challenge = False
+            for challenge in pending_challenges:
+                if ((challenge['challenger_id'] == int(challenger_id) and challenge['challenged_id'] == int(challenged_id)) or
+                    (challenge['challenger_id'] == int(challenged_id) and challenge['challenged_id'] == int(challenger_id))):
+                    same_players_challenge = True
+                    break
+            
+            if same_players_challenge:
+                error = "Já existe um desafio pendente ou aceito entre estes jogadores."
+            else:
+                error = "Um dos jogadores já está envolvido em um desafio pendente ou aceito. Conclua o desafio atual antes de criar um novo."
+        
+        # Regras de tier e posição (aplicáveis a todos)
+        if not error:
             challenger_tier = challenger['tier']
             challenged_tier = challenged['tier']
             
-            # Verificar se o tier é A ou B (níveis especiais de play-off)
+            # Verificar níveis especiais A ou B
             if challenged_tier in ['A', 'B']:
                 error = "Não é possível desafiar jogadores dos níveis A ou B. Esses níveis são reservados para os vencedores do play-off."
             else:
-                # Calcular a diferença de níveis (em termos de "distância alfabética")
+                # Calcular diferença de níveis
                 tier_difference = ord(challenger_tier) - ord(challenged_tier)
                 
-                # Se o tier_difference é negativo, o desafiado está abaixo do desafiante (erro)
+                # Verificar restrições de tier
                 if tier_difference < 0:
                     error = "Você só pode desafiar jogadores de níveis acima do seu."
-                # Se o tier_difference > 1, o desafiado está mais que uma linha acima (erro)
                 elif tier_difference > 1:
                     error = "Você só pode desafiar jogadores até uma linha acima da sua."
-                # Verificar se o desafiado tem posição melhor (menor numericamente)
+                # Verificar posição
                 elif challenged['position'] > challenger['position']:
                     error = "Você só pode desafiar jogadores em posições melhores que a sua."
         
@@ -2400,19 +2386,15 @@ def new_challenge():
             flash(error, 'error')
             return redirect(url_for('new_challenge'))
         
-        # Obter a data e hora atual
+        # Processamento do desafio (tudo em ordem para criar)
         current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        # Calcular a data limite de resposta (7 dias a partir da data atual)
         response_deadline = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
         
-        # Inserir o novo desafio com a data/hora de criação e prazo de resposta
+        # Inserir o novo desafio
         conn.execute('''
             INSERT INTO challenges (challenger_id, challenged_id, status, scheduled_date, created_at, response_deadline)
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (challenger_id, challenged_id, 'pending', scheduled_date, current_datetime, response_deadline))
-        
-        # NOVO CÓDIGO: Registrar a criação do desafio no log
         
         # Obter o ID do desafio recém-criado
         challenge_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
@@ -2440,10 +2422,7 @@ def new_challenge():
                 ''')
             
             # Determinar quem está criando o desafio
-            if is_admin:
-                creator_type = "Admin"
-            else:
-                creator_type = "Jogador"
+            creator_type = "Admin" if is_admin else "Jogador"
             
             # Inserir o log de criação
             conn.execute('''
@@ -2473,10 +2452,6 @@ def new_challenge():
         return redirect(url_for('challenges_calendar'))
     
     # Para requisições GET, mostrar formulário
-    # Verificar se o usuário é um administrador
-    is_admin = session.get('is_admin', False)
-    
-    # MODIFICAÇÃO: Administradores podem selecionar qualquer jogador como desafiante
     preselected_challenger_id = None
     all_players = []
     eligible_challenged = []
@@ -2490,30 +2465,53 @@ def new_challenge():
         
         # Se há um desafiante pré-selecionado, buscar os jogadores elegíveis
         if preselected_challenger_id:
-            # Corrigido: convertendo para inteiro para evitar erros de tipo
+            # Converter para inteiro
             try:
                 preselected_challenger_id = int(preselected_challenger_id)
                 challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
                                          (preselected_challenger_id,)).fetchone()
                 
                 if challenger:
-                    # Para admins, todos os jogadores ativos são elegíveis exceto o próprio desafiante
+                    # Mesmo para admins, mostrar apenas jogadores que podem ser desafiados segundo as regras
+                    # Ou seja, mesmas regras para todos
+                    tier = challenger['tier']
+                    prev_tier = chr(ord(tier) - 1) if ord(tier) > ord('A') else tier
+                    
                     eligible_challenged = conn.execute('''
                         SELECT * FROM players 
-                        WHERE active = 1 AND id != ?
+                        WHERE active = 1
+                        AND position < ? 
+                        AND (tier = ? OR tier = ?)
+                        AND tier NOT IN ('A', 'B')
                         ORDER BY position
-                    ''', (preselected_challenger_id,)).fetchall()
+                    ''', (challenger['position'], tier, prev_tier)).fetchall()
+                    
+                    # Verificar jogadores com desafios pendentes
+                    players_with_challenges = set()
+                    pending_challenges = conn.execute('''
+                        SELECT challenger_id, challenged_id 
+                        FROM challenges 
+                        WHERE status IN ('pending', 'accepted')
+                    ''').fetchall()
+                    
+                    for challenge in pending_challenges:
+                        players_with_challenges.add(challenge['challenger_id'])
+                        players_with_challenges.add(challenge['challenged_id'])
+                    
+                    # Verificar se o desafiante já tem desafios pendentes
+                    if preselected_challenger_id in players_with_challenges:
+                        flash('Este jogador já está envolvido em um desafio pendente ou aceito.', 'warning')
+                    
+                    # Filtrar jogadores com desafios pendentes
+                    eligible_challenged = [player for player in eligible_challenged 
+                                          if player['id'] not in players_with_challenges]
             except (ValueError, TypeError):
-                # Se o ID fornecido não for válido, redefinir
                 preselected_challenger_id = None
-    
     else:
-        # Para jogadores normais, manter a lógica atual
+        # Para jogadores normais, usar lógica atual
         if 'user_id' in session and not is_admin:
-            # Se o usuário está logado e não é admin, usar seu ID como challenger_id pré-selecionado
             preselected_challenger_id = session['user_id']
         else:
-            # Verificar se há um challenger_id na query string (comportamento anterior)
             temp_id = request.args.get('challenger_id')
             if temp_id:
                 try:
@@ -2521,7 +2519,7 @@ def new_challenge():
                 except (ValueError, TypeError):
                     preselected_challenger_id = None
         
-        # Buscar jogadores com desafios pendentes ou aceitos
+        # Buscar jogadores com desafios pendentes
         players_with_challenges = set()
         pending_challenges = conn.execute('''
             SELECT challenger_id, challenged_id 
@@ -2533,23 +2531,18 @@ def new_challenge():
             players_with_challenges.add(challenge['challenger_id'])
             players_with_challenges.add(challenge['challenged_id'])
         
-        # Se temos um desafiante pré-selecionado, obter apenas os jogadores que podem ser desafiados
         if preselected_challenger_id:
-            # Verificar se o desafiante já tem desafios pendentes
             if preselected_challenger_id in players_with_challenges:
                 conn.close()
                 flash('Este jogador já está envolvido em um desafio pendente ou aceito.', 'warning')
                 return redirect(url_for('challenges_calendar'))
             
-            # Buscar informações do desafiante
             challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
                                      (preselected_challenger_id,)).fetchone()
             
             if challenger:
-                # Buscar todos os jogadores para a lista de desafiantes
                 all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
                 
-                # Buscar apenas jogadores que podem ser desafiados (mesmo nível ou um nível acima)
                 eligible_challenged = conn.execute('''
                     SELECT * FROM players 
                     WHERE active = 1
@@ -2558,21 +2551,17 @@ def new_challenge():
                     ORDER BY position
                 ''', (challenger['position'], challenger['tier'], chr(ord(challenger['tier'])-1))).fetchall()
                 
-                # Filtrar os jogadores que já têm desafios pendentes
                 eligible_challenged = [player for player in eligible_challenged 
                                       if player['id'] not in players_with_challenges]
         else:
-            # Se não houver um desafiante pré-selecionado, mostrar todos os jogadores disponíveis
             all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
-            
-            # Filtrar jogadores sem desafios pendentes para a lista de desafiantes
             all_players = [player for player in all_players 
                           if player['id'] not in players_with_challenges]
     
     # Adicionar data atual formatada para o campo de data
     today_date = datetime.now().strftime('%Y-%m-%d')
     
-    # Se temos um desafiante pré-selecionado e informações dele, passar para o template
+    # Se temos um desafiante pré-selecionado e informações dele
     challenger_info = None
     if preselected_challenger_id:
         challenger_info = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
