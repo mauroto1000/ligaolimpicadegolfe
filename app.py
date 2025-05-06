@@ -13,6 +13,128 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Sessão válid
 
 DATABASE = 'golf_league.db'
 
+# Função para obter conexão com o banco de dados
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# Função decoradora para verificar autenticação
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Por favor, faça login para acessar esta página.', 'error')
+            return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Configurações para upload de arquivos
+UPLOAD_FOLDER = 'static/profile_photos'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+# Certifique-se de que a pasta existe
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Adicionar configuração à aplicação
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # Limitar tamanho para 5MB
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/upload_profile_photo/<int:player_id>', methods=['POST'])
+@login_required
+def upload_profile_photo(player_id):
+    # Verificar se é o próprio jogador ou um admin
+    if not (session.get('user_id') == player_id or session.get('is_admin', False)):
+        flash('Acesso negado. Você só pode alterar sua própria foto de perfil.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    # Verificar se o arquivo foi enviado
+    if 'profile_photo' not in request.files:
+        flash('Nenhum arquivo enviado.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    file = request.files['profile_photo']
+    
+    # Se usuário não selecionar um arquivo, o navegador envia um arquivo vazio
+    if file.filename == '':
+        flash('Nenhum arquivo selecionado.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    if file and allowed_file(file.filename):
+        # Criar nome de arquivo seguro e único
+        filename = secure_filename(f"player_{player_id}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        # Salvar o arquivo
+        file.save(file_path)
+        
+        # Atualizar o banco de dados
+        conn = get_db_connection()
+        
+        # Obter o caminho da foto anterior (se existir)
+        old_photo = conn.execute('SELECT profile_photo FROM players WHERE id = ?', 
+                              (player_id,)).fetchone()
+        
+        # Atualizar para o novo caminho
+        conn.execute('UPDATE players SET profile_photo = ? WHERE id = ?', 
+                   (filename, player_id))
+        conn.commit()
+        
+        # Remover a foto antiga se existir
+        if old_photo and old_photo['profile_photo']:
+            try:
+                old_file_path = os.path.join(app.config['UPLOAD_FOLDER'], old_photo['profile_photo'])
+                if os.path.exists(old_file_path):
+                    os.remove(old_file_path)
+            except Exception as e:
+                print(f"Erro ao remover arquivo antigo: {e}")
+        
+        conn.close()
+        
+        flash('Foto de perfil atualizada com sucesso!', 'success')
+        return redirect(url_for('player_detail', player_id=player_id))
+    else:
+        flash('Tipo de arquivo não permitido. Use apenas JPG, PNG ou GIF.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+
+@app.route('/remove_profile_photo/<int:player_id>', methods=['POST'])
+@login_required
+def remove_profile_photo(player_id):
+    # Verificar se é o próprio jogador ou um admin
+    if not (session.get('user_id') == player_id or session.get('is_admin', False)):
+        flash('Acesso negado. Você só pode remover sua própria foto de perfil.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    conn = get_db_connection()
+    
+    # Obter o caminho da foto
+    photo = conn.execute('SELECT profile_photo FROM players WHERE id = ?', 
+                      (player_id,)).fetchone()
+    
+    if photo and photo['profile_photo']:
+        # Remover do banco de dados
+        conn.execute('UPDATE players SET profile_photo = NULL WHERE id = ?', (player_id,))
+        conn.commit()
+        
+        # Remover arquivo físico
+        try:
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], photo['profile_photo'])
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            print(f"Erro ao remover arquivo: {e}")
+    
+    conn.close()
+    
+    flash('Foto de perfil removida com sucesso!', 'success')
+    return redirect(url_for('player_detail', player_id=player_id))
+
+
+
 
 # Função para obter a data atual para uso nos templates
 @app.context_processor
@@ -4613,7 +4735,21 @@ def delete_admin(admin_id):
     
     return redirect(url_for('list_admins'))
 
-
+def add_profile_photo_column():
+    conn = get_db_connection()
+    
+    # Verificar se a coluna já existe
+    columns_info = conn.execute('PRAGMA table_info(players)').fetchall()
+    column_names = [col[1] for col in columns_info]
+    
+    if 'profile_photo' not in column_names:
+        conn.execute('ALTER TABLE players ADD COLUMN profile_photo TEXT DEFAULT NULL')
+        conn.commit()
+        print("Coluna 'profile_photo' adicionada à tabela players com valor padrão NULL.")
+    else:
+        print("Coluna 'profile_photo' já existe na tabela players.")
+    
+    conn.close()
 
 
 if __name__ == '__main__':

@@ -21,6 +21,45 @@
                 <h4 class="mb-0">Informações do Jogador</h4>
             </div>
             <div class="card-body">
+                <!-- Foto de Perfil -->
+                <div class="text-center mb-4">
+                    {% if player['profile_photo'] %}
+                    <div class="position-relative mx-auto" style="width: 150px; height: 150px;">
+                        <img src="{{ url_for('static', filename='profile_photos/' + player['profile_photo']) }}" 
+                             alt="Foto de {{ player['name'] }}" 
+                             class="img-thumbnail rounded-circle" 
+                             style="width: 150px; height: 150px; object-fit: cover;">
+                        
+                        {% if is_own_profile or is_admin %}
+                        <button type="button" class="btn btn-sm btn-danger position-absolute" 
+                                style="top: 0; right: 0;" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#removePhotoModal" 
+                                title="Remover foto">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="mx-auto bg-light rounded-circle d-flex align-items-center justify-content-center" 
+                         style="width: 150px; height: 150px;">
+                        <i class="fas fa-user fa-5x text-secondary"></i>
+                    </div>
+                    {% endif %}
+                    
+                    {% if is_own_profile or is_admin %}
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#uploadPhotoModal">
+                            {% if player['profile_photo'] %}
+                            <i class="fas fa-camera-retro me-1"></i> Alterar foto
+                            {% else %}
+                            <i class="fas fa-camera-retro me-1"></i> Adicionar foto
+                            {% endif %}
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <h5>Nome</h5>
@@ -582,66 +621,141 @@
 </div>
 </div>
 
+<!-- Modal para Upload de Foto -->
+<div class="modal fade" id="uploadPhotoModal" tabindex="-1" aria-labelledby="uploadPhotoModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="uploadPhotoModalLabel">Alterar Foto de Perfil</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('upload_profile_photo', player_id=player.id) }}" method="post" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="profile_photo" class="form-label">Selecione uma nova foto</label>
+                        <input class="form-control" type="file" id="profile_photo" name="profile_photo" accept="image/*" required>
+                        <div class="form-text">
+                            Formatos aceitos: JPG, PNG, GIF. Tamanho máximo: 5MB.
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Pré-visualização</label>
+                        <div class="text-center">
+                            <img id="photoPreview" src="#" alt="Pré-visualização" 
+                                 style="max-width: 100%; max-height: 200px; display: none;">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Foto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Confirmar Remoção da Foto -->
+<div class="modal fade" id="removePhotoModal" tabindex="-1" aria-labelledby="removePhotoModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="removePhotoModalLabel">Remover Foto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja remover sua foto de perfil?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form action="{{ url_for('remove_profile_photo', player_id=player.id) }}" method="post">
+                    <button type="submit" class="btn btn-danger">Remover</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Funções para interatividade da página
 function toggleEditName() {
-const displayElement = document.getElementById('playerNameDisplay');
-const formElement = document.getElementById('editNameForm');
+    const displayElement = document.getElementById('playerNameDisplay');
+    const formElement = document.getElementById('editNameForm');
 
-if (formElement.classList.contains('d-none')) {
-// Mostrar formulário, ocultar display
-displayElement.classList.add('d-none');
-formElement.classList.remove('d-none');
-} else {
-// Ocultar formulário, mostrar display
-displayElement.classList.remove('d-none');
-formElement.classList.add('d-none');
-}
+    if (formElement.classList.contains('d-none')) {
+        // Mostrar formulário, ocultar display
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        // Ocultar formulário, mostrar display
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
 }
 
 function toggleEditContact() {
-const displayElement = document.getElementById('playerContactDisplay');
-const formElement = document.getElementById('editContactForm');
+    const displayElement = document.getElementById('playerContactDisplay');
+    const formElement = document.getElementById('editContactForm');
 
-if (formElement.classList.contains('d-none')) {
-// Mostrar formulário, ocultar display
-displayElement.classList.add('d-none');
-formElement.classList.remove('d-none');
-} else {
-// Ocultar formulário, mostrar display
-displayElement.classList.remove('d-none');
-formElement.classList.add('d-none');
-}
+    if (formElement.classList.contains('d-none')) {
+        // Mostrar formulário, ocultar display
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        // Ocultar formulário, mostrar display
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
 }
 
 function toggleEditHcp() {
-const displayElement = document.getElementById('hcpIndexDisplay');
-const formElement = document.getElementById('editHcpForm');
+    const displayElement = document.getElementById('hcpIndexDisplay');
+    const formElement = document.getElementById('editHcpForm');
 
-if (formElement.classList.contains('d-none')) {
-// Mostrar formulário, ocultar display
-displayElement.classList.add('d-none');
-formElement.classList.remove('d-none');
-} else {
-// Ocultar formulário, mostrar display
-displayElement.classList.remove('d-none');
-formElement.classList.add('d-none');
-}
+    if (formElement.classList.contains('d-none')) {
+        // Mostrar formulário, ocultar display
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        // Ocultar formulário, mostrar display
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
 }
 
 function toggleEditCountry() {
-const displayElement = document.getElementById('playerCountryDisplay');
-const formElement = document.getElementById('editCountryForm');
+    const displayElement = document.getElementById('playerCountryDisplay');
+    const formElement = document.getElementById('editCountryForm');
 
-if (formElement.classList.contains('d-none')) {
-// Mostrar formulário, ocultar display
-displayElement.classList.add('d-none');
-formElement.classList.remove('d-none');
-} else {
-// Ocultar formulário, mostrar display
-displayElement.classList.remove('d-none');
-formElement.classList.add('d-none');
+    if (formElement.classList.contains('d-none')) {
+        // Mostrar formulário, ocultar display
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        // Ocultar formulário, mostrar display
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
 }
-}
+
+// Preview da imagem antes do upload
+document.getElementById('profile_photo').addEventListener('change', function(e) {
+    const preview = document.getElementById('photoPreview');
+    const file = e.target.files[0];
+    
+    if (file) {
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+        }
+        
+        reader.readAsDataURL(file);
+    } else {
+        preview.style.display = 'none';
+    }
+});
 </script>
 {% endblock %}
