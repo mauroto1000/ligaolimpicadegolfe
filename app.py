@@ -911,16 +911,45 @@ def create_daily_history_table():
         FOREIGN KEY (player_id) REFERENCES players(id)
     )
     ''')
-    
-    # Criar um índice para melhorar a performance das consultas
-    conn.execute('''
-    CREATE INDEX IF NOT EXISTS idx_daily_history_player_date 
-    ON daily_ranking_history (player_id, date_recorded)
-    ''')
-    
-    conn.commit()
-    conn.close()
-    print("Tabela de histórico diário criada com sucesso.")
+
+
+def create_business_table():
+    try:
+        conn = get_db_connection()
+        
+        # Verificar se a tabela já existe
+        table_exists = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='businesses'").fetchone()
+        
+        if not table_exists:
+            conn.execute('''
+            CREATE TABLE IF NOT EXISTS businesses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                player_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                category TEXT NOT NULL,
+                description TEXT NOT NULL,
+                image_path TEXT,
+                contact_info TEXT,
+                active INTEGER DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (player_id) REFERENCES players(id)
+            )
+            ''')
+            
+            # Criar pasta para imagens de negócios
+            business_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'business_images')
+            os.makedirs(business_upload_folder, exist_ok=True)
+            
+            print("Tabela de negócios criada com sucesso e pasta de imagens verificada.")
+        else:
+            print("Tabela de negócios já existe.")
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"ERRO ao criar tabela de negócios: {str(e)}")
+        return False
 
 
 # Função para criar tabela de histórico de handicap
@@ -4776,8 +4805,356 @@ def add_profile_photo_column():
     conn.close()
 
 
+# Rota para a página Golf Business
+@app.route('/golf-business')
+def golf_business():
+    conn = get_db_connection()
+    businesses = conn.execute('''
+        SELECT b.*, p.name as owner_name, p.profile_photo as owner_photo
+        FROM businesses b
+        JOIN players p ON b.player_id = p.id
+        WHERE b.active = 1
+        ORDER BY b.created_at DESC
+    ''').fetchall()
+    conn.close()
+    
+    return render_template('golf_business.html', businesses=businesses)
+
+# Rota para processamento do formulário de adição de negócio
+@app.route('/add-business', methods=['POST'])
+@login_required
+def add_business():
+    # Verificar se é administrador
+    if not session.get('is_admin', False):
+        flash('Apenas administradores podem adicionar negócios.', 'error')
+        return redirect(url_for('golf_business'))
+    
+    if request.method == 'POST':
+        try:
+            # Obter dados do formulário
+            player_id = request.form.get('player_id')
+            business_name = request.form.get('business_name')
+            business_category = request.form.get('business_category')
+            business_description = request.form.get('business_description')
+            business_contact = request.form.get('business_contact')
+            
+            # Validar campos obrigatórios
+            if not player_id or not business_name or not business_category or not business_description:
+                flash('Todos os campos obrigatórios devem ser preenchidos.', 'error')
+                return redirect(url_for('admin_business'))
+                
+            # Processar imagem
+            if 'business_image' in request.files:
+                file = request.files['business_image']
+                if file and allowed_file(file.filename):
+                    # Gerar nome de arquivo seguro
+                    filename = secure_filename(f"business_{player_id}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
+                    
+                    # Criar diretório se não existir
+                    business_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'business_images')
+                    os.makedirs(business_upload_folder, exist_ok=True)
+                    
+                    # Salvar arquivo
+                    file_path = os.path.join(business_upload_folder, filename)
+                    file.save(file_path)
+                    
+                    # Salvar no banco de dados
+                    conn = get_db_connection()
+                    conn.execute('''
+                        INSERT INTO businesses 
+                        (player_id, name, category, description, image_path, contact_info, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ''', (
+                        player_id,
+                        business_name,
+                        business_category,
+                        business_description,
+                        filename,
+                        business_contact
+                    ))
+                    
+                    conn.commit()
+                    conn.close()
+                    
+                    flash('Negócio cadastrado com sucesso!', 'success')
+                    return redirect(url_for('admin_business'))
+                else:
+                    flash('Tipo de arquivo não permitido. Use apenas JPG, PNG ou GIF.', 'error')
+            else:
+                flash('Imagem é obrigatória para cadastro do negócio.', 'error')
+        
+        except Exception as e:
+            flash(f'Erro ao cadastrar negócio: {str(e)}', 'error')
+        
+        return redirect(url_for('admin_business'))
+
+
+@app.route('/admin/delete-business/<int:business_id>', methods=['POST'])
+@login_required
+def delete_business(business_id):
+    # Verificar permissão
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Verificar senha
+    senha = request.form.get('senha', '')
+    if senha != '123':
+        flash('Senha incorreta! Operação não autorizada.', 'error')
+        return redirect(url_for('admin_business'))
+    
+    conn = get_db_connection()
+    
+    try:
+        # Obter informações do negócio
+        business = conn.execute('SELECT * FROM businesses WHERE id = ?', (business_id,)).fetchone()
+        
+        if not business:
+            conn.close()
+            flash('Negócio não encontrado!', 'error')
+            return redirect(url_for('admin_business'))
+        
+        # Marcar como inativo (soft delete)
+        conn.execute('UPDATE businesses SET active = 0 WHERE id = ?', (business_id,))
+        
+        # Opcional: Remover fisicamente a imagem
+        if business['image_path']:
+            try:
+                image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'business_images', business['image_path'])
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+            except Exception as e:
+                print(f"Erro ao remover arquivo de imagem: {e}")
+        
+        conn.commit()
+        flash('Negócio excluído com sucesso!', 'success')
+    
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao excluir negócio: {str(e)}', 'error')
+    
+    finally:
+        conn.close()
+    
+    return redirect(url_for('admin_business'))
+
+
+
+@app.route('/api/businesses')
+def api_businesses():
+    filter_category = request.args.get('filter', 'all')
+    
+    conn = get_db_connection()
+    
+    # Consulta base
+    query = '''
+        SELECT b.*, p.name as owner_name, p.profile_photo as owner_photo
+        FROM businesses b
+        JOIN players p ON b.player_id = p.id
+        WHERE b.active = 1
+    '''
+    
+    # Aplicar filtro se não for "all"
+    params = []
+    if filter_category != 'all':
+        query += ' AND b.category = ?'
+        params.append(filter_category)
+    
+    query += ' ORDER BY b.created_at DESC'
+    businesses = conn.execute(query, params).fetchall()
+    
+    # Converter para formato JSON
+    business_list = []
+    for b in businesses:
+        business_dict = {
+            'id': b['id'],
+            'name': b['name'],
+            'description': b['description'],
+            'category': b['category'],
+            'image_path': f"/static/profile_photos/business_images/{b['image_path']}" if b['image_path'] else None,
+            'contact_info': b['contact_info'],
+            'owner_name': b['owner_name'],
+            'owner_photo': f"/static/profile_photos/{b['owner_photo']}" if b['owner_photo'] else "/static/profile_photos/default.png"
+        }
+        business_list.append(business_dict)
+    
+    conn.close()
+    return jsonify({'businesses': business_list})
+
+
+
+@app.route('/admin/business')
+@login_required
+def admin_business():
+    # Verificar permissão de administrador
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    conn = get_db_connection()
+    
+    # Buscar todos os negócios
+    businesses = conn.execute('''
+        SELECT b.*, p.name as owner_name
+        FROM businesses b
+        JOIN players p ON b.player_id = p.id
+        ORDER BY b.created_at DESC
+    ''').fetchall()
+    
+    # Buscar jogadores para o formulário
+    players = conn.execute('SELECT id, name FROM players WHERE active = 1 ORDER BY name').fetchall()
+    
+    conn.close()
+    
+    return render_template('admin_business.html', businesses=businesses, players=players)
+
+
+
+def verify_business_table_structure():
+    conn = get_db_connection()
+    try:
+        # Verificar a definição atual da tabela
+        table_info = conn.execute("PRAGMA table_info(businesses)").fetchall()
+        
+        # Verificar se existe a tabela e os campos necessários
+        columns = [col[1] for col in table_info]
+        
+        # Se a tabela não existir ou estiver faltando o campo description
+        if not table_info or 'description' not in columns:
+            print("Recriando tabela businesses para suportar descrições maiores...")
+            # Se necessário, recriar a tabela preservando dados
+            create_business_table()
+            
+        print("Estrutura da tabela de negócios verificada com sucesso.")
+    except Exception as e:
+        print(f"Erro ao verificar tabela de negócios: {str(e)}")
+    finally:
+        conn.close()
+
+
+
+@app.route('/admin/edit-business/<int:business_id>', methods=['POST'])
+@login_required
+def edit_business(business_id):
+    # Verificar permissão
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Verificar senha
+    senha = request.form.get('senha', '')
+    if senha != '123':
+        flash('Senha incorreta! Operação não autorizada.', 'error')
+        return redirect(url_for('admin_business'))
+    
+    try:
+        # Obter dados do formulário
+        player_id = request.form.get('player_id')
+        business_name = request.form.get('business_name')
+        business_category = request.form.get('business_category')
+        business_description = request.form.get('business_description')
+        business_contact = request.form.get('business_contact')
+        
+        # Validar dados
+        if not player_id or not business_name or not business_category or not business_description:
+            flash('Todos os campos obrigatórios devem ser preenchidos.', 'error')
+            return redirect(url_for('admin_business'))
+        
+        conn = get_db_connection()
+        
+        # Obter informações do negócio atual
+        current_business = conn.execute('SELECT * FROM businesses WHERE id = ?', (business_id,)).fetchone()
+        
+        if not current_business:
+            conn.close()
+            flash('Negócio não encontrado!', 'error')
+            return redirect(url_for('admin_business'))
+        
+        # Processar atualização da imagem (se fornecida)
+        if 'business_image' in request.files and request.files['business_image'].filename:
+            file = request.files['business_image']
+            
+            if file and allowed_file(file.filename):
+                # Gerar nome de arquivo seguro
+                filename = secure_filename(f"business_{player_id}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
+                
+                # Criar diretório se não existir
+                business_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'business_images')
+                os.makedirs(business_upload_folder, exist_ok=True)
+                
+                # Salvar o arquivo
+                file_path = os.path.join(business_upload_folder, filename)
+                file.save(file_path)
+                
+                # Remover a imagem antiga, se existir
+                if current_business['image_path']:
+                    try:
+                        old_file_path = os.path.join(business_upload_folder, current_business['image_path'])
+                        if os.path.exists(old_file_path):
+                            os.remove(old_file_path)
+                    except Exception as e:
+                        print(f"Erro ao remover imagem antiga: {e}")
+                
+                # Atualizar com a nova imagem
+                conn.execute('''
+                    UPDATE businesses
+                    SET player_id = ?, name = ?, category = ?, description = ?,
+                        contact_info = ?, image_path = ?
+                    WHERE id = ?
+                ''', (
+                    player_id, business_name, business_category,
+                    business_description, business_contact, filename, business_id
+                ))
+            else:
+                conn.close()
+                flash('Tipo de arquivo não permitido. Use apenas JPG, PNG ou GIF.', 'error')
+                return redirect(url_for('admin_business'))
+        else:
+            # Atualizar sem alterar a imagem
+            conn.execute('''
+                UPDATE businesses
+                SET player_id = ?, name = ?, category = ?, description = ?,
+                    contact_info = ?
+                WHERE id = ?
+            ''', (
+                player_id, business_name, business_category,
+                business_description, business_contact, business_id
+            ))
+        
+        conn.commit()
+        conn.close()
+        
+        flash('Negócio atualizado com sucesso!', 'success')
+        
+    except Exception as e:
+        flash(f'Erro ao atualizar negócio: {str(e)}', 'error')
+    
+    return redirect(url_for('admin_business'))
+
+
+@app.template_filter('nl2br')
+def nl2br_filter(text):
+    """Converte quebras de linha em tags <br>"""
+    if not text:
+        return ""
+    return text.replace('\n', '<br>')
+
+
+
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
+
+
+    # Criar tabela de configurações do sistema
+    create_system_settings_table()
+    
+    # Criar tabela de negócios
+    result = create_business_table()
+    if not result:
+        print("ALERTA: Erro ao criar tabela de negócios!")
+
+
+
     if not os.path.exists(DATABASE):
         print("Banco de dados não encontrado. Executando script de importação...")
         import import_data
@@ -4848,5 +5225,8 @@ if __name__ == '__main__':
     if not os.path.exists('static'):
         os.makedirs('static')
     
+
+    create_business_table()
+
     # Modificação: adicionado argumento host='0.0.0.0' para permitir acesso externo
     app.run(debug=True, host='0.0.0.0')
