@@ -4979,6 +4979,8 @@ def api_businesses():
         business_list.append(business_dict)
     
     conn.close()
+    
+    # Definir o cabeçalho Content-Type para json
     return jsonify({'businesses': business_list})
 
 

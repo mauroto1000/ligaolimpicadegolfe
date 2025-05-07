@@ -32,6 +32,11 @@
     .business-desc {
         white-space: pre-line;
     }
+    
+    /* Estilo para texto de ajuda */
+    .url-help {
+        color: #0066cc;
+    }
 </style>
 {% endblock %}
 
@@ -81,7 +86,10 @@
                                 <div class="mb-3">
                                     <label for="business_description" class="form-label">Descrição (máximo 1200 caracteres)</label>
                                     <textarea class="form-control" id="business_description" name="business_description" rows="6" maxlength="1200" required></textarea>
-                                    <div class="form-text"><span id="charCount">0</span>/1200 caracteres</div>
+                                    <div class="form-text">
+                                        <span id="charCount">0</span>/1200 caracteres. 
+                                        <small class="ms-2 text-info"><i class="fas fa-info-circle"></i> URLs como https://exemplo.com serão automaticamente convertidas em links clicáveis.</small>
+                                    </div>
                                 </div>
                                 <div class="mb-3">
                                     <label for="business_contact" class="form-label">Informações de Contato</label>
@@ -209,7 +217,8 @@
                                                                         <label for="business_description_{{ business.id }}" class="form-label">Descrição (máximo 1200 caracteres)</label>
                                                                         <textarea class="form-control" id="business_description_{{ business.id }}" name="business_description" rows="6" maxlength="1200" required>{{ business.description }}</textarea>
                                                                         <div class="form-text">
-                                                                            <span id="charCount_{{ business.id }}">{{ business.description|length }}</span>/1200 caracteres
+                                                                            <span id="charCount_{{ business.id }}">{{ business.description|length }}</span>/1200 caracteres.
+                                                                            <small class="ms-2 text-info"><i class="fas fa-info-circle"></i> URLs como https://exemplo.com serão automaticamente convertidas em links clicáveis.</small>
                                                                         </div>
                                                                     </div>
                                                                     <div class="mb-3">

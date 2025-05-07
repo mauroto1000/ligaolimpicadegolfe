@@ -88,6 +88,16 @@
         padding-top: 8px;
         border-top: 1px dashed #eee;
     }
+    
+    /* Estilo para links na descrição */
+    .business-desc a {
+        color: #0066cc;
+        text-decoration: underline;
+    }
+    
+    .business-desc a:hover {
+        color: #004080;
+    }
 </style>
 {% endblock %}
 
@@ -149,10 +159,6 @@
             return colors[Math.floor(Math.random() * colors.length)];
         }
         
-        
-        // No script dentro do golf_business.html, adicione esta função após as funções existentes
-        // e antes da função renderBusinessCards:
-
         // Função para embaralhar array (algoritmo Fisher-Yates)
         function shuffleArray(array) {
             // Cria uma cópia do array para não modificar o original
@@ -163,7 +169,23 @@
                 [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
             }
             return shuffled;
-}
+        }
+        
+        // Função para detectar e converter URLs em hyperlinks
+        function linkifyText(text) {
+            if (!text) return '';
+            
+            // Regex para detectar URLs (http, https, www)
+            const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/g;
+            
+            // Substituir URLs por tags <a>
+            return text.replace(urlRegex, function(url) {
+                // Adiciona http:// se começar com www.
+                const href = url.startsWith('www.') ? 'http://' + url : url;
+                // Cria o link com target="_blank" para abrir em nova aba
+                return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+            });
+        }
         
         // Função para renderizar os cards de negócios
         function renderBusinessCards(businesses) {
@@ -189,12 +211,15 @@
                 
                 const imagePath = business.image_path || `https://via.placeholder.com/600x400/${getRandomColor()}?text=${encodeURIComponent(business.name)}`;
                 
+                // Usar a função linkifyText para converter URLs em links na descrição
+                const linkedDescription = linkifyText(business.description);
+                
                 card.innerHTML = `
                     <div class="business-image" style="background-image: url('${imagePath}')"></div>
                     <span class="business-category">${getCategoryName(business.category)}</span>
                     <div class="business-info">
                         <div class="business-name">${business.name}</div>
-                        <div class="business-desc">${business.description}</div>
+                        <div class="business-desc">${linkedDescription}</div>
                         <div class="business-owner">
                             <img src="${business.owner_photo}" alt="${business.owner_name}" class="owner-avatar">
                             <span>${business.owner_name}</span>
@@ -207,7 +232,6 @@
             });
         }
         
-        // Função para carregar os negócios do banco de dados
         // Função para carregar os negócios do banco de dados
         function loadBusinesses(filter = 'all') {
             fetch('/api/businesses?filter=' + filter)
