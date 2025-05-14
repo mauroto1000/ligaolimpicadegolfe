@@ -313,18 +313,17 @@
     </div>
     
     <!-- Avisos importantes -->
-    <!-- Aviso sobre suspensão parcial de desafios -->
+    <!-- Aviso sobre regras dos desafios -->
     <div class="alert alert-danger text-center mb-1 py-1 px-2" role="alert">
         <i class="fas fa-bell me-1"></i>
-        <span class="badge bg-light border border-success text-success fw-bold me-1" style="font-size: 0.8rem;">DESAFIOS LIBERADOS</span>
         <strong>ATENÇÃO:</strong> 
-        <small>DESAFIANTES podem registrar seus desafios <strong>MAS PRECISAM COMUNICAR O DESAFIO NO GRUPO DE WHATSAPP. Jogadores dos níveis H, I e J podem registrar desafios de 9 buracos.</strong></small>
+        <small>DESAFIANTES podem registrar seus desafios <strong>MAS PRECISAM COMUNICAR O DESAFIO NO GRUPO DE WHATSAPP.</strong> Os jogadores DEVERÃO consultar e informar o HCP do campo antes do início do desafio, sob risco de ser penalizado (até mesmo com a perda do desafio).</small>
     </div>
         
-        <!-- Aviso sobre atualização de HCP Index -->
+        <!-- Aviso sobre atualização de perfil -->
         <div class="alert alert-info text-center py-1 px-2" role="alert">
             <i class="fas fa-info-circle me-1"></i>
-            <small><strong>LEMBRETE:</strong> Atualize seu HCP Index e sua Nacionalidade/País no seu Perfil de Jogador. <strong>Se quiser, coloque a foto no perfil</strong></small>
+            <small><strong>LEMBRETE:</strong> Atualize sua Nacionalidade/País no seu Perfil de Jogador. <strong>Se quiser, coloque a foto no perfil</strong></small>
             {% if session.user_id and not session.is_admin %}
             <a href="{{ url_for('player_detail', player_id=session.user_id) }}" class="alert-link ms-1">
                 <i class="fas fa-arrow-right"></i> Perfil
