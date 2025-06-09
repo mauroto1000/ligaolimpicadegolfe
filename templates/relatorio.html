@@ -1,8 +1,274 @@
 {% extends 'base.html' %}
 
-{% block title %}Relatórios de Ranking - Abril e Março 2025{% endblock %}
+{% block title %}Relatórios de Ranking - Maio, Abril e Março 2025{% endblock %}
 
 {% block content %}
+<!-- RELATÓRIO DE MAIO 2025 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card bg-purple text-white" style="background-color: #6f42c1 !important;">
+            <div class="card-body text-center py-4">
+                <h2 class="mb-3">Ranking de Jogadores</h2>
+                <h4 class="text-white-50 mb-3">Maio 2025</h4>
+                
+                <div class="row justify-content-center mt-4">
+                    <div class="col-md-3 mb-3">
+                        <div class="bg-white bg-opacity-10 rounded p-3">
+                            <h4 class="text-white mb-1">56</h4>
+                            <p class="mb-0">Desafios Concluídos</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="bg-white bg-opacity-10 rounded p-3">
+                            <h4 class="text-white mb-1">62,5%</h4>
+                            <p class="mb-0">Vitórias dos Desafiantes</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="bg-white bg-opacity-10 rounded p-3">
+                            <h4 class="text-white mb-1">37,5%</h4>
+                            <p class="mb-0">Vitórias dos Desafiados</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- TOP 5 Jogadores Maio -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100" style="border-color: #6f42c1;">
+            <div class="card-header text-white" style="background-color: #6f42c1;">
+                <h4 class="mb-0">TOP 5</h4>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="d-flex align-items-center justify-content-center rounded-circle bg-warning text-white" style="width: 32px; height: 32px; margin-right: 15px;">
+                        <strong>1</strong>
+                    </div>
+                    <div class="fw-bold">Mauro Saito</div>
+                </div>
+                
+                <div class="d-flex align-items-center mb-3">
+                    <div class="d-flex align-items-center justify-content-center rounded-circle bg-secondary text-white" style="width: 32px; height: 32px; margin-right: 15px;">
+                        <strong>2</strong>
+                    </div>
+                    <div class="fw-bold">Miguel Santinoni</div>
+                </div>
+                
+                <div class="d-flex align-items-center mb-3">
+                    <div class="d-flex align-items-center justify-content-center rounded-circle bg-danger text-white" style="width: 32px; height: 32px; margin-right: 15px;">
+                        <strong>3</strong>
+                    </div>
+                    <div class="fw-bold">Jose Ricardo Trigo</div>
+                </div>
+                
+                <div class="d-flex align-items-center mb-3">
+                    <div class="d-flex align-items-center justify-content-center rounded-circle bg-dark text-white" style="width: 32px; height: 32px; margin-right: 15px;">
+                        <strong>4</strong>
+                    </div>
+                    <div class="fw-bold">Marcelo Cruz</div>
+                </div>
+                
+                <div class="d-flex align-items-center">
+                    <div class="d-flex align-items-center justify-content-center rounded-circle bg-dark text-white" style="width: 32px; height: 32px; margin-right: 15px;">
+                        <strong>5</strong>
+                    </div>
+                    <div class="fw-bold">Roberto Fernandes</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Gráfico de Desafios por Dia Maio -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header text-white" style="background-color: #6f42c1;">
+                <h4 class="mb-0">Desafios por Dia</h4>
+            </div>
+            <div class="card-body text-center">
+                <img src="{{ url_for('static', filename='images/relatorio_2025-05.png') }}" alt="Gráfico de desafios por dia" class="img-fluid rounded mb-2" style="max-height: 300px;">
+                <p class="text-muted small">Gráfico de desafios concluídos por data em maio/2025</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tabelas de estatísticas em grid de 2x3 para Maio -->
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header text-white" style="background-color: #6f42c1;">
+                <h4 class="mb-0">TOP 3 Jogadores Ativos</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Jogador</th>
+                                <th class="text-center">Participações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Mauro Saito</td>
+                                <td class="text-center fw-bold">6</td>
+                            </tr>
+                            <tr>
+                                <td>Marcelo Merlo / Miguel Santinoni</td>
+                                <td class="text-center fw-bold">5</td>
+                            </tr>
+                            <tr>
+                                <td>Eduardo Machado / Evandro Mendes / Marcelo Cruz / Patrick Amorim</td>
+                                <td class="text-center fw-bold">4</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header text-white" style="background-color: #6f42c1;">
+                <h4 class="mb-0">TOP 3 Maiores Desafiantes</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Jogador</th>
+                                <th class="text-center">Desafios</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Miguel Santinoni</td>
+                                <td class="text-center fw-bold">4</td>
+                            </tr>
+                            <tr>
+                                <td>Andre Vasconcellos / Domingos Borges / Jose Ricardo Trigo / Marcelo Klujsza</td>
+                                <td class="text-center fw-bold">3</td>
+                            </tr>
+                            <tr>
+                                <td>Alfredo "Jakaré" / Cesar Silva / Chang Vang / Eduardo Dantas / Eduardo Machado / Evandro Mendes / Fernando Fernandes / Marcelo Merlo / Marcos Dias / Martín de la Rosa / Sebastián Sarrido</td>
+                                <td class="text-center fw-bold">2</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header text-white" style="background-color: #6f42c1;">
+                <h4 class="mb-0">TOP 3 Maiores Desafiados</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Jogador</th>
+                                <th class="text-center">Desafios</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Mauro Saito</td>
+                                <td class="text-center fw-bold">6</td>
+                            </tr>
+                            <tr>
+                                <td>Marcelo Cruz / Marcelo Merlo / Patrick Amorim / Roberto Fernandes / Vicente Jesus</td>
+                                <td class="text-center fw-bold">3</td>
+                            </tr>
+                            <tr>
+                                <td>Arlindo Borges / Carlos Moreira / Eduardo Machado / Evandro Mendes / Mark Lloyd / Robert Thomas / Wandelli</td>
+                                <td class="text-center fw-bold">2</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header text-white" style="background-color: #6f42c1;">
+                <h4 class="mb-0">TOP 3 Desafiantes Vencedores</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Jogador</th>
+                                <th class="text-center">Vitórias</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Jose Ricardo Trigo</td>
+                                <td class="text-center fw-bold">3</td>
+                            </tr>
+                            <tr>
+                                <td>Alfredo "Jakaré" / Chang Vang / Domingos Borges / Fernando Fernandes / Marcos Dias / Martín de la Rosa / Miguel Santinoni</td>
+                                <td class="text-center fw-bold">2</td>
+                            </tr>
+                            <tr>
+                                <td>Arapuan Motta / Arlindo Borges / Bob / Carlos Arouca / Carlos Moreira / Cesar Silva / Eduardo Machado / Evandro Mendes / John West / João Lahmann / Marcelo Cruz / Marcelo Klujsza / Marcelo Merlo / Marcos Martins / Regis Fichtner / Sebastián Sarrido / Wandelli / William Cristovam</td>
+                                <td class="text-center fw-bold">1</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header text-white" style="background-color: #6f42c1;">
+                <h4 class="mb-0">TOP 3 Desafiados Vencedores</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Jogador</th>
+                                <th class="text-center">Vitórias</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Mauro Saito</td>
+                                <td class="text-center fw-bold">3</td>
+                            </tr>
+                            <tr>
+                                <td>Marcelo Cruz / Roberto Fernandes</td>
+                                <td class="text-center fw-bold">2</td>
+                            </tr>
+                            <tr>
+                                <td>Arlindo Borges / Chang Vang / Daniel Peres / Eduardo Machado / Evandro Mendes / Luis Delgado / Marcelo Merlo / Marcos Martins / Patrick Amorim / Paulo Pinto / Philip Carruthers / Robert Thomas / Roberto Maueler / Vicente Jesus</td>
+                                <td class="text-center fw-bold">1</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr class="my-5">
+
 <!-- RELATÓRIO DE ABRIL 2025 -->
 <div class="row mb-4">
     <div class="col-12">
