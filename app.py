@@ -2450,6 +2450,10 @@ def challenges_list():
     return render_template('challenges_list.html', challenges=challenges)
 
 # 1. Modificação na rota new_challenge para validar a data do desafio (máximo 7 dias)
+# Substitua a rota new_challenge existente por esta versão modificada
+
+# Substitua a rota new_challenge existente por esta versão modificada
+
 @app.route('/new_challenge', methods=['GET', 'POST'])
 @login_required
 def new_challenge():
@@ -2460,6 +2464,9 @@ def new_challenge():
     
     # Se os desafios estão bloqueados e o usuário não é admin, bloquear
     is_admin = session.get('is_admin', False)
+    # NOVA VERIFICAÇÃO: Identificar se é o admin principal
+    is_main_admin = is_admin and session.get('username') == 'admin'
+    
     if challenges_locked and not is_admin:
         conn.close()
         flash('A criação de desafios está temporariamente bloqueada pelo administrador.', 'error')
@@ -2523,8 +2530,8 @@ def new_challenge():
             else:
                 error = "Um dos jogadores já está envolvido em um desafio pendente ou aceito. Conclua o desafio atual antes de criar um novo."
         
-        # Regras de tier e posição (aplicáveis a todos)
-        if not error:
+        # MODIFICAÇÃO PRINCIPAL: Aplicar regras de tier e posição APENAS para o admin principal
+        if not error and not is_main_admin:
             challenger_tier = challenger['tier']
             challenged_tier = challenged['tier']
             
@@ -2543,6 +2550,10 @@ def new_challenge():
                 # Verificar posição
                 elif challenged['position'] > challenger['position']:
                     error = "Você só pode desafiar jogadores em posições melhores que a sua."
+        
+        # Se for admin principal, mostrar uma mensagem informativa no log
+        if is_main_admin and not error:
+            print(f"Admin principal criando desafio sem restrições: {challenger['name']} (Pos {challenger['position']}, Tier {challenger['tier']}) vs {challenged['name']} (Pos {challenged['position']}, Tier {challenged['tier']})")
         
         if error:
             conn.close()
@@ -2585,7 +2596,12 @@ def new_challenge():
                 ''')
             
             # Determinar quem está criando o desafio
-            creator_type = "Admin" if is_admin else "Jogador"
+            creator_type = "Admin Principal" if is_main_admin else "Admin" if is_admin else "Jogador"
+            
+            # Adicionar nota especial se for admin principal criando sem restrições
+            notes = f"Desafio criado. Marcado para {scheduled_date}"
+            if is_main_admin:
+                notes += " (Criado pelo admin principal sem restrições de tier/posição)"
             
             # Inserir o log de criação
             conn.execute('''
@@ -2600,7 +2616,7 @@ def new_challenge():
                 'pending',
                 None,
                 None,
-                f"Desafio criado. Marcado para {scheduled_date}",
+                notes,
                 current_datetime
             ))
             
@@ -2611,7 +2627,12 @@ def new_challenge():
         conn.commit()
         conn.close()
         
-        flash('Desafio criado com sucesso! O desafiado terá 7 dias para responder ou propor uma nova data.', 'success')
+        # Mensagem de sucesso diferenciada para admin principal
+        if is_main_admin:
+            flash('Desafio criado com sucesso pelo administrador principal (sem restrições)! O desafiado terá 7 dias para responder.', 'success')
+        else:
+            flash('Desafio criado com sucesso! O desafiado terá 7 dias para responder ou propor uma nova data.', 'success')
+        
         return redirect(url_for('challenges_calendar'))
     
     # Para requisições GET, mostrar formulário
@@ -2619,26 +2640,68 @@ def new_challenge():
     all_players = []
     eligible_challenged = []
     
-    if is_admin:
-        # Administradores veem todos os jogadores ativos para seleção como desafiante
+    if is_main_admin:
+        # MODIFICAÇÃO: Apenas o admin principal vê TODOS os jogadores ativos como possíveis desafiados
         all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
         
         # Verificar se há um desafiante pré-selecionado na query string
         preselected_challenger_id = request.args.get('challenger_id')
         
-        # Se há um desafiante pré-selecionado, buscar os jogadores elegíveis
+        # Se há um desafiante pré-selecionado, buscar TODOS os outros jogadores ativos
         if preselected_challenger_id:
-            # Converter para inteiro
             try:
                 preselected_challenger_id = int(preselected_challenger_id)
                 challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
                                          (preselected_challenger_id,)).fetchone()
                 
                 if challenger:
-                    # Mesmo para admins, mostrar apenas jogadores que podem ser desafiados segundo as regras
-                    # Ou seja, mesmas regras para todos
+                    # Para admin principal, mostrar TODOS os jogadores ativos exceto o próprio desafiante
+                    eligible_challenged = conn.execute('''
+                        SELECT * FROM players 
+                        WHERE active = 1
+                        AND id != ?
+                        ORDER BY position
+                    ''', (preselected_challenger_id,)).fetchall()
+                    
+                    # Verificar jogadores com desafios pendentes
+                    players_with_challenges = set()
+                    pending_challenges = conn.execute('''
+                        SELECT challenger_id, challenged_id 
+                        FROM challenges 
+                        WHERE status IN ('pending', 'accepted')
+                    ''').fetchall()
+                    
+                    for challenge in pending_challenges:
+                        players_with_challenges.add(challenge['challenger_id'])
+                        players_with_challenges.add(challenge['challenged_id'])
+                    
+                    # Verificar se o desafiante já tem desafios pendentes
+                    if preselected_challenger_id in players_with_challenges:
+                        flash('Este jogador já está envolvido em um desafio pendente ou aceito.', 'warning')
+                    
+                    # Filtrar jogadores com desafios pendentes (mantém esta restrição mesmo para admin principal)
+                    eligible_challenged = [player for player in eligible_challenged 
+                                          if player['id'] not in players_with_challenges]
+            except (ValueError, TypeError):
+                preselected_challenger_id = None
+    elif is_admin:
+        # Outros admins seguem as regras normais, mas podem selecionar qualquer jogador como desafiante
+        all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
+        
+        # Verificar se há um desafiante pré-selecionado na query string
+        preselected_challenger_id = request.args.get('challenger_id')
+        
+        # Se há um desafiante pré-selecionado, aplicar regras normais de tier
+        if preselected_challenger_id:
+            try:
+                preselected_challenger_id = int(preselected_challenger_id)
+                challenger = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
+                                         (preselected_challenger_id,)).fetchone()
+                
+                if challenger:
+                    # Para outros admins, aplicar regras normais de tier
                     tier = challenger['tier']
-                    prev_tier = chr(ord(tier) - 1) if ord(tier) > ord('A') else tier
+                    prev_tier = chr(ord(tier) - 1) if ord(tier) > ord('C') else tier
                     
                     eligible_challenged = conn.execute('''
                         SELECT * FROM players 
@@ -2671,7 +2734,7 @@ def new_challenge():
             except (ValueError, TypeError):
                 preselected_challenger_id = None
     else:
-        # Para jogadores normais, usar lógica atual
+        # Para jogadores normais, manter lógica atual
         if 'user_id' in session and not is_admin:
             preselected_challenger_id = session['user_id']
         else:
@@ -2683,7 +2746,6 @@ def new_challenge():
                     preselected_challenger_id = None
         
         # Buscar jogadores com desafios pendentes
-        # Buscar jogadores com desafios
         challenges = conn.execute('''
             SELECT DISTINCT c.challenger_id, c.challenged_id, c.status, c.scheduled_date,
                 p1.position as challenger_position, p2.position as challenged_position
@@ -2693,17 +2755,10 @@ def new_challenge():
             WHERE c.status IN ('pending', 'accepted')
         ''').fetchall()
 
-        # Remover a referência ao status 'completed_pending' nos loops
         players_with_challenges = set()
         for challenge in challenges:
             challenger_id = challenge['challenger_id']
             challenged_id = challenge['challenged_id']
-            
-            # Remover esta verificação específica
-            # if challenge['status'] == 'completed_pending':
-            #     players_with_completed_pending[challenger_id] = 'completed_pending'
-            #     players_with_completed_pending[challenged_id] = 'completed_pending'
-            # else:
             players_with_challenges.add(challenger_id)
             players_with_challenges.add(challenged_id)
         
@@ -2724,6 +2779,7 @@ def new_challenge():
                     WHERE active = 1
                     AND position < ? 
                     AND (tier = ? OR tier = ?)
+                    AND tier NOT IN ('A', 'B')
                     ORDER BY position
                 ''', (challenger['position'], challenger['tier'], chr(ord(challenger['tier'])-1))).fetchall()
                 
@@ -2752,6 +2808,7 @@ def new_challenge():
                           challenger_info=challenger_info,
                           today_date=today_date,
                           is_admin=is_admin,
+                          is_main_admin=is_main_admin,
                           challenges_locked=challenges_locked)
 
 
