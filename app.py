@@ -211,6 +211,7 @@ def country_code_filter(country_name):
         'Uruguai': 'uy',
         'Paraguai': 'py',
         'Peru': 'pe',
+        'Venezuela': 've',  # ← ADICIONE ESTA LINHA
         'África do Sul': 'za',
         'Suíça': 'ch',
         'Suécia': 'se',
@@ -4547,6 +4548,7 @@ def country_code_filter(country_name):
         'Uruguai': 'uy',
         'Paraguai': 'py',
         'Peru': 'pe',
+        'Venezuela': 've',
         'África do Sul': 'za',
         'Suíça': 'ch',
         'Suécia': 'se',
