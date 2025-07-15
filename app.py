@@ -2264,6 +2264,76 @@ def update_player_country(player_id):
     return redirect(url_for('player_detail', player_id=player_id))
 
 
+@app.route('/update_player_sexo/<int:player_id>', methods=['POST'])
+def update_player_sexo(player_id):
+    """
+    Atualiza o sexo de um jogador
+    """
+    conn = get_db_connection()
+    
+    # Verificar se o jogador existe
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Jogador não encontrado!', 'error')
+        return redirect(url_for('index'))
+    
+    # Verificar se é o próprio usuário editando seu perfil
+    is_own_profile = False
+    user_id = session.get('user_id')
+    
+    # Verificar se é um admin (o ID pode ser no formato 'admin_1')
+    if isinstance(user_id, str) and user_id.startswith('admin_'):
+        is_own_profile = False
+    elif isinstance(user_id, int):
+        is_own_profile = user_id == player_id
+    elif isinstance(user_id, str) and user_id.isdigit():
+        is_own_profile = int(user_id) == player_id
+    
+    # Verificar senha apenas para administradores
+    if not is_own_profile:
+        senha = request.form.get('senha', '')
+        if senha != '123':
+            conn.close()
+            flash('Senha incorreta! Operação não autorizada.', 'error')
+            return redirect(url_for('player_detail', player_id=player_id))
+    
+    # Obter novo sexo
+    new_sexo = request.form.get('new_sexo', '').strip()
+    
+    # Validar valor
+    if new_sexo not in ['masculino', 'feminino']:
+        conn.close()
+        flash('Valor inválido para sexo.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    try:
+        # Atualizar o sexo do jogador
+        conn.execute('UPDATE players SET sexo = ? WHERE id = ?', (new_sexo, player_id))
+        
+        # Opcional: Registrar alteração nas notas
+        notes = f"Sexo alterado para '{new_sexo}' em {datetime.now().strftime('%d/%m/%Y')}"
+        
+        # Se o jogador já tem notas, adicionar à frente
+        if player['notes']:
+            notes = f"{player['notes']} | {notes}"
+        
+        # Atualizar as notas
+        conn.execute('UPDATE players SET notes = ? WHERE id = ?', (notes, player_id))
+        
+        conn.commit()
+        flash('Sexo atualizado com sucesso!', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao atualizar o sexo: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('player_detail', player_id=player_id))
+
+
 
 @app.route('/')
 def index():
