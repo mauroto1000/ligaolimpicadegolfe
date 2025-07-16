@@ -187,6 +187,49 @@
                             {% endif %}
                         </form>
                     </div>
+
+                    <!-- NOVA SEÇÃO: SEXO -->
+                    <div class="col-md-6">
+                        <h5>Sexo</h5>
+                        <p class="d-flex align-items-center">
+                            <span id="playerSexoDisplay">
+                                {% if player['sexo'] %}
+                                    {% if player['sexo'] == 'masculino' %}
+                                        <i class="fas fa-mars text-primary me-1"></i> Masculino
+                                    {% else %}
+                                        <i class="fas fa-venus text-danger me-1"></i> Feminino
+                                    {% endif %}
+                                {% else %}
+                                    Não informado
+                                {% endif %}
+                            </span>
+                            <button type="button" class="btn btn-sm text-primary border-0 px-1" 
+                                    onclick="toggleEditSexo()" title="Editar sexo">
+                                <i class="fas fa-pencil-alt fa-sm"></i>
+                            </button>
+                        </p>
+                        
+                        <!-- Formulário para editar sexo (inicialmente oculto) -->
+                        <form id="editSexoForm" action="{{ url_for('update_player_sexo', player_id=player.id) }}" 
+                            method="post" class="d-none mb-3">
+                            <div class="input-group">
+                                <select class="form-control" name="new_sexo" required>
+                                    <option value="masculino" {% if player['sexo'] == 'masculino' %}selected{% endif %}>Masculino</option>
+                                    <option value="feminino" {% if player['sexo'] == 'feminino' %}selected{% endif %}>Feminino</option>
+                                </select>
+                                <button type="submit" class="btn btn-primary">Salvar</button>
+                                <button type="button" class="btn btn-secondary" 
+                                        onclick="toggleEditSexo()">Cancelar</button>
+                            </div>
+                            {% if not is_own_profile %}
+                            <div class="form-group mt-2">
+                                <label for="senha_sexo" class="small">Senha de Administrador:</label>
+                                <input type="password" class="form-control form-control-sm" 
+                                    id="senha_sexo" name="senha" required>
+                            </div>
+                            {% endif %}
+                        </form>
+                    </div>
                 </div>
                 
                 <!-- Seção com Posição e Tier -->
@@ -617,6 +660,21 @@ function toggleEditContact() {
 function toggleEditCountry() {
     const displayElement = document.getElementById('playerCountryDisplay');
     const formElement = document.getElementById('editCountryForm');
+
+    if (formElement.classList.contains('d-none')) {
+        // Mostrar formulário, ocultar display
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        // Ocultar formulário, mostrar display
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
+}
+
+function toggleEditSexo() {
+    const displayElement = document.getElementById('playerSexoDisplay');
+    const formElement = document.getElementById('editSexoForm');
 
     if (formElement.classList.contains('d-none')) {
         // Mostrar formulário, ocultar display
