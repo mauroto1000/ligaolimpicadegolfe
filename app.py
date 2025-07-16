@@ -1474,6 +1474,8 @@ def fix_position_gaps(conn):
     # Não é necessário commitar aqui, pois essa função é chamada dentro de outra
     # que já tem seu próprio commit
 
+
+
 # Função aprimorada para ajustar a pirâmide quando ocorrem mudanças de posição
 def rebalance_positions_after_challenge(conn, winner_id, loser_id, winner_new_pos, loser_new_pos):
     """
@@ -5289,6 +5291,43 @@ def nl2br_filter(text):
     if not text:
         return ""
     return text.replace('\n', '<br>')
+
+
+@app.route('/force_fix_positions', methods=['GET'])
+def force_fix_positions():
+    """
+    Correção forçada das posições com lacunas
+    """
+    conn = get_db_connection()
+    try:
+        # Buscar apenas jogadores masculinos ativos
+        male_players = conn.execute('''
+            SELECT id, name FROM players 
+            WHERE active = 1 AND (sexo != 'feminino' OR sexo IS NULL)
+            ORDER BY position, name
+        ''').fetchall()
+        
+        # Reassignar posições sequenciais (1, 2, 3, 4...)
+        for i, player in enumerate(male_players, 1):
+            new_tier = get_tier_from_position(i)
+            
+            conn.execute('''
+                UPDATE players 
+                SET position = ?, tier = ? 
+                WHERE id = ?
+            ''', (i, new_tier, player['id']))
+        
+        conn.commit()
+        flash(f'Posições corrigidas! {len(male_players)} jogadores reorganizados sequencialmente.', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('pyramid_dynamic'))
+
 
 
 
