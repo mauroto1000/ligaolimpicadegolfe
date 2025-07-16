@@ -449,6 +449,7 @@
         </div>
         
         <!-- Controles interativos -->
+        <!-- Controles interativos -->
         <div class="pyramid-controls">
             <div class="input-group mb-0 me-2" style="max-width: 250px;">
                 <input type="text" id="playerSearch" class="form-control" placeholder="Buscar jogador...">
@@ -458,6 +459,16 @@
             </div>
             
             <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">Voltar para Lista</a>
+            
+            <!-- BOTÃO DE CORREÇÃO (apenas para admins) -->
+            <!-- BOTÃO DE CORREÇÃO (apenas para admins) -->
+            {% if session.is_admin %}
+            <a href="{{ url_for('force_fix_positions') }}" class="btn btn-danger btn-sm ms-2" 
+            onclick="return confirm('🔧 FORÇAR CORREÇÃO DAS POSIÇÕES?\n\nEsta operação irá:\n• Eliminar TODAS as lacunas\n• Reorganizar posições sequenciais (1,2,3,4...)\n• Recalcular tiers corretos\n\nCONTINUAR?')">
+                <i class="fas fa-hammer me-1"></i>
+                FORÇAR CORREÇÃO
+            </a>
+            {% endif %}
         </div>
         
         <!-- Legenda -->
