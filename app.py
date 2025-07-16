@@ -3374,33 +3374,42 @@ def fix_pyramid():
     conn = get_db_connection()
     
     try:
-        # Passo 1: Corrigir qualquer lacuna nas posições
-        players_before = conn.execute('SELECT id, position FROM players WHERE active = 1 ORDER BY position').fetchall()
+        # 1. Corrigir ranking masculino
+        male_players = conn.execute('SELECT id, position FROM players WHERE active = 1 AND (sexo != "feminino" OR sexo IS NULL) ORDER BY position').fetchall()
         fix_position_gaps(conn)
         
-        # Passo 2: Verificar se há jogadores com tiers incorretos
+        # 2. NOVA ADIÇÃO: Corrigir ranking feminino
+        female_players = conn.execute('''
+            SELECT id, name, position FROM players 
+            WHERE active = 1 AND sexo = 'feminino'
+            ORDER BY position, name
+        ''').fetchall()
+        
+        # Reorganizar posições das mulheres sequencialmente (1, 2, 3, 4...)
+        for i, player in enumerate(female_players, 1):
+            new_position = i
+            new_tier = get_tier_from_position(new_position)
+            
+            conn.execute('''
+                UPDATE players 
+                SET position = ?, tier = ? 
+                WHERE id = ? AND sexo = 'feminino'
+            ''', (new_position, new_tier, player['id']))
+        
+        # 3. Atualizar todos os tiers
+        update_all_tiers(conn)
+        
+        # 4. Verificação final
         incorrect_players = verify_pyramid_structure(conn)
         
-        # Passo 3: Atualizar todos os tiers para corrigir a estrutura
+        if len(male_players) > 0 or len(female_players) > 0:
+            flash(f'Estrutura da pirâmide corrigida: {len(male_players)} homens e {len(female_players)} mulheres reorganizados.', 'success')
+        else:
+            flash('A estrutura da pirâmide já estava correta!', 'info')
+        
         if incorrect_players:
             update_all_tiers(conn)
-            
-        # Verificação final
-        players_after = conn.execute('SELECT id, position FROM players WHERE active = 1 ORDER BY position').fetchall()
-        final_check = verify_pyramid_structure(conn)
-        
-        # Calcular quantas posições foram corrigidas
-        positions_fixed = sum(1 for a, b in zip(players_before, players_after) 
-                             if a['position'] != b['position'])
-        
-        if positions_fixed > 0 or incorrect_players:
-            flash(f'Estrutura da pirâmide corrigida: {positions_fixed} posições e {len(incorrect_players)} tiers atualizados.', 'success')
-        else:
-            flash('A estrutura da pirâmide já está correta!', 'info')
-        
-        # Se ainda houver problemas, alertar
-        if final_check:
-            flash(f'Atenção: Ainda há {len(final_check)} tiers que podem estar incorretos.', 'warning')
+            flash(f'Tiers corrigidos automaticamente para {len(incorrect_players)} jogadores.', 'info')
         
         conn.commit()
     except Exception as e:
@@ -3448,6 +3457,53 @@ def check_pyramid_integrity():
         conn.rollback()
     finally:
         conn.close()
+
+
+@app.route('/fix_only_ladies', methods=['GET'])
+def fix_only_ladies():
+    """
+    Corrige APENAS o ranking feminino, sem tocar no masculino
+    """
+    conn = get_db_connection()
+    try:
+        # Buscar APENAS jogadoras femininas, ordenadas por posição atual
+        female_players = conn.execute('''
+            SELECT id, name, position FROM players 
+            WHERE active = 1 AND sexo = 'feminino'
+            ORDER BY position
+        ''').fetchall()
+        
+        if not female_players:
+            flash('Nenhuma jogadora feminina encontrada.', 'info')
+            conn.close()
+            return redirect(url_for('index'))
+        
+        print(f"Corrigindo {len(female_players)} jogadoras...")
+        
+        # Corrigir APENAS as jogadoras para posições 1, 2, 3, 4...
+        for i, player in enumerate(female_players, 1):
+            new_position = i
+            new_tier = get_tier_from_position(new_position)
+            
+            print(f"Jogadora {player['name']}: posição {player['position']} → {new_position}, tier {new_tier}")
+            
+            conn.execute('''
+                UPDATE players 
+                SET position = ?, tier = ? 
+                WHERE id = ? AND sexo = 'feminino'
+            ''', (new_position, new_tier, player['id']))
+        
+        conn.commit()
+        flash(f'✅ Ranking feminino corrigido! {len(female_players)} jogadoras: posições 1, 2, 3, 4...', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'❌ Erro: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('index'))
+
 
 # Rota adicional para verificação manual da integridade da pirâmide
 @app.route('/check_pyramid')
