@@ -35,6 +35,52 @@
             padding: 0.25rem 0.4rem;
         }
     }
+    
+    /* Estilo especial para o Liga Ladies */
+    .ladies-liga .card-header {
+        background: linear-gradient(135deg, #e91e63, #f48fb1) !important;
+        color: white;
+    }
+    
+    .ladies-liga .table-dark {
+        background: linear-gradient(135deg, #ad1457, #e91e63) !important;
+    }
+    
+    .ladies-liga .badge-tier {
+        background-color: #e91e63 !important;
+        color: white !important;
+        border: 1px solid #ad1457 !important;
+    }
+    
+    /* Estilo para ranking masculino */
+    .mens-ranking .card-header {
+        background: linear-gradient(135deg, #1976d2, #42a5f5) !important;
+        color: white;
+    }
+    
+    .mens-ranking .table-dark {
+        background: linear-gradient(135deg, #0d47a1, #1976d2) !important;
+    }
+    
+    .mens-ranking .badge-tier {
+        background-color: #1976d2 !important;
+        color: white !important;
+        border: 1px solid #0d47a1 !important;
+    }
+    
+    /* Ícones de sexo */
+    .gender-icon {
+        margin-right: 5px;
+        font-size: 0.9em;
+    }
+    
+    .ladies-icon {
+        color: #e91e63;
+    }
+    
+    .mens-icon {
+        color: #1976d2;
+    }
 </style>
 
 <!-- Banner de Consentimento de Cookies - Adicionar ao final do body ou como primeiro elemento -->
@@ -119,9 +165,147 @@
 
 <div class="row g-2">
     <div class="col-12">
-        <h2 class="mb-2 fs-4">Ranking de Jogadores</h2>
+        <h2 class="mb-2 fs-4">Rankings da Liga Olímpica de Golfe</h2>
     </div>
     
+    <!-- Separar jogadores por sexo -->
+    {% set female_players = players|selectattr('sexo', 'equalto', 'feminino')|list %}
+    {% set male_players = players|rejectattr('sexo', 'equalto', 'feminino')|list %}
+    
+    <!-- Liga Ladies - Ranking Feminino -->
+    {% if female_players %}
+    <div class="col-12">
+        <div class="card mb-3 ladies-liga">
+            <div class="card-header py-2">
+                <h4 class="mb-0 fs-5">
+                    <i class="fas fa-crown ladies-icon gender-icon"></i>
+                    Liga Ladies - Ranking Feminino
+                    <span class="badge bg-light text-dark ms-2">{{ female_players|length }} jogadoras</span>
+                </h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th class="text-center">Pos</th>
+                                <th class="text-center">Código</th>
+                                <th>Nome</th>
+                                <th class="text-center">Linha</th>
+
+                                <th class="text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for player in female_players %}
+                            <tr>
+                                <td class="text-center"><strong>{{ player['position'] }}</strong></td>
+                                <td class="text-center">{{ player['player_code'] }}</td>
+                                <td>
+                                    <i class="fas fa-venus ladies-icon gender-icon"></i>
+                                    {% if player['country'] %}
+                                        <img src="https://flagcdn.com/16x12/{{ player['country']|country_code }}.png" 
+                                             alt="{{ player['country'] }}" class="me-1" width="16" height="12" 
+                                             title="{{ player['country'] }}">
+                                    {% endif %}
+                                    {{ player['name'] }}
+                                </td>
+                                <td class="text-center"><span class="badge badge-tier">{{ player['tier'] }}</span></td>
+
+                                <td class="text-center actions-cell">
+                                    <div class="d-flex justify-content-center gap-1">
+                                        <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-primary py-0 px-1">
+                                            <i class="fas fa-user"></i> <span class="d-none d-md-inline">Detalhes</span>
+                                        </a>
+                                        {% if 'user_id' in session %}
+                                        <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}" class="btn btn-sm btn-outline-success py-0 px-1">
+                                            <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
+                                        </a>
+                                        {% else %}
+                                        <a href="{{ url_for('login') }}" class="btn btn-sm btn-danger py-0 px-1" title="Faça login para desafiar">
+                                            <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Ranking Masculino -->
+    {% if male_players %}
+    <div class="col-12">
+        <div class="card mb-3 mens-ranking">
+            <div class="card-header py-2">
+                <h4 class="mb-0 fs-5">
+                    <i class="fas fa-trophy mens-icon gender-icon"></i>
+                    Ranking Masculino
+                    <span class="badge bg-light text-dark ms-2">{{ male_players|length }} jogadores</span>
+                </h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th class="text-center">Pos</th>
+                                <th class="text-center">Código</th>
+                                <th>Nome</th>
+                                <th class="text-center">Linha</th>
+
+                                <th class="text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for player in male_players %}
+                            <tr>
+                                <td class="text-center"><strong>{{ player['position'] }}</strong></td>
+                                <td class="text-center">{{ player['player_code'] }}</td>
+                                <td>
+                                    <i class="fas fa-mars mens-icon gender-icon"></i>
+                                    {% if player['country'] %}
+                                        <img src="https://flagcdn.com/16x12/{{ player['country']|country_code }}.png" 
+                                             alt="{{ player['country'] }}" class="me-1" width="16" height="12" 
+                                             title="{{ player['country'] }}">
+                                    {% endif %}
+                                    {{ player['name'] }}
+                                </td>
+                                <td class="text-center"><span class="badge badge-tier">{{ player['tier'] }}</span></td>
+
+                                <td class="text-center actions-cell">
+                                    <div class="d-flex justify-content-center gap-1">
+                                        <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-primary py-0 px-1">
+                                            <i class="fas fa-user"></i> <span class="d-none d-md-inline">Detalhes</span>
+                                        </a>
+                                        {% if 'user_id' in session %}
+                                        <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}" class="btn btn-sm btn-outline-success py-0 px-1">
+                                            <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
+                                        </a>
+                                        {% else %}
+                                        <a href="{{ url_for('login') }}" class="btn btn-sm btn-danger py-0 px-1" title="Faça login para desafiar">
+                                            <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Caso não haja jogadores separados por sexo, mostrar tabela unificada -->
+    {% if not female_players and not male_players %}
     <div class="col-12">
         <div class="card mb-3">
             <div class="card-header bg-primary text-white py-1">
@@ -177,12 +361,16 @@
             </div>
         </div>
     </div>
+    {% endif %}
     
     {% if inactive_players %}
     <div class="col-12">
         <div class="card mt-1 mb-3">
             <div class="card-header bg-secondary text-white py-1">
-                <h4 class="mb-0 fs-5">Jogadores Inativos</h4>
+                <h4 class="mb-0 fs-5">
+                    <i class="fas fa-user-slash me-2"></i>
+                    Jogadores Inativos
+                </h4>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -201,6 +389,11 @@
                             <tr>
                                 <td class="text-center">{{ player.player_code }}</td>
                                 <td>
+                                    {% if player.sexo == 'feminino' %}
+                                        <i class="fas fa-venus ladies-icon gender-icon"></i>
+                                    {% else %}
+                                        <i class="fas fa-mars mens-icon gender-icon"></i>
+                                    {% endif %}
                                     {% if player['country'] %}
                                         <img src="https://flagcdn.com/16x12/{{ player['country']|country_code }}.png" 
                                              alt="{{ player['country'] }}" class="me-1" width="16" height="12" 

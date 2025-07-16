@@ -3559,18 +3559,16 @@ def generate_player_code(conn):
 @app.route('/add_player', methods=['GET', 'POST'])
 def add_player():
     """
-    Adiciona um novo jogador ao sistema, colocando-o na última posição do ranking.
-    Agora inclui a seleção de país/nacionalidade.
-    
-    GET: Mostra formulário para adicionar jogador
-    POST: Processa a adição do jogador
+    Adiciona um novo jogador ao sistema, colocando-o na última posição do ranking do seu sexo.
+    Agora com suporte a rankings separados por sexo.
     """
     if request.method == 'POST':
         # Obter dados do formulário
         name = request.form.get('name', '').strip()
+        sexo = request.form.get('sexo', 'masculino').strip()  # NOVO CAMPO
         hcp_index = request.form.get('hcp_index', '').strip()
         email = request.form.get('email', '').strip()
-        country = request.form.get('country', 'Brasil').strip()  # Nova linha: obter país do formulário
+        country = request.form.get('country', 'Brasil').strip()
         notes = request.form.get('notes', '').strip()
         senha = request.form.get('senha', '')
         
@@ -3603,10 +3601,19 @@ def add_player():
             # Gerar automaticamente um novo player_code
             player_code = generate_player_code(conn)
             
-            # Determinar a última posição do ranking
-            last_pos_result = conn.execute('SELECT MAX(position) as max_pos FROM players WHERE active = 1').fetchone()
-            last_pos = last_pos_result['max_pos'] if last_pos_result and last_pos_result['max_pos'] is not None else 0
-            new_position = last_pos + 1
+            # NOVA LÓGICA: Determinar posição baseada no sexo
+            if sexo == 'feminino':
+                # Para mulheres: buscar última posição feminina
+                last_pos_result = conn.execute(
+                    'SELECT MAX(position) as max_pos FROM players WHERE active = 1 AND sexo = "feminino"'
+                ).fetchone()
+            else:
+                # Para homens: buscar última posição masculina (incluindo NULL como masculino)
+                last_pos_result = conn.execute(
+                    'SELECT MAX(position) as max_pos FROM players WHERE active = 1 AND (sexo != "feminino" OR sexo IS NULL)'
+                ).fetchone()
+            
+            new_position = (last_pos_result['max_pos'] if last_pos_result and last_pos_result['max_pos'] is not None else 0) + 1
             
             # Garantir que a posição seja um inteiro válido
             if not isinstance(new_position, int) or new_position <= 0:
@@ -3632,6 +3639,11 @@ def add_player():
             columns = ['name', 'active', 'position', 'tier', 'player_code']
             values = [name, 1, new_position, new_tier, player_code]
             
+            # Adicionar sexo se a coluna existir
+            if 'sexo' in column_names:
+                columns.append('sexo')
+                values.append(sexo)
+            
             if 'hcp_index' in column_names:
                 columns.append('hcp_index')
                 values.append(hcp_index_val)
@@ -3640,7 +3652,7 @@ def add_player():
                 columns.append('email')
                 values.append(email)
             
-            if 'country' in column_names:  # Nova verificação para coluna de país
+            if 'country' in column_names:
                 columns.append('country')
                 values.append(country)
             
@@ -3661,14 +3673,22 @@ def add_player():
             player_id = cursor.lastrowid
             
             # Registrar no histórico - Usando 0 em vez de None para old_position e old_tier
+            reason = f'player_added_{sexo}' if 'sexo' in column_names else 'player_added'
             conn.execute('''
                 INSERT INTO ranking_history 
                 (player_id, old_position, new_position, old_tier, new_tier, reason)
                 VALUES (?, ?, ?, ?, ?, ?)
-            ''', (player_id, 0, new_position, "NEW", new_tier, 'player_added'))
+            ''', (player_id, 0, new_position, "NEW", new_tier, reason))
             
             conn.commit()
-            flash(f'Jogador "{name}" adicionado com sucesso na posição {new_position} (Tier {new_tier}) com código {player_code}!', 'success')
+            
+            # Mensagem de sucesso personalizada
+            if sexo == 'feminino':
+                ranking_type = "Ladies Liga (Ranking Feminino)"
+            else:
+                ranking_type = "Ranking Masculino"
+            
+            flash(f'Jogador(a) "{name}" adicionado(a) com sucesso no {ranking_type} na posição {new_position} (Tier {new_tier}) com código {player_code}!', 'success')
             return redirect(url_for('player_detail', player_id=player_id))
             
         except Exception as e:

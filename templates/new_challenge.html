@@ -14,17 +14,31 @@
                     <h3>Desafiante</h3>
                     {% if preselected_challenger %}
                         <input type="hidden" name="challenger_id" value="{{ preselected_challenger }}">
+                        <input type="hidden" id="challenger_gender" value="{{ challenger_info.sexo if challenger_info.sexo else 'masculino' }}">
                         
                         {% if challenger_info %}
                         <div class="card mb-3">
                             <div class="card-body">
                                 <h4>
+                                    {% if challenger_info.sexo == 'feminino' %}
+                                        <i class="fas fa-venus text-pink me-1"></i>
+                                    {% else %}
+                                        <i class="fas fa-mars text-primary me-1"></i>
+                                    {% endif %}
                                     <a href="{{ url_for('player_detail', player_id=challenger_info.id) }}">
                                         {{ challenger_info.position }}. {{ challenger_info.name }}
                                     </a>
                                 </h4>
+                                <p class="mb-1">
+                                    <strong>Ranking:</strong> 
+                                    {% if challenger_info.sexo == 'feminino' %}
+                                        <span class="badge" style="background-color: #e91e63; color: white;">Liga Ladies</span>
+                                    {% else %}
+                                        <span class="badge bg-primary">Ranking Masculino</span>
+                                    {% endif %}
+                                </p>
                                 {% if challenger_info.hcp_index is not none %}
-                                    <p>HCP Index: {{ challenger_info.hcp_index }}</p>
+                                    <p class="mb-0">HCP Index: {{ challenger_info.hcp_index }}</p>
                                 {% endif %}
                             </div>
                         </div>
@@ -34,12 +48,25 @@
                             <div class="card-body">
                                 <div class="form-group">
                                     <label for="challenger_id">Selecione o Desafiante:</label>
-                                    <select name="challenger_id" id="challenger_id" class="form-select" required onchange="this.form.submit()">
+                                    <select name="challenger_id" id="challenger_id" class="form-select" required onchange="updateChallengerInfo()">
                                         <option value="">-- Selecione --</option>
                                         {% for player in all_players %}
-                                            <option value="{{ player.id }}">{{ player.position }}. {{ player.name }} (Tier {{ player.tier }})</option>
+                                            <option value="{{ player.id }}" data-gender="{{ player.sexo if player.sexo else 'masculino' }}">
+                                                {% if player.sexo == 'feminino' %}♀{% else %}♂{% endif %}
+                                                {{ player.position }}. {{ player.name }} (Tier {{ player.tier }})
+                                            </option>
                                         {% endfor %}
                                     </select>
+                                </div>
+                                
+                                <!-- Info sobre ranking do desafiante selecionado -->
+                                <div id="challenger-info" class="mt-2" style="display: none;">
+                                    <div class="alert alert-info mb-0">
+                                        <small>
+                                            <strong>Ranking:</strong> <span id="challenger-ranking"></span><br>
+                                            <strong>Pode desafiar:</strong> <span id="challenger-can-challenge"></span>
+                                        </small>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -52,11 +79,22 @@
                             <div class="form-group">
                                 <label for="challenged_id">Selecione o Desafiado:</label>
                                 <select name="challenged_id" id="challenged_id" class="form-select" required>
-                                    <option value="">-- Selecione --</option>
+                                    <option value="">-- Primeiro selecione o desafiante --</option>
                                     {% for player in eligible_challenged %}
-                                        <option value="{{ player.id }}">{{ player.position }}. {{ player.name }} (Tier {{ player.tier }})</option>
+                                        <option value="{{ player.id }}" data-gender="{{ player.sexo if player.sexo else 'masculino' }}">
+                                            {% if player.sexo == 'feminino' %}♀{% else %}♂{% endif %}
+                                            {{ player.position }}. {{ player.name }} (Tier {{ player.tier }})
+                                        </option>
                                     {% endfor %}
                                 </select>
+                            </div>
+                            
+                            <!-- Aviso se não houver jogadores elegíveis -->
+                            <div id="no-eligible-players" class="alert alert-warning mt-2" style="display: none;">
+                                <small>
+                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                    Nenhum jogador do mesmo sexo disponível para desafio.
+                                </small>
                             </div>
                         </div>
                     </div>
@@ -76,7 +114,7 @@
             </div>
 
             <div class="mt-4">
-                <button type="submit" class="btn btn-primary">Criar Desafio</button>
+                <button type="submit" class="btn btn-primary" id="submit-btn">Criar Desafio</button>
                 <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancelar</a>
             </div>
         </form>
@@ -85,12 +123,15 @@
         <div class="alert alert-info mt-4">
             <h4>Regras para Desafios</h4>
             <ul>
+                <li><strong>🚨 IMPORTANTE:</strong> Desafios só podem ocorrer entre jogadores do <strong>mesmo sexo</strong>.</li>
+                <li>🌸 <strong>Liga Ladies:</strong> Mulheres só podem desafiar outras mulheres.</li>
+                <li>🏆 <strong>Ranking Masculino:</strong> Homens só podem desafiar outros homens.</li>
                 <li>Jogadores só podem ter <strong>um desafio ativo</strong> por vez.</li>
                 <li>Você só pode desafiar jogadores que estejam <strong>até uma linha acima</strong> da sua.</li>
                 <li>O desafiado tem 7 dias para aceitar ou rejeitar o desafio.</li>
                 <li>O jogo deve ser agendado para no máximo 7 dias a partir de hoje.</li>
                 {% if is_admin %}
-                <li><strong>Como administrador</strong>, você pode criar desafios sem seguir estas regras.</li>
+                <li><strong>Como administrador</strong>, você pode criar desafios sem seguir algumas dessas regras.</li>
                 {% endif %}
             </ul>
         </div>
@@ -99,6 +140,14 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        const challengerSelect = document.getElementById('challenger_id');
+        const challengedSelect = document.getElementById('challenged_id');
+        const challengerInfo = document.getElementById('challenger-info');
+        const challengerRanking = document.getElementById('challenger-ranking');
+        const challengerCanChallenge = document.getElementById('challenger-can-challenge');
+        const noEligiblePlayers = document.getElementById('no-eligible-players');
+        const submitBtn = document.getElementById('submit-btn');
+
         // Função para calcular a data máxima (hoje + 7 dias)
         function getMaxDate() {
             const today = new Date();
@@ -120,39 +169,173 @@
         if (datefield) {
             const maxDate = getMaxDate();
             datefield.max = formatDateForInput(maxDate);
+        }
+
+        // Função para atualizar informações do desafiante
+        window.updateChallengerInfo = function() {
+            const selectedOption = challengerSelect.options[challengerSelect.selectedIndex];
             
-            // Validar a data selecionada
-            function validateDate() {
-                const selectedDate = new Date(datefield.value);
-                selectedDate.setHours(0, 0, 0, 0);
-                
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                
-                const maxDate = getMaxDate();
-                maxDate.setHours(23, 59, 59, 0);
-                
-                if (selectedDate < today) {
-                    alert("A data não pode ser anterior à data atual.");
-                    return false;
-                } else if (selectedDate > maxDate) {
-                    alert("A data deve ser no máximo 7 dias a partir de hoje.");
-                    return false;
-                }
-                
-                return true;
+            if (challengerSelect.value === '') {
+                challengerInfo.style.display = 'none';
+                updateChallengedOptions('');
+                return;
             }
+
+            const gender = selectedOption.getAttribute('data-gender') || 'masculino';
             
-            // Adicionar validação ao envio do formulário
-            const form = document.getElementById('newChallengeForm');
-            if (form) {
-                form.addEventListener('submit', function(event) {
-                    if (!validateDate()) {
-                        event.preventDefault();
-                    }
-                });
+            // Debug: log para verificar o sexo selecionado
+            console.log('Desafiante selecionado - Sexo:', gender);
+            
+            // Mostrar informações do ranking
+            challengerInfo.style.display = 'block';
+            
+            if (gender === 'feminino') {
+                challengerRanking.innerHTML = '<span class="badge" style="background-color: #e91e63; color: white;">Liga Ladies</span>';
+                challengerCanChallenge.textContent = 'Apenas outras mulheres da Liga Ladies';
+            } else {
+                challengerRanking.innerHTML = '<span class="badge bg-primary">Ranking Masculino</span>';
+                challengerCanChallenge.textContent = 'Apenas outros homens do Ranking Masculino';
+            }
+
+            // Atualizar opções de desafiados
+            updateChallengedOptions(gender);
+        };
+
+        // Função para atualizar opções de jogadores que podem ser desafiados
+        function updateChallengedOptions(challengerGender) {
+            // Debug: log para verificar o que está sendo filtrado
+            console.log('Filtrando desafiados para sexo:', challengerGender);
+            
+            // Limpar seleção atual
+            challengedSelect.innerHTML = '<option value="">-- Selecione --</option>';
+            
+            if (challengerGender === '') {
+                challengedSelect.innerHTML = '<option value="">-- Primeiro selecione o desafiante --</option>';
+                noEligiblePlayers.style.display = 'none';
+                return;
+            }
+
+            // Array com todos os jogadores elegíveis do backend
+            const allEligiblePlayers = [
+                {% for player in eligible_challenged %}
+                {
+                    id: '{{ player.id }}',
+                    position: '{{ player.position }}',
+                    name: '{{ player.name }}',
+                    tier: '{{ player.tier }}',
+                    gender: '{{ player.sexo if player.sexo else "masculino" }}'
+                }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ];
+
+            // Debug: log do total de jogadores e quantos são do sexo correto
+            console.log('Total de jogadores elegíveis:', allEligiblePlayers.length);
+            console.log('Jogadores por sexo:', allEligiblePlayers.map(p => `${p.name}: ${p.gender}`));
+
+            // Filtrar jogadores pelo mesmo sexo
+            const sameGenderPlayers = allEligiblePlayers.filter(player => player.gender === challengerGender);
+            
+            console.log('Jogadores do mesmo sexo encontrados:', sameGenderPlayers.length);
+            
+            // Adicionar opções filtradas
+            let eligibleCount = 0;
+            sameGenderPlayers.forEach(player => {
+                const option = document.createElement('option');
+                option.value = player.id;
+                option.setAttribute('data-gender', player.gender);
+                
+                const genderIcon = player.gender === 'feminino' ? '♀' : '♂';
+                option.textContent = `${genderIcon} ${player.position}. ${player.name} (Tier ${player.tier})`;
+                
+                challengedSelect.appendChild(option);
+                eligibleCount++;
+            });
+
+            // Mostrar aviso se não houver jogadores elegíveis
+            if (eligibleCount === 0) {
+                noEligiblePlayers.style.display = 'block';
+                const noOption = document.createElement('option');
+                noOption.value = '';
+                noOption.disabled = true;
+                noOption.textContent = 'Nenhum jogador do mesmo sexo disponível';
+                challengedSelect.appendChild(noOption);
+            } else {
+                noEligiblePlayers.style.display = 'none';
             }
         }
+
+        // Função para validar se os jogadores são do mesmo sexo
+        function validateSameGender() {
+            const challengerGender = document.getElementById('challenger_gender') ? 
+                document.getElementById('challenger_gender').value : 
+                (challengerSelect.options[challengerSelect.selectedIndex]?.getAttribute('data-gender') || 'masculino');
+            
+            const challengedOption = challengedSelect.options[challengedSelect.selectedIndex];
+            const challengedGender = challengedOption?.getAttribute('data-gender') || 'masculino';
+
+            if (challengerSelect.value && challengedSelect.value && challengerGender !== challengedGender) {
+                alert('❌ Erro: Desafios só podem ocorrer entre jogadores do mesmo sexo!');
+                return false;
+            }
+
+            return true;
+        }
+
+        // Função para validar a data
+        function validateDate() {
+            const selectedDate = new Date(datefield.value);
+            selectedDate.setHours(0, 0, 0, 0);
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const maxDate = getMaxDate();
+            maxDate.setHours(23, 59, 59, 0);
+            
+            if (selectedDate < today) {
+                alert("A data não pode ser anterior à data atual.");
+                return false;
+            } else if (selectedDate > maxDate) {
+                alert("A data deve ser no máximo 7 dias a partir de hoje.");
+                return false;
+            }
+            
+            return true;
+        }
+
+        // Validação no envio do formulário
+        const form = document.getElementById('newChallengeForm');
+        if (form) {
+            form.addEventListener('submit', function(event) {
+                if (!validateSameGender() || !validateDate()) {
+                    event.preventDefault();
+                }
+            });
+        }
+
+        // Se houver desafiante pré-selecionado, configurar os desafiados
+        {% if preselected_challenger and challenger_info %}
+        const preselectedGender = '{{ challenger_info.sexo if challenger_info.sexo else "masculino" }}';
+        updateChallengedOptions(preselectedGender);
+        {% endif %}
     });
 </script>
+
+<style>
+.text-pink {
+    color: #e91e63 !important;
+}
+
+.badge {
+    font-size: 0.85em;
+}
+
+#challenger-info .alert {
+    border-left: 4px solid #17a2b8;
+}
+
+#no-eligible-players {
+    border-left: 4px solid #ffc107;
+}
+</style>
 {% endblock %}
