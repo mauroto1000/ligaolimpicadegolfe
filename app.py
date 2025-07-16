@@ -5385,7 +5385,39 @@ def force_fix_positions():
     return redirect(url_for('pyramid_dynamic'))
 
 
-
+@app.route('/fix_male_ranking_now')
+@login_required
+def fix_male_ranking_now():
+    """Corrige o ranking masculino imediatamente"""
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    conn = get_db_connection()
+    try:
+        # Buscar jogadores masculinos ativos ordenados por posição atual
+        male_players = conn.execute('''
+            SELECT id FROM players 
+            WHERE active = 1 AND (sexo != 'feminino' OR sexo IS NULL)
+            ORDER BY position
+        ''').fetchall()
+        
+        # Reatribuir posições sequenciais
+        for i, player in enumerate(male_players, 1):
+            new_tier = get_tier_from_position(i)
+            conn.execute('UPDATE players SET position = ?, tier = ? WHERE id = ?', 
+                        (i, new_tier, player['id']))
+        
+        conn.commit()
+        flash(f'✅ Ranking masculino corrigido! {len(male_players)} jogadores reorganizados.', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'❌ Erro: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('pyramid_dynamic'))
 
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
