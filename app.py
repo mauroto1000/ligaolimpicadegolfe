@@ -1643,6 +1643,9 @@ def process_challenge_result(conn, challenge_id, status, result):
             conn.rollback()
             raise
     
+    # ✨ NOVA ADIÇÃO: Auto-corrigir ranking feminino se necessário
+    auto_fix_female_ranking(conn)
+    
     conn.commit()
     
     # Verificar a integridade da pirâmide após as alterações
@@ -1884,6 +1887,7 @@ def deactivate_player(player_id):
     try:
         current_position = player['position']
         current_tier = player['tier']
+        player_sexo = player.get('sexo', 'masculino')  # Obter sexo do jogador
         
         # Se rerank=True, inativa e reorganiza ranking
         if rerank:
@@ -1944,6 +1948,12 @@ def deactivate_player(player_id):
         update_all_tiers(conn)
         
         conn.commit()
+        
+        # ✨ NOVA ADIÇÃO: Auto-corrigir ranking feminino se uma jogadora foi desativada
+        if player_sexo == 'feminino':
+            auto_fix_female_ranking(conn)
+            conn.commit()
+        
         flash(flash_message, 'success')
         
     except Exception as e:
@@ -1983,8 +1993,16 @@ def reactivate_player(player_id):
         return redirect(url_for('index'))
     
     try:
-        # Determinar a última posição do ranking
-        last_pos = conn.execute('SELECT MAX(position) as max_pos FROM players WHERE active = 1').fetchone()
+        player_sexo = player.get('sexo', 'masculino')  # Obter sexo do jogador
+        
+        # Determinar a última posição do ranking baseada no sexo
+        if player_sexo == 'feminino':
+            # Para mulheres: buscar última posição feminina
+            last_pos = conn.execute('SELECT MAX(position) as max_pos FROM players WHERE active = 1 AND sexo = "feminino"').fetchone()
+        else:
+            # Para homens: buscar última posição masculina
+            last_pos = conn.execute('SELECT MAX(position) as max_pos FROM players WHERE active = 1 AND (sexo != "feminino" OR sexo IS NULL)').fetchone()
+        
         new_position = 1 if not last_pos['max_pos'] else last_pos['max_pos'] + 1
         new_tier = get_tier_from_position(new_position)
         
@@ -2008,6 +2026,12 @@ def reactivate_player(player_id):
         ''', (player_id, player['position'], new_position, player['tier'], new_tier, 'player_reactivated'))
         
         conn.commit()
+        
+        # ✨ NOVA ADIÇÃO: Auto-corrigir ranking feminino se uma jogadora foi reativada
+        if player_sexo == 'feminino':
+            auto_fix_female_ranking(conn)
+            conn.commit()
+        
         flash(f'Jogador reativado com sucesso na posição {new_position}.', 'success')
         
     except Exception as e:
@@ -3740,6 +3764,11 @@ def add_player():
             
             conn.commit()
             
+            # ✨ NOVA ADIÇÃO: Auto-corrigir ranking feminino se uma jogadora foi adicionada
+            if sexo == 'feminino':
+                auto_fix_female_ranking(conn)
+                conn.commit()
+            
             # Mensagem de sucesso personalizada
             if sexo == 'feminino':
                 ranking_type = "Ladies Liga (Ranking Feminino)"
@@ -5385,6 +5414,85 @@ def force_fix_positions():
     return redirect(url_for('pyramid_dynamic'))
 
 
+def auto_fix_female_ranking(conn=None):
+    """
+    Detecta e corrige automaticamente o ranking feminino se estiver incorreto.
+    Executa sempre que há mudanças que possam afetar posições.
+    """
+    # Determinar se precisamos criar e fechar a conexão
+    connection_provided = conn is not None
+    if not connection_provided:
+        conn = get_db_connection()
+    
+    try:
+        # Buscar jogadoras femininas ativas ordenadas por posição atual
+        female_players = conn.execute('''
+            SELECT id, name, position FROM players 
+            WHERE active = 1 AND sexo = 'feminino'
+            ORDER BY position
+        ''').fetchall()
+        
+        if not female_players:
+            return  # Nenhuma jogadora feminina, nada a fazer
+        
+        # Verificar se as posições estão sequenciais (1, 2, 3, 4...)
+        needs_fix = False
+        expected_positions = list(range(1, len(female_players) + 1))
+        current_positions = [player['position'] for player in female_players]
+        
+        if current_positions != expected_positions:
+            needs_fix = True
+            print(f"🔧 Auto-correção detectada: Ranking feminino incorreto")
+            print(f"   Posições atuais: {current_positions}")
+            print(f"   Posições esperadas: {expected_positions}")
+        
+        # Corrigir automaticamente se necessário
+        if needs_fix:
+            for i, player in enumerate(female_players, 1):
+                new_position = i
+                new_tier = get_tier_from_position(new_position)
+                
+                conn.execute('''
+                    UPDATE players 
+                    SET position = ?, tier = ? 
+                    WHERE id = ? AND sexo = 'feminino'
+                ''', (new_position, new_tier, player['id']))
+            
+            if not connection_provided:
+                conn.commit()
+            
+            print(f"✅ Auto-correção concluída: {len(female_players)} jogadoras reorganizadas")
+            
+            # Registrar no histórico se necessário
+            for i, player in enumerate(female_players, 1):
+                if current_positions[i-1] != i:  # Só registra se houve mudança
+                    conn.execute('''
+                        INSERT INTO ranking_history 
+                        (player_id, old_position, new_position, old_tier, new_tier, reason)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (
+                        player['id'], 
+                        current_positions[i-1], 
+                        i, 
+                        get_tier_from_position(current_positions[i-1]), 
+                        get_tier_from_position(i), 
+                        'auto_fix_female_ranking'
+                    ))
+            
+            if not connection_provided:
+                conn.commit()
+        
+    except Exception as e:
+        print(f"Erro na auto-correção do ranking feminino: {str(e)}")
+        if not connection_provided:
+            conn.rollback()
+    finally:
+        if not connection_provided:
+            conn.close()
+
+
+
+
 @app.route('/fix_male_ranking_now')
 @login_required
 def fix_male_ranking_now():
@@ -5421,18 +5529,6 @@ def fix_male_ranking_now():
 
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
-
-
-    # Criar tabela de configurações do sistema
-    create_system_settings_table()
-    
-    # Criar tabela de negócios
-    result = create_business_table()
-    if not result:
-        print("ALERTA: Erro ao criar tabela de negócios!")
-
-
-
     if not os.path.exists(DATABASE):
         print("Banco de dados não encontrado. Executando script de importação...")
         import import_data
@@ -5503,8 +5599,11 @@ if __name__ == '__main__':
     if not os.path.exists('static'):
         os.makedirs('static')
     
-
     create_business_table()
 
+    # ✨ NOVA ADIÇÃO: Auto-correção inicial do ranking feminino
+    print("🔧 Executando auto-correção inicial do ranking feminino...")
+    auto_fix_female_ranking()
+    
     # Modificação: adicionado argumento host='0.0.0.0' para permitir acesso externo
     app.run(debug=True, host='0.0.0.0')
