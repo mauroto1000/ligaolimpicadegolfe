@@ -1887,7 +1887,7 @@ def deactivate_player(player_id):
     try:
         current_position = player['position']
         current_tier = player['tier']
-        player_sexo = player.get('sexo', 'masculino')  # Obter sexo do jogador
+        player_sexo = player['sexo'] if player['sexo'] else 'masculino'
         
         # Se rerank=True, inativa e reorganiza ranking
         if rerank:
@@ -1993,7 +1993,7 @@ def reactivate_player(player_id):
         return redirect(url_for('index'))
     
     try:
-        player_sexo = player.get('sexo', 'masculino')  # Obter sexo do jogador
+        player_sexo = player['sexo'] if player['sexo'] else 'masculino'
         
         # Determinar a última posição do ranking baseada no sexo
         if player_sexo == 'feminino':
@@ -2242,7 +2242,7 @@ def update_player_country(player_id):
         # Verificar se a coluna 'country' existe no objeto player
         try:
             old_country = player['country']
-        except (KeyError, IndexError):
+        except (KeyError, TypeError):
             # Se a coluna não existe, considerar como None
             old_country = None
         
