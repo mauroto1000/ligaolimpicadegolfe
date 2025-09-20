@@ -880,17 +880,18 @@ if __name__ == '__main__':
     # Criar tabelas de autenticação
     create_authentication_tables()
 
-# NOVA ESTRUTURA DA PIRAMIDE
+# 1. NOVA ESTRUTURA ESTENDIDA DA PIRÂMIDE
 PYRAMID_STRUCTURE = {
-    'C': [1, 2, 3, 4],                       # Nível A: 4 posições
-    'D': [5, 6, 7, 8, 9, 10],                # Nível B: 6 posições
-    'E': [11, 12, 13, 14, 15, 16, 17, 18],   # Nível C: 8 posições
-    'F': [19, 20, 21, 22, 23, 24, 25, 26, 27, 28], # Nível D: 10 posições
-    'G': [29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40], # Nível E: 12 posições
-    'H': [41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54], # Nível F: 14 posições
-    'I': [55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70], # Nível G: 16 posições
-    'J': [71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88], # Nível H: 18 posições
-    # Se precisar continuar com mais níveis, basta adicionar seguindo o mesmo padrão
+    'C': [1, 2, 3, 4],                       # Nível C: 4 posições
+    'D': [5, 6, 7, 8, 9, 10],                # Nível D: 6 posições
+    'E': [11, 12, 13, 14, 15, 16, 17, 18],   # Nível E: 8 posições
+    'F': [19, 20, 21, 22, 23, 24, 25, 26, 27, 28], # Nível F: 10 posições
+    'G': [29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40], # Nível G: 12 posições
+    'H': [41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54], # Nível H: 14 posições
+    'I': [55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70], # Nível I: 16 posições
+    'J': [71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88], # Nível J: 18 posições
+    'K': [89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108], # Nível K: 20 posições
+    'L': [109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130], # Nível L: 22 posições
 }
 
 
@@ -1373,12 +1374,11 @@ def fix_history():
     return redirect(url_for('ranking_history'))
 
 
-
-# Função para determinar o tier com base na posição
+# 2. FUNÇÃO CORRIGIDA DE CÁLCULO DE TIER
 def get_tier_from_position(position):
     """
     Determina o nível (tier) com base na posição na pirâmide.
-    Nova versão que começa do tier C.
+    Versão corrigida que usa a estrutura estendida e calcula dinamicamente tiers além dela.
     """
     # Verificar em cada tier definido na estrutura
     for tier, positions in PYRAMID_STRUCTURE.items():
@@ -1386,30 +1386,38 @@ def get_tier_from_position(position):
             return tier
     
     # Para posições que excederam a estrutura definida
-    # Cálculo automático para tiers adicionais
+    # Calcular dinamicamente baseado no padrão da pirâmide
     
-    # Primeiro, determinar a posição inicial do próximo tier após os definidos
+    # Obter informações do último tier definido
     last_tier_letter = list(PYRAMID_STRUCTURE.keys())[-1]
     last_tier_positions = PYRAMID_STRUCTURE[last_tier_letter]
-    next_position = max(last_tier_positions) + 1
+    last_tier_end = max(last_tier_positions)
     
-    # Cálculo do tamanho do próximo tier (2 a mais que o anterior)
-    tier_index = ord(last_tier_letter) - ord('C')  # C=0, D=1, etc. (modificado para começar de C)
-    next_tier_size = 4 + (2 * tier_index) + 2  # 4 + (2*tier_index) é o tamanho do último tier, +2 para o próximo
+    # Se a posição está além da estrutura definida
+    if position > last_tier_end:
+        # Calcular qual tier seria baseado no padrão: C:4, D:6, E:8... (+2 a cada tier)
+        remaining_position = position - last_tier_end
+        current_tier_letter = last_tier_letter
+        current_tier_size = len(PYRAMID_STRUCTURE[last_tier_letter])
+        position_counter = 0
+        
+        while position_counter < remaining_position:
+            # Avançar para o próximo tier
+            current_tier_letter = chr(ord(current_tier_letter) + 1)
+            current_tier_size += 2  # Cada tier tem 2 posições a mais
+            
+            # Verificar se a posição cabe neste tier
+            if position_counter + current_tier_size >= remaining_position:
+                return current_tier_letter
+            
+            position_counter += current_tier_size
+        
+        return current_tier_letter
     
-    # Calcular em qual tier a posição se encaixa
-    tier_letter = last_tier_letter
-    current_position = next_position
-    current_tier_size = next_tier_size
-    
-    while current_position <= position:
-        # Avançar para o próximo tier
-        tier_letter = chr(ord(tier_letter) + 1)
-        current_position += current_tier_size
-        current_tier_size += 2  # Cada tier tem 2 posições a mais que o anterior
-    
-    # Voltar um tier, pois fomos longe demais
-    return chr(ord(tier_letter) - 1)
+    # Fallback (não deveria chegar aqui)
+    return 'Z'
+
+
 
 # Função para atualizar todos os tiers baseado nas posições atuais
 def update_all_tiers(conn):
@@ -5526,6 +5534,380 @@ def fix_male_ranking_now():
         conn.close()
     
     return redirect(url_for('pyramid_dynamic'))
+
+
+
+# Adicione esta rota para análise sistemática
+
+@app.route('/analyze_tier_structure')
+@login_required
+def analyze_tier_structure():
+    if not session.get('is_admin', False):
+        return "Acesso negado"
+    
+    conn = get_db_connection()
+    
+    # 1. Verificar a estrutura PYRAMID_STRUCTURE definida
+    analysis = []
+    analysis.append("=== ANÁLISE DA ESTRUTURA DE TIERS ===\n")
+    
+    # Verificar a estrutura definida no código
+    analysis.append("1. ESTRUTURA PYRAMID_STRUCTURE:")
+    for tier, positions in PYRAMID_STRUCTURE.items():
+        analysis.append(f"   Tier {tier}: {len(positions)} posições ({min(positions)}-{max(positions)})")
+    
+    analysis.append("\n2. VERIFICANDO CONTINUIDADE DAS POSIÇÕES:")
+    all_positions = []
+    for positions in PYRAMID_STRUCTURE.values():
+        all_positions.extend(positions)
+    all_positions.sort()
+    
+    # Verificar se há lacunas ou duplicatas na estrutura
+    expected = list(range(1, len(all_positions) + 1))
+    if all_positions != expected:
+        analysis.append(f"   ❌ PROBLEMA: Posições esperadas {expected[:10]}...{expected[-10:]}")
+        analysis.append(f"   ❌ PROBLEMA: Posições definidas {all_positions[:10]}...{all_positions[-10:]}")
+        
+        # Encontrar lacunas
+        missing = set(expected) - set(all_positions)
+        duplicates = [pos for pos in all_positions if all_positions.count(pos) > 1]
+        
+        if missing:
+            analysis.append(f"   ❌ Posições faltando: {sorted(missing)}")
+        if duplicates:
+            analysis.append(f"   ❌ Posições duplicadas: {sorted(set(duplicates))}")
+    else:
+        analysis.append(f"   ✅ Estrutura correta: posições 1-{len(all_positions)} sem lacunas")
+    
+    # 3. Verificar jogadores reais no banco
+    analysis.append("\n3. JOGADORES REAIS NO BANCO:")
+    male_players = conn.execute('''
+        SELECT position, tier, name 
+        FROM players 
+        WHERE active = 1 AND (sexo != 'feminino' OR sexo IS NULL)
+        ORDER BY position
+    ''').fetchall()
+    
+    analysis.append(f"   Total de jogadores masculinos ativos: {len(male_players)}")
+    
+    # Verificar posições dos jogadores
+    actual_positions = [p['position'] for p in male_players]
+    expected_positions = list(range(1, len(male_players) + 1))
+    
+    if actual_positions != expected_positions:
+        analysis.append("   ❌ PROBLEMA: Posições dos jogadores não são sequenciais")
+        analysis.append(f"   Posições reais: {actual_positions[:20]}{'...' if len(actual_positions) > 20 else ''}")
+        analysis.append(f"   Posições esperadas: {expected_positions[:20]}{'...' if len(expected_positions) > 20 else ''}")
+        
+        # Encontrar problemas específicos
+        missing_pos = set(expected_positions) - set(actual_positions)
+        extra_pos = set(actual_positions) - set(expected_positions)
+        
+        if missing_pos:
+            analysis.append(f"   Posições faltando: {sorted(missing_pos)}")
+        if extra_pos:
+            analysis.append(f"   Posições extras: {sorted(extra_pos)}")
+    else:
+        analysis.append("   ✅ Posições sequenciais corretas")
+    
+    # 4. Verificar cálculo de tier para cada jogador
+    analysis.append("\n4. VERIFICANDO CÁLCULO DE TIERS:")
+    tier_counts = {}
+    incorrect_tiers = []
+    
+    for player in male_players:
+        pos = player['position']
+        current_tier = player['tier']
+        calculated_tier = get_tier_from_position(pos)
+        
+        # Contar jogadores por tier
+        if calculated_tier not in tier_counts:
+            tier_counts[calculated_tier] = 0
+        tier_counts[calculated_tier] += 1
+        
+        # Verificar se o tier está incorreto
+        if current_tier != calculated_tier:
+            incorrect_tiers.append({
+                'name': player['name'],
+                'position': pos,
+                'current': current_tier,
+                'calculated': calculated_tier
+            })
+    
+    analysis.append("   Contagem por tier (baseado no cálculo correto):")
+    for tier in sorted(tier_counts.keys()):
+        expected_count = len(PYRAMID_STRUCTURE.get(tier, []))
+        actual_count = tier_counts[tier]
+        status = "✅" if actual_count == expected_count else "❌"
+        analysis.append(f"   {tier}: {actual_count} jogadores (esperado: {expected_count}) {status}")
+    
+    if incorrect_tiers:
+        analysis.append(f"\n   ❌ {len(incorrect_tiers)} jogadores com tier incorreto:")
+        for player in incorrect_tiers[:10]:  # Mostrar apenas os primeiros 10
+            analysis.append(f"   - {player['name']} (pos {player['position']}): {player['current']} → {player['calculated']}")
+    else:
+        analysis.append("\n   ✅ Todos os jogadores têm tier correto")
+    
+    # 5. Analisar especificamente o tier J
+    analysis.append("\n5. ANÁLISE ESPECÍFICA DO TIER J:")
+    tier_j_players = [p for p in male_players if get_tier_from_position(p['position']) == 'J']
+    analysis.append(f"   Jogadores que DEVERIAM estar no tier J: {len(tier_j_players)}")
+    analysis.append(f"   Posições do tier J na estrutura: {PYRAMID_STRUCTURE['J']}")
+    analysis.append(f"   Primeira posição tier J: {min(PYRAMID_STRUCTURE['J'])}")
+    analysis.append(f"   Última posição tier J: {max(PYRAMID_STRUCTURE['J'])}")
+    
+    if tier_j_players:
+        analysis.append("   Jogadores no tier J:")
+        for player in tier_j_players:
+            analysis.append(f"   - {player['name']} (pos {player['position']}, tier no banco: {player['tier']})")
+    
+    conn.close()
+    
+    # Retornar análise formatada
+    return "<pre>" + "\n".join(analysis) + "</pre>"
+
+
+# 3. FUNÇÃO DE NORMALIZAÇÃO DE POSIÇÕES
+def normalize_male_player_positions():
+    """
+    Normaliza as posições dos jogadores masculinos para serem sequenciais (1, 2, 3...)
+    sem lacunas, mantendo a ordem relativa atual.
+    """
+    conn = get_db_connection()
+    try:
+        # Buscar jogadores masculinos ordenados pela posição atual
+        male_players = conn.execute('''
+            SELECT id, name, position, tier
+            FROM players 
+            WHERE active = 1 AND (sexo != 'feminino' OR sexo IS NULL)
+            ORDER BY position, name
+        ''').fetchall()
+        
+        print(f"Normalizando posições para {len(male_players)} jogadores masculinos...")
+        
+        changes_made = 0
+        
+        # Reassignar posições sequenciais
+        for i, player in enumerate(male_players, 1):
+            new_position = i
+            new_tier = get_tier_from_position(new_position)
+            
+            # Só atualizar se houve mudança
+            if player['position'] != new_position or player['tier'] != new_tier:
+                print(f"  {player['name']}: pos {player['position']} → {new_position}, tier {player['tier']} → {new_tier}")
+                
+                conn.execute('''
+                    UPDATE players 
+                    SET position = ?, tier = ? 
+                    WHERE id = ?
+                ''', (new_position, new_tier, player['id']))
+                
+                # Registrar no histórico
+                conn.execute('''
+                    INSERT INTO ranking_history 
+                    (player_id, old_position, new_position, old_tier, new_tier, reason)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (player['id'], player['position'], new_position, player['tier'], new_tier, 'position_normalization'))
+                
+                changes_made += 1
+        
+        conn.commit()
+        print(f"✅ Normalização concluída: {changes_made} jogadores atualizados")
+        print(f"   Posições agora: 1-{len(male_players)} (sequencial)")
+        
+        return {
+            'total_players': len(male_players),
+            'changes_made': changes_made,
+            'final_range': f"1-{len(male_players)}"
+        }
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"❌ Erro ao normalizar posições: {e}")
+        raise
+    finally:
+        conn.close()
+
+# 4. FUNÇÃO DE VALIDAÇÃO FINAL
+def validate_pyramid_structure():
+    """
+    Valida se a estrutura da pirâmide está correta após as correções.
+    """
+    conn = get_db_connection()
+    try:
+        # Verificar jogadores masculinos
+        male_players = conn.execute('''
+            SELECT position, tier, name 
+            FROM players 
+            WHERE active = 1 AND (sexo != 'feminino' OR sexo IS NULL)
+            ORDER BY position
+        ''').fetchall()
+        
+        # Contar jogadores por tier
+        tier_counts = {}
+        position_errors = []
+        tier_errors = []
+        
+        for i, player in enumerate(male_players, 1):
+            expected_position = i
+            calculated_tier = get_tier_from_position(player['position'])
+            
+            # Verificar posição
+            if player['position'] != expected_position:
+                position_errors.append(f"{player['name']}: pos {player['position']} (esperado {expected_position})")
+            
+            # Verificar tier
+            if player['tier'] != calculated_tier:
+                tier_errors.append(f"{player['name']}: tier {player['tier']} (esperado {calculated_tier})")
+            
+            # Contar por tier
+            tier = player['tier']
+            tier_counts[tier] = tier_counts.get(tier, 0) + 1
+        
+        # Verificar contagens por tier
+        tier_count_errors = []
+        for tier, expected_positions in PYRAMID_STRUCTURE.items():
+            expected_count = len(expected_positions)
+            actual_count = tier_counts.get(tier, 0)
+            
+            if actual_count != expected_count:
+                tier_count_errors.append(f"Tier {tier}: {actual_count} jogadores (esperado {expected_count})")
+        
+        # Montar resultado
+        result = {
+            'total_players': len(male_players),
+            'position_errors': position_errors,
+            'tier_errors': tier_errors,
+            'tier_count_errors': tier_count_errors,
+            'tier_counts': tier_counts,
+            'is_valid': len(position_errors) == 0 and len(tier_errors) == 0 and len(tier_count_errors) == 0
+        }
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Erro na validação: {e}")
+        raise
+    finally:
+        conn.close()
+
+# 5. ROTA PRINCIPAL - EXECUTA A SOLUÇÃO HÍBRIDA COMPLETA
+@app.route('/fix_pyramid_hybrid')
+@login_required
+def fix_pyramid_hybrid():
+    """
+    Executa a solução híbrida completa:
+    1. Normaliza posições sequenciais
+    2. Recalcula tiers com estrutura estendida
+    3. Valida resultado final
+    """
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        # Passo 1: Normalizar posições
+        print("=== INICIANDO SOLUÇÃO HÍBRIDA ===")
+        normalization_result = normalize_male_player_positions()
+        
+        # Passo 2: Validar resultado
+        print("\n=== VALIDANDO RESULTADO ===")
+        validation_result = validate_pyramid_structure()
+        
+        # Passo 3: Auto-corrigir ranking feminino também
+        print("\n=== CORRIGINDO RANKING FEMININO ===")
+        auto_fix_female_ranking()
+        
+        # Passo 4: Sincronizar histórico
+        print("\n=== SINCRONIZANDO HISTÓRICO ===")
+        sync_ranking_history_tables()
+        
+        # Mostrar resultado
+        if validation_result['is_valid']:
+            message = f"""
+            ✅ SOLUÇÃO HÍBRIDA CONCLUÍDA COM SUCESSO!
+            
+            📊 Resultados:
+            • {normalization_result['total_players']} jogadores masculinos processados
+            • {normalization_result['changes_made']} jogadores tiveram posições/tiers atualizados
+            • Posições agora: {normalization_result['final_range']} (sequencial)
+            • Tier J: {validation_result['tier_counts'].get('J', 0)} jogadores
+            • Tier K: {validation_result['tier_counts'].get('K', 0)} jogadores
+            
+            🏆 A pirâmide agora está perfeitamente estruturada!
+            """
+            flash(message, 'success')
+        else:
+            error_details = []
+            if validation_result['position_errors']:
+                error_details.append(f"Posições incorretas: {len(validation_result['position_errors'])}")
+            if validation_result['tier_errors']:
+                error_details.append(f"Tiers incorretos: {len(validation_result['tier_errors'])}")
+            if validation_result['tier_count_errors']:
+                error_details.append(f"Contagens incorretas: {len(validation_result['tier_count_errors'])}")
+            
+            flash(f"⚠️ Correção parcial. Problemas restantes: {', '.join(error_details)}", 'warning')
+        
+        print("\n=== SOLUÇÃO HÍBRIDA CONCLUÍDA ===")
+        
+    except Exception as e:
+        flash(f'❌ Erro na solução híbrida: {str(e)}', 'error')
+        print(f"❌ ERRO: {e}")
+    
+    return redirect(url_for('pyramid_dynamic'))
+
+# 6. ROTA DE VALIDAÇÃO (para verificar o resultado)
+@app.route('/validate_pyramid')
+@login_required
+def validate_pyramid_route():
+    """
+    Valida a estrutura atual da pirâmide e mostra relatório detalhado.
+    """
+    if not session.get('is_admin', False):
+        return "Acesso negado"
+    
+    try:
+        result = validate_pyramid_structure()
+        
+        report = ["=== RELATÓRIO DE VALIDAÇÃO DA PIRÂMIDE ===\n"]
+        
+        report.append(f"Total de jogadores masculinos: {result['total_players']}")
+        report.append(f"Status geral: {'✅ VÁLIDA' if result['is_valid'] else '❌ PROBLEMAS DETECTADOS'}\n")
+        
+        # Contagem por tier
+        report.append("Contagem por tier:")
+        for tier in sorted(result['tier_counts'].keys()):
+            count = result['tier_counts'][tier]
+            expected = len(PYRAMID_STRUCTURE.get(tier, []))
+            status = "✅" if count == expected else "❌"
+            report.append(f"  Tier {tier}: {count} jogadores (esperado: {expected}) {status}")
+        
+        # Erros de posição
+        if result['position_errors']:
+            report.append(f"\n❌ Erros de posição ({len(result['position_errors'])}):")
+            for error in result['position_errors'][:10]:  # Mostrar apenas os primeiros 10
+                report.append(f"  {error}")
+        
+        # Erros de tier
+        if result['tier_errors']:
+            report.append(f"\n❌ Erros de tier ({len(result['tier_errors'])}):")
+            for error in result['tier_errors'][:10]:
+                report.append(f"  {error}")
+        
+        # Erros de contagem
+        if result['tier_count_errors']:
+            report.append(f"\n❌ Erros de contagem por tier:")
+            for error in result['tier_count_errors']:
+                report.append(f"  {error}")
+        
+        if result['is_valid']:
+            report.append("\n🎉 A pirâmide está perfeitamente estruturada!")
+        
+        return "<pre>" + "\n".join(report) + "</pre>"
+        
+    except Exception as e:
+        return f"<pre>❌ Erro na validação: {str(e)}</pre>"
+
 
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
