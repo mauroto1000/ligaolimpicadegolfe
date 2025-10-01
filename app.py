@@ -3588,58 +3588,54 @@ def add_columns():
 # Função para gerar automaticamente um novo player_code
 def generate_player_code(conn):
     """
-    Gera um novo código de jogador único no formato 'LOG1' + número sequencial de 2 dígitos
-    baseado no maior código existente no banco de dados.
+    Gera um novo código de jogador único no formato 'LOG' + número sequencial de 3 dígitos.
     
     Args:
         conn: Conexão com o banco de dados
     
     Returns:
-        str: Novo código de jogador no formato 'LOG100', 'LOG101', etc.
+        str: Novo código de jogador no formato 'LOG001', 'LOG002', etc.
     """
-    # Buscar o maior código de jogador atual
+    # Buscar todos os códigos que seguem o padrão LOG + números
     result = conn.execute('''
         SELECT player_code FROM players 
-        WHERE player_code LIKE 'LOG1%' 
-        ORDER BY CAST(SUBSTR(player_code, 5) AS INTEGER) DESC
+        WHERE player_code GLOB 'LOG[0-9]*'
+        ORDER BY LENGTH(player_code) DESC, player_code DESC
         LIMIT 1
     ''').fetchone()
     
     if result and result['player_code']:
-        # Se existir algum código, extrair o número e incrementar
         current_code = result['player_code']
         try:
-            # Remover o prefixo 'LOG1' e converter para inteiro
-            # Tratar apenas caracteres numéricos após o prefixo
-            numeric_part = ''.join(filter(str.isdigit, current_code[4:]))
-            if numeric_part:
-                current_number = int(numeric_part)
-                # Incrementar o número e gerar o novo código com 2 dígitos
-                new_number = current_number + 1
-            else:
-                # Se não houver parte numérica válida, começar do 0
-                new_number = 0
-            
-            new_code = f"LOG1{new_number:02d}"  # Formata como 2 dígitos (00, 01, etc.)
+            # Extrair apenas a parte numérica após 'LOG'
+            numeric_part = current_code[3:]  # Remove 'LOG'
+            current_number = int(numeric_part)
+            new_number = current_number + 1
         except (ValueError, IndexError):
-            # Caso haja algum problema ao extrair o número, começar do 0
-            new_code = "LOG100"
+            # Se houver erro, começar do 1
+            new_number = 1
     else:
-        # Se não existir nenhum código, começar do 0
-        new_code = "LOG100"
+        # Se não existir nenhum código, começar do 1
+        new_number = 1
     
-    # Verificar se o código já existe (para evitar duplicatas)
-    existing = conn.execute('SELECT COUNT(*) as count FROM players WHERE player_code = ?', 
-                           (new_code,)).fetchone()
+    # Gerar novo código com 3 dígitos
+    new_code = f"LOG{new_number:03d}"
+    
+    # Verificar se o código já existe (segurança contra duplicatas)
+    existing = conn.execute(
+        'SELECT COUNT(*) as count FROM players WHERE player_code = ?', 
+        (new_code,)
+    ).fetchone()
     
     if existing and existing['count'] > 0:
-        # Se já existe, incrementar até encontrar um código disponível
-        base_number = int(new_code[4:])
+        # Se já existe, buscar próximo disponível
         while True:
-            base_number += 1
-            test_code = f"LOG1{base_number:02d}"
-            check = conn.execute('SELECT COUNT(*) as count FROM players WHERE player_code = ?', 
-                               (test_code,)).fetchone()
+            new_number += 1
+            test_code = f"LOG{new_number:03d}"
+            check = conn.execute(
+                'SELECT COUNT(*) as count FROM players WHERE player_code = ?', 
+                (test_code,)
+            ).fetchone()
             if not check or check['count'] == 0:
                 return test_code
     
