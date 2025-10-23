@@ -96,6 +96,27 @@
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
 
+    /* X preto para células bloqueadas (tiers I, J, K) */
+    .pyramid-cell.blocked-tier::before,
+    .pyramid-cell.blocked-tier::after {
+        content: '';
+        position: absolute;
+        background-color: #000;
+        width: 4px;
+        height: 70px;
+        top: 50%;
+        left: 50%;
+        z-index: 10;
+    }
+    
+    .pyramid-cell.blocked-tier::before {
+        transform: translate(-50%, -50%) rotate(45deg);
+    }
+    
+    .pyramid-cell.blocked-tier::after {
+        transform: translate(-50%, -50%) rotate(-45deg);
+    }
+
     /* Estilo para jogadores com desafios pendentes */
     .pyramid-cell.pending-challenge {
         background-color: #ffc107;
@@ -383,6 +404,13 @@
             top: 2px !important;
             right: 2px !important;
         }
+        
+        /* Ajustar X nas células bloqueadas para mobile */
+        .pyramid-cell.blocked-tier::before,
+        .pyramid-cell.blocked-tier::after {
+            height: 70px;
+            width: 3px;
+        }
     }
 
     /* Para telas muito pequenas */
@@ -432,6 +460,13 @@
             height: 10px !important;
             top: 2px !important;
             right: 2px !important;
+        }
+        
+        /* Ajustar X nas células bloqueadas para telas pequenas */
+        .pyramid-cell.blocked-tier::before,
+        .pyramid-cell.blocked-tier::after {
+            height: 55px;
+            width: 3px;
         }
     }
 </style>
@@ -528,7 +563,8 @@
                                 {% set player = female_by_position[current_index[0]] %}
                                 <div class="pyramid-cell 
                                      {% if player.has_pending_challenge %}pending-challenge{% endif %}
-                                     {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}"
+                                     {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}
+                                     {% if tier_letters[level-1] in ['I', 'J', 'K'] %}blocked-tier{% endif %}"
                                      data-player-name="{{ player.name|lower }}"
                                      data-player-id="{{ player.id }}"
                                      data-position="{{ player.position }}"
@@ -670,7 +706,8 @@
                         {% for player in male_players_in_tier|sort(attribute='position') %}
                             <div class="pyramid-cell 
                                  {% if player.has_pending_challenge %}pending-challenge{% endif %}
-                                 {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}"
+                                 {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}
+                                 {% if tier_letter in ['I', 'J', 'K'] %}blocked-tier{% endif %}"
                                  data-player-name="{{ player.name|lower }}"
                                  data-player-id="{{ player.id }}"
                                  data-position="{{ player.position }}"
