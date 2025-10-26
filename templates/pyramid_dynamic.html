@@ -533,119 +533,6 @@
             {% endfor %}
         {% endfor %}
 
-        <!-- Liga Ladies - Pirâmide Feminina -->
-        {% if female_players %}
-        <div class="pyramid-header ladies card-header">
-            <h4 class="mb-0">
-                <i class="fas fa-crown me-2"></i>
-                Liga Ladies - Pirâmide Feminina
-                <span class="badge bg-light text-dark ms-2"></span>
-            </h4>
-        </div>
-        
-        <div class="pyramid-container ladies-pyramid">
-            <!-- Pirâmide feminina: A, B, C, D... jogadoras por nível (começando da linha A) -->
-            {% set female_by_position = female_players|sort(attribute='position') %}
-            {% set tier_letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'] %}
-            {% set current_index = [0] %}
-            
-            {% for level in range(1, 17) %}
-                {% if current_index[0] < female_by_position|length %}
-                    <div class="pyramid-row" data-tier="{{ tier_letters[level-1] }}" data-gender="feminino">
-                        <!-- Label do nível (A, B, C, D...) -->
-                        <div class="pyramid-cell first-col">
-                            {{ tier_letters[level-1] }}
-                        </div>
-                        
-                        <!-- Jogadoras neste nível (1, 2, 3, 4... por nível) -->
-                        {% for i in range(level) %}
-                            {% if current_index[0] < female_by_position|length %}
-                                {% set player = female_by_position[current_index[0]] %}
-                                <div class="pyramid-cell 
-                                     {% if player.has_pending_challenge %}pending-challenge{% endif %}
-                                     {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}
-                                     {% if tier_letters[level-1] in ['G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
-                                     data-player-name="{{ player.name|lower }}"
-                                     data-player-id="{{ player.id }}"
-                                     data-position="{{ player.position }}"
-                                     data-gender="feminino"
-                                     onclick="window.location='{{ url_for('player_detail', player_id=player.id) }}'">
-                                    
-                                    <span class="player-position">{{ player.position }}</span>
-                                    
-                                    {% if player.country %}
-                                        <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
-                                             alt="{{ player.country }}" class="country-flag" 
-                                             title="{{ player.country }}">
-                                    {% endif %}
-                                    
-                                    <div class="pyramid-tooltip">
-                                        <strong>{{ player.name }}</strong><br>
-                                        Posição: #{{ player.position }}<br>
-                                        Liga: Ladies<br>
-                                        {% if player.country %}País: {{ player.country }}<br>{% endif %}
-                                        {% if player.hcp_index is not none %}HCP: {{ player.hcp_index }}<br>{% endif %}
-                                        <small>Clique para detalhes</small>
-                                    </div>
-                                    
-                                    <span class="player-name">
-                                        <i class="fas fa-venus me-1" style="color: rgba(255,255,255,0.8);"></i>
-                                        {{ player.name }}
-                                    </span>
-                                    
-                                    <!-- Datas e setas de desafio -->
-                                    {% set displayed = false %}
-                                    {% if player.has_pending_challenge and not displayed %}
-                                        {% for challenge in challenges %}
-                                            {% if not displayed and challenge.status == 'pending' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
-                                                <span class="pending-date">(?)</span>
-                                                {% set displayed = true %}
-                                            {% endif %}
-                                        {% endfor %}
-                                    {% endif %}
-                                    
-                                    {% for challenge in challenges %}
-                                        {% if not displayed and challenge.status == 'accepted' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
-                                            <span class="challenge-date">
-                                                {% if challenge.scheduled_date|string is defined %}
-                                                    {% set date_str = challenge.scheduled_date|string %}
-                                                    {% if '-' in date_str %}
-                                                        {% set date_parts = date_str.split('-') %}
-                                                        {% if date_parts|length >= 3 %}
-                                                            ({{ date_parts[2].split(' ')[0] }}/{{ date_parts[1] }})
-                                                        {% else %}
-                                                            ({{ challenge.scheduled_date }})
-                                                        {% endif %}
-                                                    {% else %}
-                                                        ({{ challenge.scheduled_date }})
-                                                    {% endif %}
-                                                {% else %}
-                                                    ({{ challenge.scheduled_date }})
-                                                {% endif %}
-                                            </span>
-                                            {% set displayed = true %}
-                                        {% endif %}
-                                    {% endfor %}
-                                    
-                                    {% if player.challenging_positions %}
-                                        <span class="challenge-arrow arrow-challenger">
-                                            {{player.position}}→{% for pos in player.challenging_positions %}{{pos}}{% if not loop.last %},{% endif %}{% endfor %}
-                                        </span>
-                                    {% elif player.challenged_by_positions %}
-                                        <span class="challenge-arrow arrow-challenged">
-                                            {% for pos in player.challenged_by_positions %}{{pos}}{% if not loop.last %},{% endif %}{% endfor %}→{{player.position}}
-                                        </span>
-                                    {% endif %}
-                                </div>
-                                {% if current_index.append(current_index.pop() + 1) %}{% endif %}
-                            {% endif %}
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            {% endfor %}
-        </div>
-        {% endif %}
-
         <!-- Ranking Masculino - Pirâmide Masculina -->
         <div class="pyramid-header mens card-header">
             <h4 class="mb-0">
@@ -812,6 +699,119 @@
                 {% endif %}
             {% endfor %}
         </div>
+
+        <!-- Liga Ladies - Pirâmide Feminina -->
+        {% if female_players %}
+        <div class="pyramid-header ladies card-header">
+            <h4 class="mb-0">
+                <i class="fas fa-crown me-2"></i>
+                Liga Ladies - Pirâmide Feminina
+                <span class="badge bg-light text-dark ms-2"></span>
+            </h4>
+        </div>
+        
+        <div class="pyramid-container ladies-pyramid">
+            <!-- Pirâmide feminina: A, B, C, D... jogadoras por nível (começando da linha A) -->
+            {% set female_by_position = female_players|sort(attribute='position') %}
+            {% set tier_letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'] %}
+            {% set current_index = [0] %}
+            
+            {% for level in range(1, 17) %}
+                {% if current_index[0] < female_by_position|length %}
+                    <div class="pyramid-row" data-tier="{{ tier_letters[level-1] }}" data-gender="feminino">
+                        <!-- Label do nível (A, B, C, D...) -->
+                        <div class="pyramid-cell first-col">
+                            {{ tier_letters[level-1] }}
+                        </div>
+                        
+                        <!-- Jogadoras neste nível (1, 2, 3, 4... por nível) -->
+                        {% for i in range(level) %}
+                            {% if current_index[0] < female_by_position|length %}
+                                {% set player = female_by_position[current_index[0]] %}
+                                <div class="pyramid-cell 
+                                     {% if player.has_pending_challenge %}pending-challenge{% endif %}
+                                     {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}
+                                     {% if tier_letters[level-1] in ['G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
+                                     data-player-name="{{ player.name|lower }}"
+                                     data-player-id="{{ player.id }}"
+                                     data-position="{{ player.position }}"
+                                     data-gender="feminino"
+                                     onclick="window.location='{{ url_for('player_detail', player_id=player.id) }}'">
+                                    
+                                    <span class="player-position">{{ player.position }}</span>
+                                    
+                                    {% if player.country %}
+                                        <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
+                                             alt="{{ player.country }}" class="country-flag" 
+                                             title="{{ player.country }}">
+                                    {% endif %}
+                                    
+                                    <div class="pyramid-tooltip">
+                                        <strong>{{ player.name }}</strong><br>
+                                        Posição: #{{ player.position }}<br>
+                                        Liga: Ladies<br>
+                                        {% if player.country %}País: {{ player.country }}<br>{% endif %}
+                                        {% if player.hcp_index is not none %}HCP: {{ player.hcp_index }}<br>{% endif %}
+                                        <small>Clique para detalhes</small>
+                                    </div>
+                                    
+                                    <span class="player-name">
+                                        <i class="fas fa-venus me-1" style="color: rgba(255,255,255,0.8);"></i>
+                                        {{ player.name }}
+                                    </span>
+                                    
+                                    <!-- Datas e setas de desafio -->
+                                    {% set displayed = false %}
+                                    {% if player.has_pending_challenge and not displayed %}
+                                        {% for challenge in challenges %}
+                                            {% if not displayed and challenge.status == 'pending' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                                <span class="pending-date">(?)</span>
+                                                {% set displayed = true %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                    
+                                    {% for challenge in challenges %}
+                                        {% if not displayed and challenge.status == 'accepted' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                            <span class="challenge-date">
+                                                {% if challenge.scheduled_date|string is defined %}
+                                                    {% set date_str = challenge.scheduled_date|string %}
+                                                    {% if '-' in date_str %}
+                                                        {% set date_parts = date_str.split('-') %}
+                                                        {% if date_parts|length >= 3 %}
+                                                            ({{ date_parts[2].split(' ')[0] }}/{{ date_parts[1] }})
+                                                        {% else %}
+                                                            ({{ challenge.scheduled_date }})
+                                                        {% endif %}
+                                                    {% else %}
+                                                        ({{ challenge.scheduled_date }})
+                                                    {% endif %}
+                                                {% else %}
+                                                    ({{ challenge.scheduled_date }})
+                                                {% endif %}
+                                            </span>
+                                            {% set displayed = true %}
+                                        {% endif %}
+                                    {% endfor %}
+                                    
+                                    {% if player.challenging_positions %}
+                                        <span class="challenge-arrow arrow-challenger">
+                                            {{player.position}}→{% for pos in player.challenging_positions %}{{pos}}{% if not loop.last %},{% endif %}{% endfor %}
+                                        </span>
+                                    {% elif player.challenged_by_positions %}
+                                        <span class="challenge-arrow arrow-challenged">
+                                            {% for pos in player.challenged_by_positions %}{{pos}}{% if not loop.last %},{% endif %}{% endfor %}→{{player.position}}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                {% if current_index.append(current_index.pop() + 1) %}{% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
         
         <!-- Informação de resultados de busca -->
         <div id="searchResults" class="alert alert-info mt-3" style="display: none;">
