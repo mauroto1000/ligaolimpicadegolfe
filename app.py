@@ -1645,8 +1645,41 @@ def process_challenge_result(conn, challenge_id, status, result):
             # O registro no histórico para o desafiante já foi feito, se necessário
             # O registro para o desafiado também já foi feito se ele perdeu
             
-            # Atualizar todos os tiers após qualquer alteração
-            update_all_tiers(conn)
+            # ✨ CORREÇÃO AUTOMÁTICA COMPLETA DO RANKING MASCULINO
+            # Normalizar posições e recalcular tiers após qualquer mudança
+            print("🔧 Executando normalização completa do ranking masculino...")
+            
+            # Buscar jogadores masculinos ordenados pela posição atual
+            male_players = conn.execute('''
+                SELECT id, name, position, tier
+                FROM players 
+                WHERE active = 1 AND (sexo != 'feminino' OR sexo IS NULL)
+                ORDER BY position, name
+            ''').fetchall()
+            
+            # Reassignar posições sequenciais e recalcular tiers
+            for i, player in enumerate(male_players, 1):
+                new_position = i
+                new_tier = get_tier_from_position(new_position)
+                
+                # Atualizar apenas se houve mudança
+                if player['position'] != new_position or player['tier'] != new_tier:
+                    conn.execute('''
+                        UPDATE players 
+                        SET position = ?, tier = ? 
+                        WHERE id = ?
+                    ''', (new_position, new_tier, player['id']))
+                    
+                    # Registrar no histórico apenas mudanças significativas
+                    if abs(player['position'] - new_position) > 0:
+                        conn.execute('''
+                            INSERT INTO ranking_history 
+                            (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ''', (player['id'], player['position'], new_position, player['tier'], 
+                             new_tier, 'auto_normalization_after_challenge', challenge_id))
+            
+            print(f"✅ Ranking masculino normalizado: {len(male_players)} jogadores")
             
             # Sincronizar as tabelas de histórico para garantir consistência
             sync_ranking_history_tables(conn)
@@ -1660,15 +1693,7 @@ def process_challenge_result(conn, challenge_id, status, result):
     auto_fix_female_ranking(conn)
     
     conn.commit()
-    
-    # Verificar a integridade da pirâmide após as alterações
-    incorrect_players = verify_pyramid_structure(conn)
-    if incorrect_players:
-        print(f"Atenção: {len(incorrect_players)} jogadores com tiers incorretos após o desafio.")
-        # Forçar atualização de todos os tiers
-        update_all_tiers(conn)
-        conn.commit()
-        print("Tiers corrigidos automaticamente.")
+    print("✅ Rankings masculino e feminino processados e normalizados com sucesso!")
 
 def revert_challenge_result(conn, challenge_id):
     """
