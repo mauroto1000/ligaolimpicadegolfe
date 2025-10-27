@@ -326,10 +326,10 @@ def create_authentication_tables():
         )
         ''')
         
-        # Criar admin padrão (username: admin, senha: 123)
+        # Criar admin padrão (username: admin, senha: liga2025)
         conn.execute('INSERT INTO admins (username, password, name) VALUES (?, ?, ?)', 
-                    ('admin', hash_password('123'), 'Administrador'))
-        print("Administrador padrão criado (usuário: admin, senha: 123).")
+                    ('admin', hash_password('liga2025'), 'Administrador'))
+        print("Administrador padrão criado (usuário: admin, senha: liga2025).")
     else:
         # Verificar se a estrutura da tabela está correta
         admin_columns = conn.execute('PRAGMA table_info(admins)').fetchall()
@@ -360,17 +360,17 @@ def create_authentication_tables():
             
             # Recriar admin padrão
             conn.execute('INSERT INTO admins (username, password, name) VALUES (?, ?, ?)', 
-                        ('admin', hash_password('123'), 'Administrador'))
-            print("Administrador padrão recriado (usuário: admin, senha: 123).")
+                        ('admin', hash_password('liga2025'), 'Administrador'))
+            print("Administrador padrão recriado (usuário: admin, senha: liga2025).")
     
     # Verificar se já temos algum admin padrão
     try:
         admin = conn.execute('SELECT * FROM admins WHERE username = ?', ('admin',)).fetchone()
         if not admin:
-            # Criar admin padrão (username: admin, senha: 123)
+            # Criar admin padrão (username: admin, senha: liga2025)
             conn.execute('INSERT INTO admins (username, password, name) VALUES (?, ?, ?)', 
-                        ('admin', hash_password('123'), 'Administrador'))
-            print("Administrador padrão criado (usuário: admin, senha: 123).")
+                        ('admin', hash_password('liga2025'), 'Administrador'))
+            print("Administrador padrão criado (usuário: admin, senha: liga2025).")
     except Exception as e:
         print(f"Erro ao verificar admin: {e}")
     
@@ -506,8 +506,8 @@ def change_password():
             flash('A nova senha e a confirmação não coincidem.', 'error')
             return redirect(url_for('change_password'))
         
-        if len(new_password) < 3:
-            flash('A nova senha deve ter pelo menos 3 caracteres.', 'error')
+        if len(new_password) < 4:
+            flash('A nova senha deve ter pelo menos 4 caracteres.', 'error')
             return redirect(url_for('change_password'))
         
         # Verificar se a senha antiga está correta
@@ -541,7 +541,12 @@ def change_password():
         conn.close()
         
         flash('Senha alterada com sucesso!', 'success')
-        return redirect(url_for('dashboard'))
+        
+        # Redirecionar para o dashboard apropriado
+        if user_type == 'admin':
+            return redirect(url_for('admin_dashboard'))
+        else:
+            return redirect(url_for('dashboard'))
     
     return render_template('change_password.html')
 
@@ -1711,11 +1716,13 @@ def revert_challenge_result(conn, challenge_id):
 @app.route('/record_daily_rankings', methods=['GET', 'POST'])
 def record_daily_rankings_route():
     if request.method == 'POST':
-        senha = request.form.get('senha', '')
-        
-        if senha != '123':
-            flash('Senha incorreta! Operação não autorizada.', 'error')
-            return redirect(url_for('index'))
+        # Verificação de admin (senha hardcoded removida)
+
+        if not session.get('is_admin', False):
+
+            flash('Acesso negado. Apenas administradores podem executar esta ação.', 'error')
+
+            return redirect(url_for('dashboard'))
         
         result = record_daily_rankings()
         
@@ -1885,9 +1892,8 @@ def deactivate_player(player_id):
     
     # Para requisição POST, processar a inativação
     senha = request.form.get('senha', '')
-    rerank = request.form.get('rerank', 'no') == 'yes'
     
-    if senha != '123':
+    if not session.get('is_admin', False):
         conn.close()
         flash('Senha incorreta! Operação não autorizada.', 'error')
         return redirect(url_for('player_detail', player_id=player_id))
@@ -1993,11 +1999,10 @@ def reactivate_player(player_id):
         return render_template('reactivate_player.html', player=player)
     
     # Para requisição POST, processar a reativação
-    senha = request.form.get('senha', '')
-    
-    if senha != '123':
+    # Verificação de admin (senha hardcoded removida)
+    if not session.get('is_admin', False):
         conn.close()
-        flash('Senha incorreta! Operação não autorizada.', 'error')
+        flash('Acesso negado. Apenas administradores podem executar esta ação! Operação não autorizada.', 'error')
         return redirect(url_for('index'))
     
     try:
@@ -2103,9 +2108,8 @@ def delete_player(player_id):
     
     # Para requisição POST, processar a exclusão
     senha = request.form.get('senha', '')
-    confirm_delete = request.form.get('confirm_delete', 'no') == 'yes'
     
-    if senha != '123':
+    if not session.get('is_admin', False):
         conn.close()
         flash('Senha incorreta! Operação não autorizada.', 'error')
         return redirect(url_for('player_detail', player_id=player_id))
@@ -2161,10 +2165,10 @@ def update_player_name(player_id):
         return redirect(url_for('index'))
     
     # Verificar senha
-    senha = request.form.get('senha', '')
-    if senha != '123':
+    # Verificação de admin (senha hardcoded removida)
+    if not session.get('is_admin', False):
         conn.close()
-        flash('Senha incorreta! Operação não autorizada.', 'error')
+        flash('Acesso negado. Apenas administradores podem executar esta ação! Operação não autorizada.', 'error')
         return redirect(url_for('player_detail', player_id=player_id))
     
     # Obter novo nome
@@ -2238,11 +2242,11 @@ def update_player_country(player_id):
         
         # Verificar senha apenas para administradores
         if not is_own_profile:
-            senha = request.form.get('senha', '')
-            if senha != '123':
+            # Verificação de admin (senha hardcoded removida)
+            if not session.get('is_admin', False):
                 conn.close()
-                flash('Senha incorreta! Operação não autorizada.', 'error')
-                return redirect(url_for('player_detail', player_id=player_id))
+                flash('Acesso negado. Apenas administradores podem executar esta ação.', 'error')
+                return redirect(url_for('dashboard'))
         
         # Obter novo país
         new_country = request.form.get('new_country', '').strip()
@@ -2327,11 +2331,11 @@ def update_player_sexo(player_id):
     
     # Verificar senha apenas para administradores
     if not is_own_profile:
-        senha = request.form.get('senha', '')
-        if senha != '123':
+        # Verificação de admin (senha hardcoded removida)
+        if not session.get('is_admin', False):
             conn.close()
-            flash('Senha incorreta! Operação não autorizada.', 'error')
-            return redirect(url_for('player_detail', player_id=player_id))
+            flash('Acesso negado. Apenas administradores podem executar esta ação.', 'error')
+            return redirect(url_for('dashboard'))
     
     # Obter novo sexo
     new_sexo = request.form.get('new_sexo', '').strip()
@@ -2929,11 +2933,10 @@ def toggle_challenges():
     
     if request.method == 'POST':
         action = request.form.get('action')
-        senha = request.form.get('senha', '')
-        
-        if senha != '123':
+        # Verificação de admin (senha hardcoded removida)
+        if not session.get('is_admin', False):
             conn.close()
-            flash('Senha incorreta! Operação não autorizada.', 'error')
+            flash('Acesso negado. Apenas administradores podem executar esta ação! Operação não autorizada.', 'error')
             return redirect(url_for('toggle_challenges'))
         
         if action == 'lock':
@@ -3082,10 +3085,10 @@ def edit_challenge(challenge_id):
     if request.method == 'POST':
         # Se o desafio está concluído (normal ou com pendência), verificar a senha
         if challenge['status'] == 'completed' or challenge['status'] == 'completed_pending':
-            senha = request.form.get('senha', '')
-            if senha != '123':
+            # Verificação de admin (senha hardcoded removida)
+            if not session.get('is_admin', False):
                 conn.close()
-                flash('Senha incorreta! Desafios concluídos só podem ser editados com a senha correta.', 'error')
+                flash('Acesso negado. Apenas administradores podem executar esta ação! Desafios concluídos só podem ser editados com a senha correta.', 'error')
                 return redirect(url_for('challenge_detail', challenge_id=challenge_id))
         
         scheduled_date = request.form['scheduled_date']
@@ -3657,14 +3660,12 @@ def add_player():
         country = request.form.get('country', 'Brasil').strip()
         notes = request.form.get('notes', '').strip()
         senha = request.form.get('senha', '')
-        
-        # Validar campos obrigatórios
         if not name:
             flash('Nome é obrigatório!', 'error')
             return redirect(url_for('add_player'))
         
         # Validar senha
-        if senha != '123':
+        if not session.get('is_admin', False):
             flash('Senha incorreta! Operação não autorizada.', 'error')
             return redirect(url_for('add_player'))
         
@@ -3810,10 +3811,10 @@ def update_player_contact(player_id):
         return redirect(url_for('index'))
     
     # Verificar senha
-    senha = request.form.get('senha', '')
-    if senha != '123':
+    # Verificação de admin (senha hardcoded removida)
+    if not session.get('is_admin', False):
         conn.close()
-        flash('Senha incorreta! Operação não autorizada.', 'error')
+        flash('Acesso negado. Apenas administradores podem executar esta ação! Operação não autorizada.', 'error')
         return redirect(url_for('player_detail', player_id=player_id))
     
     # Obter novo contato
@@ -3867,10 +3868,10 @@ def update_player_hcp(player_id):
         return redirect(url_for('index'))
     
     # Verificar senha
-    senha = request.form.get('senha', '')
-    if senha != '123':
+    # Verificação de admin (senha hardcoded removida)
+    if not session.get('is_admin', False):
         conn.close()
-        flash('Senha incorreta! Operação não autorizada.', 'error')
+        flash('Acesso negado. Apenas administradores podem executar esta ação! Operação não autorizada.', 'error')
         return redirect(url_for('player_detail', player_id=player_id))
     
     # Obter novo HCP
@@ -4646,10 +4647,13 @@ def reset_player_password(player_id):
         return redirect(url_for('dashboard'))
     
     # Verificar senha de admin
-    senha = request.form.get('senha', '')
-    if senha != '123':
-        flash('Senha incorreta! Operação não autorizada.', 'error')
-        return redirect(url_for('player_detail', player_id=player_id))
+    # Verificação de admin (senha hardcoded removida)
+
+    if not session.get('is_admin', False):
+
+        flash('Acesso negado. Apenas administradores podem executar esta ação.', 'error')
+
+        return redirect(url_for('dashboard'))
     
     conn = get_db_connection()
     
@@ -4778,14 +4782,12 @@ def create_admin():
         name = request.form.get('name', '').strip()
         email = request.form.get('email', '').strip()
         admin_password = request.form.get('admin_password', '').strip()
-        
-        # Validar campos obrigatórios
         if not username or not password or not name:
             flash('Campos obrigatórios não preenchidos.', 'error')
             return redirect(url_for('create_admin'))
         
         # Verificar senha do admin atual
-        if admin_password != '123':
+        if not session.get('is_admin', False):
             flash('Senha de administrador incorreta! Operação não autorizada.', 'error')
             return redirect(url_for('create_admin'))
         
@@ -4875,9 +4877,7 @@ def fix_admin_passwords():
     
     if request.method == 'POST':
         admin_password = request.form.get('admin_password', '')
-        
-        # Verificar senha do admin atual
-        if admin_password != '123':
+        if not session.get('is_admin', False):
             conn.close()
             flash('Senha de administrador incorreta! Operação não autorizada.', 'error')
             return redirect(url_for('fix_admin_passwords'))
@@ -4914,9 +4914,7 @@ def reset_admin_password(admin_id):
         return redirect(url_for('dashboard'))
     
     admin_password = request.form.get('admin_password', '')
-    
-    # Verificar senha do admin atual
-    if admin_password != '123':
+    if not session.get('is_admin', False):
         flash('Senha incorreta! Operação não autorizada.', 'error')
         return redirect(url_for('list_admins'))
     
@@ -4997,7 +4995,7 @@ def delete_admin(admin_id):
     senha = request.form.get('admin_password', '')
     confirm_delete = request.form.get('confirm_delete', 'no') == 'yes'
     
-    if senha != '123':
+    if not session.get('is_admin', False):
         conn.close()
         flash('Senha incorreta! Operação não autorizada.', 'error')
         return redirect(url_for('delete_admin', admin_id=admin_id))
@@ -5138,10 +5136,13 @@ def delete_business(business_id):
         return redirect(url_for('dashboard'))
     
     # Verificar senha
-    senha = request.form.get('senha', '')
-    if senha != '123':
-        flash('Senha incorreta! Operação não autorizada.', 'error')
-        return redirect(url_for('admin_business'))
+    # Verificação de admin (senha hardcoded removida)
+
+    if not session.get('is_admin', False):
+
+        flash('Acesso negado. Apenas administradores podem executar esta ação.', 'error')
+
+        return redirect(url_for('dashboard'))
     
     conn = get_db_connection()
     
@@ -5284,10 +5285,13 @@ def edit_business(business_id):
         return redirect(url_for('dashboard'))
     
     # Verificar senha
-    senha = request.form.get('senha', '')
-    if senha != '123':
-        flash('Senha incorreta! Operação não autorizada.', 'error')
-        return redirect(url_for('admin_business'))
+    # Verificação de admin (senha hardcoded removida)
+
+    if not session.get('is_admin', False):
+
+        flash('Acesso negado. Apenas administradores podem executar esta ação.', 'error')
+
+        return redirect(url_for('dashboard'))
     
     try:
         # Obter dados do formulário
