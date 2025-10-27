@@ -295,13 +295,29 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-4 mb-3">
+                            <div class="card border-warning">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-shield-alt text-warning"></i> Segurança
+                                    </h5>
+                                    <p class="card-text">Altere sua senha de administrador regularmente para manter a segurança.</p>
+                                    <div class="d-grid gap-2">
+                                        <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+                                            <i class="fas fa-key"></i> Alterar Minha Senha
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
                             <div class="card">
                                 <div class="card-body">
                                     <h5 class="card-title">Gerenciar Usuários</h5>
                                     <p class="card-text">Administrar contas de usuários e permissões.</p>
                                     <div class="d-flex flex-wrap gap-1">
                                         <a href="{{ url_for('change_password') }}" class="btn btn-sm btn-outline-primary">
-                                            <i class="fas fa-key"></i> Alterar Senha
+                                            <i class="fas fa-user-edit"></i> Senhas de Jogadores
                                         </a>
                                     </div>
                                 </div>
@@ -353,4 +369,96 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de Alteração de Senha -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="changePasswordModalLabel">
+                    <i class="fas fa-key"></i> Alterar Senha de Administrador
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('change_password') }}" method="POST" id="changePasswordForm">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Por segurança, você precisa informar sua senha atual.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="old_password" class="form-label">
+                            <i class="fas fa-lock"></i> Senha Atual *
+                        </label>
+                        <input type="password" class="form-control" id="old_password" name="old_password" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">
+                            <i class="fas fa-key"></i> Nova Senha *
+                        </label>
+                        <input type="password" class="form-control" id="new_password" name="new_password" required minlength="4">
+                        <small class="form-text text-muted">Mínimo de 4 caracteres</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">
+                            <i class="fas fa-check-circle"></i> Confirmar Nova Senha *
+                        </label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required minlength="4">
+                    </div>
+                    
+                    <div id="passwordError" class="alert alert-danger d-none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> Salvar Nova Senha
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Validação do formulário de alteração de senha
+document.getElementById('changePasswordForm').addEventListener('submit', function(e) {
+    const newPassword = document.getElementById('new_password').value;
+    const confirmPassword = document.getElementById('confirm_password').value;
+    const errorDiv = document.getElementById('passwordError');
+    
+    // Limpar erro anterior
+    errorDiv.classList.add('d-none');
+    
+    // Validar se as senhas coincidem
+    if (newPassword !== confirmPassword) {
+        e.preventDefault();
+        errorDiv.textContent = 'As senhas não coincidem. Por favor, verifique.';
+        errorDiv.classList.remove('d-none');
+        return false;
+    }
+    
+    // Validar tamanho mínimo
+    if (newPassword.length < 4) {
+        e.preventDefault();
+        errorDiv.textContent = 'A senha deve ter no mínimo 4 caracteres.';
+        errorDiv.classList.remove('d-none');
+        return false;
+    }
+    
+    return true;
+});
+
+// Limpar mensagens de erro ao digitar
+document.getElementById('new_password').addEventListener('input', function() {
+    document.getElementById('passwordError').classList.add('d-none');
+});
+
+document.getElementById('confirm_password').addEventListener('input', function() {
+    document.getElementById('passwordError').classList.add('d-none');
+});
+</script>
 {% endblock %}
