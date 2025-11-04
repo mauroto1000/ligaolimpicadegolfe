@@ -154,17 +154,22 @@
                             </a>
                         </div>
                         <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('toggle_player_results') }}" class="btn btn-outline-warning d-block">
+                                <i class="fas fa-trophy fa-fw"></i> Submissão de Resultados
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
                             <a href="{{ url_for('list_admins') }}" class="btn btn-outline-primary d-block">
                                 <i class="fas fa-users-cog fa-fw"></i> Listar Admins
                             </a>
                         </div>
+                    </div>
+                    <div class="row mt-2">
                         <div class="col-md-3 mb-2">
                             <a href="{{ url_for('create_admin') }}" class="btn btn-outline-success d-block">
                                 <i class="fas fa-user-plus fa-fw"></i> Novo Admin
                             </a>
                         </div>
-                    </div>
-                    <div class="row mt-2">
                         <div class="col-md-3 mb-2">
                             <a href="{{ url_for('fix_male_ranking_now') }}" class="btn btn-outline-warning d-block" 
                                onclick="return confirm('⚠️ Isso irá reorganizar todo o ranking masculino!\n\nAs posições serão ajustadas para eliminar lacunas (1, 2, 3...).\n\nDeseja continuar?')">

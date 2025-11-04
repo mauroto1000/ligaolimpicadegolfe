@@ -3380,6 +3380,7 @@ def player_detail(player_id):
                          is_own_profile=is_own_profile,  # Passar explicitamente
                          is_admin=is_admin)  # Passar explicitamente
 
+
 @app.route('/challenge_detail/<int:challenge_id>')
 def challenge_detail(challenge_id):
     conn = get_db_connection()
@@ -3392,6 +3393,12 @@ def challenge_detail(challenge_id):
         JOIN players p2 ON c.challenged_id = p2.id
         WHERE c.id = ?
     ''', (challenge_id,)).fetchone()
+    
+    # NOVA ADIÇÃO: Verificar se jogadores podem submeter resultados
+    setting = conn.execute('SELECT value FROM system_settings WHERE key = ?', 
+                          ('players_can_submit_results',)).fetchone()
+    players_can_submit = setting and setting['value'] == 'true'
+    
     conn.close()
     
     if not challenge:
@@ -3403,20 +3410,13 @@ def challenge_detail(challenge_id):
     expired = False
     
     if challenge['status'] == 'pending' and challenge['response_deadline']:
-        # Converter a string de data para objeto datetime e extrair só a data
         try:
             deadline_obj = datetime.strptime(challenge['response_deadline'], '%Y-%m-%d %H:%M:%S')
             deadline_date = deadline_obj.date()
             today_date = datetime.now().date()
-            
-            # Calcular diferença em dias (considerando apenas datas, sem horários)
             delta = (deadline_date - today_date).days
             days_remaining = delta
-            
-            # Se negativo ou zero, o prazo expirou
             expired = days_remaining < 0
-            
-            # Ajustar para exibição se for negativo
             if expired:
                 days_remaining = abs(days_remaining)
         except Exception as e:
@@ -3426,7 +3426,10 @@ def challenge_detail(challenge_id):
     return render_template('challenge_detail.html', 
                           challenge=challenge, 
                           days_remaining=days_remaining,
-                          expired=expired)
+                          expired=expired,
+                          players_can_submit=players_can_submit)  # NOVA VARIÁVEL
+
+
 
 # Rota aprimorada para verificar e corrigir completamente a estrutura da pirâmide
 @app.route('/fix_pyramid', methods=['GET'])
@@ -5934,6 +5937,58 @@ def validate_pyramid_route():
         return f"<pre>❌ Erro na validação: {str(e)}</pre>"
 
 
+def create_player_result_setting():
+    conn = get_db_connection()
+    conn.execute('''
+    INSERT OR IGNORE INTO system_settings (key, value)
+    VALUES ('players_can_submit_results', 'true')
+    ''')
+    conn.commit()
+    conn.close()
+    print("Configuração de submissão de resultados por jogadores criada/verificada.")
+
+
+@app.route('/admin/toggle_player_results', methods=['GET', 'POST'])
+@login_required
+def toggle_player_results():
+    # Verificar se é um administrador
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    conn = get_db_connection()
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        # Verificar senha do admin
+        if not session.get('is_admin', False):
+            conn.close()
+            flash('Acesso negado. Apenas administradores podem executar esta ação!', 'error')
+            return redirect(url_for('toggle_player_results'))
+        
+        if action == 'enable':
+            conn.execute('UPDATE system_settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?', 
+                       ('true', 'players_can_submit_results'))
+            conn.commit()
+            flash('Jogadores agora PODEM submeter resultados de desafios!', 'success')
+        elif action == 'disable':
+            conn.execute('UPDATE system_settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?', 
+                       ('false', 'players_can_submit_results'))
+            conn.commit()
+            flash('Jogadores agora NÃO PODEM submeter resultados de desafios!', 'success')
+    
+    # Obter status atual
+    setting = conn.execute('SELECT value, updated_at FROM system_settings WHERE key = ?', 
+                          ('players_can_submit_results',)).fetchone()
+    is_enabled = setting and setting['value'] == 'true'
+    updated_at = setting['updated_at'] if setting else None
+    
+    conn.close()
+    
+    return render_template('toggle_player_results.html', is_enabled=is_enabled, updated_at=updated_at)
+
+
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
     if not os.path.exists(DATABASE):
@@ -5982,6 +6037,9 @@ if __name__ == '__main__':
 
     # Criar tabela de configurações do sistema
     create_system_settings_table()
+
+    # Criar configuração de submissão de resultados por jogadores
+    create_player_result_setting()
     
     # Garantir que a pasta para fotos existe
     os.makedirs('static/profile_photos', exist_ok=True)
