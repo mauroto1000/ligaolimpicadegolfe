@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Gerenciar Submissão de Resultados{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4><i class="fas fa-trophy"></i> Gerenciar Submissão de Resultados por Jogadores</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert {% if is_enabled %}alert-success{% else %}alert-warning{% endif %}">
+                        <h5>Status Atual:</h5>
+                        <p class="mb-0">
+                            {% if is_enabled %}
+                                <i class="fas fa-check-circle"></i> <strong>HABILITADO</strong> - Jogadores podem submeter resultados de seus desafios
+                            {% else %}
+                                <i class="fas fa-times-circle"></i> <strong>DESABILITADO</strong> - Apenas administradores podem submeter resultados
+                            {% endif %}
+                        </p>
+                        {% if updated_at %}
+                        <small class="text-muted">Última atualização: {{ updated_at|datetime('%d/%m/%Y %H:%M') }}</small>
+                        {% endif %}
+                    </div>
+
+                    <hr>
+
+                    <h5>Alterar Configuração:</h5>
+                    <p class="text-muted">
+                        Use as opções abaixo para habilitar ou desabilitar a capacidade dos jogadores 
+                        (desafiantes e desafiados) de submeterem os resultados de seus próprios desafios.
+                    </p>
+
+                    <form method="POST" class="mt-4">
+                        <div class="form-group">
+                            <label for="admin_password">Senha de Administrador:</label>
+                            <input type="password" class="form-control" id="admin_password" name="admin_password" 
+                                   placeholder="Digite a senha de administrador" required>
+                        </div>
+
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <button type="submit" name="action" value="enable" 
+                                        class="btn btn-success btn-block btn-lg"
+                                        {% if is_enabled %}disabled{% endif %}>
+                                    <i class="fas fa-unlock"></i> Habilitar Submissão
+                                </button>
+                                {% if is_enabled %}
+                                <small class="text-muted d-block mt-2">Já está habilitado</small>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <button type="submit" name="action" value="disable" 
+                                        class="btn btn-danger btn-block btn-lg"
+                                        {% if not is_enabled %}disabled{% endif %}>
+                                    <i class="fas fa-lock"></i> Desabilitar Submissão
+                                </button>
+                                {% if not is_enabled %}
+                                <small class="text-muted d-block mt-2">Já está desabilitado</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </form>
+
+                    <hr class="my-4">
+
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> Informações Importantes:</h6>
+                        <ul class="mb-0">
+                            <li><strong>Habilitado:</strong> Desafiantes e desafiados podem registrar o resultado do jogo</li>
+                            <li><strong>Desabilitado:</strong> Apenas administradores podem registrar resultados</li>
+                            <li>Independentemente desta configuração, administradores sempre podem submeter resultados</li>
+                            <li>Esta configuração afeta apenas desafios com status "aceito"</li>
+                        </ul>
+                    </div>
+
+                    <div class="mt-4">
+                        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Voltar ao Dashboard Admin
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
