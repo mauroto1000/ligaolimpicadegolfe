@@ -96,7 +96,7 @@
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
 
-    /* X preto para células bloqueadas (tiers G, H, I, J, K) */
+    /* X preto para células bloqueadas (tiers E, F, G, H, I, J, K) */
     .pyramid-cell.blocked-tier::before,
     .pyramid-cell.blocked-tier::after {
         content: '';
@@ -594,7 +594,7 @@
                             <div class="pyramid-cell 
                                  {% if player.has_pending_challenge %}pending-challenge{% endif %}
                                  {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}
-                                 {% if tier_letter in ['G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
+                                 {% if tier_letter in ['E', 'F', 'G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
                                  data-player-name="{{ player.name|lower }}"
                                  data-player-id="{{ player.id }}"
                                  data-position="{{ player.position }}"
@@ -731,7 +731,7 @@
                                 <div class="pyramid-cell 
                                      {% if player.has_pending_challenge %}pending-challenge{% endif %}
                                      {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}
-                                     {% if tier_letters[level-1] in ['G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
+                                     {% if tier_letters[level-1] in ['E', 'F', 'G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
                                      data-player-name="{{ player.name|lower }}"
                                      data-player-id="{{ player.id }}"
                                      data-position="{{ player.position }}"
