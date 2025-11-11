@@ -96,7 +96,7 @@
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
 
-    /* X preto para células bloqueadas (tiers E, F, G, H, I, J, K) */
+    /* X preto para células bloqueadas (posição #10 e tiers E, F, G, H, I, J, K) */
     .pyramid-cell.blocked-tier::before,
     .pyramid-cell.blocked-tier::after {
         content: '';
@@ -484,7 +484,6 @@
         </div>
         
         <!-- Controles interativos -->
-        <!-- Controles interativos -->
         <div class="pyramid-controls">
             <div class="input-group mb-0 me-2" style="max-width: 250px;">
                 <input type="text" id="playerSearch" class="form-control" placeholder="Buscar jogador...">
@@ -495,7 +494,6 @@
             
             <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">Voltar para Lista</a>
             
-            <!-- BOTÃO DE CORREÇÃO (apenas para admins) -->
             <!-- BOTÃO DE CORREÇÃO (apenas para admins) -->
             {% if session.is_admin %}
             <a href="{{ url_for('force_fix_positions') }}" class="btn btn-danger btn-sm ms-2" 
@@ -594,7 +592,7 @@
                             <div class="pyramid-cell 
                                  {% if player.has_pending_challenge %}pending-challenge{% endif %}
                                  {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}
-                                 {% if tier_letter in ['E', 'F', 'G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
+                                 {% if player.position == 10 or tier_letter in ['E', 'F', 'G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
                                  data-player-name="{{ player.name|lower }}"
                                  data-player-id="{{ player.id }}"
                                  data-position="{{ player.position }}"
@@ -731,7 +729,7 @@
                                 <div class="pyramid-cell 
                                      {% if player.has_pending_challenge %}pending-challenge{% endif %}
                                      {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}
-                                     {% if tier_letters[level-1] in ['E', 'F', 'G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
+                                     {% if tier_letters[level-1] in ['G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
                                      data-player-name="{{ player.name|lower }}"
                                      data-player-id="{{ player.id }}"
                                      data-position="{{ player.position }}"
