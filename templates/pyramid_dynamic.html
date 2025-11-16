@@ -592,7 +592,7 @@
                             <div class="pyramid-cell 
                                  {% if player.has_pending_challenge %}pending-challenge{% endif %}
                                  {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}
-                                 {% if player.position == 10 or tier_letter in ['E', 'F', 'G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
+                                 {% if player.position == 10 or tier_letter in ['D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
                                  data-player-name="{{ player.name|lower }}"
                                  data-player-id="{{ player.id }}"
                                  data-position="{{ player.position }}"
