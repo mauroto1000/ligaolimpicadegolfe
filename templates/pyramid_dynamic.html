@@ -58,14 +58,56 @@
     
     .pyramid-cell.top-tier .title-text {
         font-weight: bold;
-        font-size: 14px;
+        font-size: 11px;
         color: #002970;
+        margin: 2px 0;
+        line-height: 1.1;
     }
     
     .pyramid-cell.top-tier .date-text {
-        font-size: 12px;
-        color: red;
-        margin-top: 5px;
+        font-size: 9px;
+        color: #dc3545;
+        margin-top: 2px;
+        font-weight: normal;
+    }
+
+    /* Estilos especiais para células de campeão */
+    .champion-cell,
+    .vice-champion-cell,
+    .third-place-cell {
+        height: 110px !important;
+        justify-content: space-evenly !important;
+        padding: 5px 3px !important;
+        background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .champion-cell {
+        border: 2px solid #FFD700 !important;
+    }
+
+    .vice-champion-cell {
+        border: 2px solid #C0C0C0 !important;
+    }
+
+    .third-place-cell {
+        border: 2px solid #CD7F32 !important;
+    }
+
+    .trophy-icon {
+        font-size: 18px;
+        margin-bottom: 2px;
+    }
+
+    .player-name-champion {
+        font-size: 10px;
+        font-weight: 600;
+        color: #000;
+        text-align: center;
+        line-height: 1.2;
+        margin: 2px 0;
+        max-width: 95%;
+        word-break: break-word;
     }
 
     /* Cores e efeitos de hover para células */
@@ -96,7 +138,7 @@
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
 
-    /* X preto para células bloqueadas (posição #10 e tiers E, F, G, H, I, J, K) */
+    /* X preto para células bloqueadas (mantido no CSS para uso futuro) */
     .pyramid-cell.blocked-tier::before,
     .pyramid-cell.blocked-tier::after {
         content: '';
@@ -411,6 +453,29 @@
             height: 70px;
             width: 3px;
         }
+
+        /* Ajustes para células de campeão em mobile */
+        .champion-cell,
+        .vice-champion-cell,
+        .third-place-cell {
+            height: 95px !important;
+        }
+        
+        .trophy-icon {
+            font-size: 16px;
+        }
+        
+        .pyramid-cell.top-tier .title-text {
+            font-size: 10px;
+        }
+        
+        .player-name-champion {
+            font-size: 9px;
+        }
+        
+        .pyramid-cell.top-tier .date-text {
+            font-size: 8px;
+        }
     }
 
     /* Para telas muito pequenas */
@@ -467,6 +532,29 @@
         .pyramid-cell.blocked-tier::after {
             height: 55px;
             width: 3px;
+        }
+
+        /* Ajustes para células de campeão em telas pequenas */
+        .champion-cell,
+        .vice-champion-cell,
+        .third-place-cell {
+            height: 85px !important;
+        }
+        
+        .trophy-icon {
+            font-size: 14px;
+        }
+        
+        .pyramid-cell.top-tier .title-text {
+            font-size: 9px;
+        }
+        
+        .player-name-champion {
+            font-size: 8px;
+        }
+        
+        .pyramid-cell.top-tier .date-text {
+            font-size: 7px;
         }
     }
 </style>
@@ -552,22 +640,25 @@
             <!-- Nível A ilustrativo para Homens -->
             <div class="pyramid-row" data-tier="A" data-gender="masculino">
                 <div class="pyramid-cell first-col">A</div>
-                <div class="pyramid-cell top-tier">
+                <div class="pyramid-cell top-tier champion-cell">
+                    <span class="trophy-icon">🏆</span>
                     <span class="title-text">CAMPEÃO</span>
-                    <span class="date-text">29/11/2025</span>
+                    <span class="player-name-champion">JOSÉ RICARDO<br>TRIGO</span>
                 </div>
             </div>
             
             <!-- Nível B ilustrativo para Homens -->
             <div class="pyramid-row" data-tier="B" data-gender="masculino">
                 <div class="pyramid-cell first-col">B</div>
-                <div class="pyramid-cell top-tier">
+                <div class="pyramid-cell top-tier vice-champion-cell">
+                    <span class="trophy-icon">🥈</span>
                     <span class="title-text">VICE-CAMPEÃO</span>
-                    <span class="date-text">29/11/2025</span>
+                    <span class="player-name-champion">DIEGO GIL</span>
                 </div>
-                <div class="pyramid-cell top-tier">
+                <div class="pyramid-cell top-tier third-place-cell">
+                    <span class="trophy-icon">🥉</span>
                     <span class="title-text">3º LUGAR</span>
-                    <span class="date-text">29/11/2025</span>
+                    <span class="player-name-champion">MARK LLOYD</span>
                 </div>
             </div>
             
@@ -591,8 +682,7 @@
                         {% for player in male_players_in_tier|sort(attribute='position') %}
                             <div class="pyramid-cell 
                                  {% if player.has_pending_challenge %}pending-challenge{% endif %}
-                                 {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}
-                                 {% if player.position == 10 or tier_letter in ['D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
+                                 {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}"
                                  data-player-name="{{ player.name|lower }}"
                                  data-player-id="{{ player.id }}"
                                  data-position="{{ player.position }}"
@@ -728,8 +818,7 @@
                                 {% set player = female_by_position[current_index[0]] %}
                                 <div class="pyramid-cell 
                                      {% if player.has_pending_challenge %}pending-challenge{% endif %}
-                                     {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}
-                                     {% if tier_letters[level-1] in ['G', 'H', 'I', 'J', 'K'] %}blocked-tier{% endif %}"
+                                     {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}"
                                      data-player-name="{{ player.name|lower }}"
                                      data-player-id="{{ player.id }}"
                                      data-position="{{ player.position }}"
