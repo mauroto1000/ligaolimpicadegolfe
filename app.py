@@ -1923,6 +1923,9 @@ def deactivate_player(player_id):
         flash('Senha incorreta! Operação não autorizada.', 'error')
         return redirect(url_for('player_detail', player_id=player_id))
     
+    # ✅ CORREÇÃO: Obter o valor de rerank do formulário
+    rerank = request.form.get('rerank', 'no') == 'yes'
+    
     try:
         current_position = player['position']
         current_tier = player['tier']
@@ -1952,9 +1955,6 @@ def deactivate_player(player_id):
                 SET position = position - 1
                 WHERE position > ? AND active = 1
             ''', (current_position,))
-            
-            # 4. Removido o trecho que registrava os ajustes de posição no histórico
-            # para todos os jogadores afetados pelo reposicionamento
             
             flash_message = 'Jogador inativado com sucesso e ranking reorganizado.'
         else:
@@ -2002,6 +2002,7 @@ def deactivate_player(player_id):
         conn.close()
     
     return redirect(url_for('index'))
+    
 
 @app.route('/reactivate_player/<int:player_id>', methods=['GET', 'POST'])
 def reactivate_player(player_id):
