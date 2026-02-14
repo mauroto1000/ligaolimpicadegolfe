@@ -5,34 +5,99 @@
 {% block head %}
 <style>
     /* ========================================
-       PIRÂMIDE - VERSÃO CORRIGIDA MOBILE
+       PIRÂMIDE COM ZOOM - VERSÃO MOBILE
        ======================================== */
     
-    /* Container principal - CORRIGIDO */
+    /* Container do zoom */
+    .zoom-wrapper {
+        position: relative;
+        width: 100%;
+        overflow: hidden;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin-bottom: 15px;
+    }
+    
+    .zoom-container {
+        width: 100%;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        cursor: grab;
+        min-height: 300px;
+        max-height: 70vh;
+        touch-action: pan-x pan-y pinch-zoom;
+    }
+    
+    .zoom-container:active {
+        cursor: grabbing;
+    }
+    
+    .zoom-content {
+        transform-origin: top left;
+        transition: transform 0.2s ease;
+        display: inline-block;
+        min-width: max-content;
+        padding: 10px;
+    }
+    
+    /* Controles de zoom */
+    .zoom-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 15px;
+        padding: 10px;
+        background: #e9ecef;
+        border-radius: 8px;
+        align-items: center;
+    }
+    
+    .zoom-controls .btn-group {
+        display: flex;
+        gap: 4px;
+    }
+    
+    .zoom-controls .btn {
+        padding: 8px 12px;
+        font-size: 14px;
+        font-weight: bold;
+    }
+    
+    .zoom-level {
+        font-size: 14px;
+        font-weight: bold;
+        color: #495057;
+        min-width: 60px;
+        text-align: center;
+    }
+    
+    @media (max-width: 576px) {
+        .zoom-controls {
+            justify-content: center;
+        }
+        
+        .zoom-controls .btn {
+            padding: 10px 14px;
+            font-size: 16px;
+        }
+    }
+
+    /* Pirâmide */
     .pyramid-container {
         display: flex;
         flex-direction: column;
         align-items: flex-start;
-        margin: 20px 0;
-        width: 100%;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch; /* Scroll suave no iOS */
-        position: relative;
-        padding-bottom: 15px;
     }
 
     .pyramid-row {
         display: flex;
         justify-content: flex-start;
-        margin-bottom: 6px;
-        /* REMOVIDO: min-width: max-content; - causava scroll forçado */
+        margin-bottom: 5px;
     }
 
-    /* Células - tamanho responsivo */
     .pyramid-cell {
-        /* Mobile-first: tamanho menor */
-        width: 70px;
-        height: 70px;
+        width: 75px;
+        height: 75px;
         margin: 0 4px 0 0;
         display: flex;
         flex-direction: column;
@@ -47,26 +112,12 @@
         cursor: pointer;
         padding: 3px;
         box-sizing: border-box;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
         overflow: visible;
         background-color: #28a745;
         border: 1px solid rgba(0,0,0,0.1);
-        /* Permitir interação touch */
-        touch-action: manipulation;
-        -webkit-tap-highlight-color: transparent;
     }
     
-    /* Tamanho maior para telas grandes */
-    @media (min-width: 768px) {
-        .pyramid-cell {
-            width: 84px;
-            height: 84px;
-            margin: 0 6px 0 0;
-            font-size: 14px;
-        }
-    }
-    
-    /* Estilo especial para células dos níveis A e B */
     .pyramid-cell.top-tier {
         background-color: white;
         color: #002970;
@@ -93,46 +144,23 @@
         font-weight: normal;
     }
 
-    /* Estilos especiais para células de campeão */
     .champion-cell,
     .vice-champion-cell,
     .third-place-cell {
-        height: 90px !important;
+        height: 95px !important;
         justify-content: space-evenly !important;
         padding: 5px 3px !important;
         background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    }
-    
-    @media (min-width: 768px) {
-        .champion-cell,
-        .vice-champion-cell,
-        .third-place-cell {
-            height: 110px !important;
-        }
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
     }
 
-    .champion-cell {
-        border: 2px solid #FFD700 !important;
-    }
-
-    .vice-champion-cell {
-        border: 2px solid #C0C0C0 !important;
-    }
-
-    .third-place-cell {
-        border: 2px solid #CD7F32 !important;
-    }
+    .champion-cell { border: 2px solid #FFD700 !important; }
+    .vice-champion-cell { border: 2px solid #C0C0C0 !important; }
+    .third-place-cell { border: 2px solid #CD7F32 !important; }
 
     .trophy-icon {
         font-size: 16px;
         margin-bottom: 2px;
-    }
-    
-    @media (min-width: 768px) {
-        .trophy-icon {
-            font-size: 18px;
-        }
     }
 
     .player-name-champion {
@@ -145,14 +173,7 @@
         max-width: 95%;
         word-break: break-word;
     }
-    
-    @media (min-width: 768px) {
-        .player-name-champion {
-            font-size: 10px;
-        }
-    }
 
-    /* Estilo específico para Liga Ladies */
     .ladies-pyramid .pyramid-cell {
         background-color: #e91e63;
     }
@@ -161,28 +182,23 @@
         background-color: #ad1457;
     }
 
-    /* Efeitos de hover/touch */
-    .pyramid-cell:not(.first-col):hover,
-    .pyramid-cell:not(.first-col):active {
-        transform: scale(1.05);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        z-index: 5;
+    .pyramid-cell:not(.first-col):hover {
+        transform: scale(1.08);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        z-index: 10;
     }
 
-    /* Cor de fundo para a primeira coluna */
     .pyramid-cell.first-col {
         background-color: #002970;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         cursor: default;
     }
 
-    /* Estilo para jogadores com desafios pendentes */
     .pyramid-cell.pending-challenge {
         background-color: #ffc107;
         color: #212529;
     }
     
-    /* Estilo para jogadores com desafios concluídos com pendência */
     .pyramid-cell.completed-pending-challenge {
         background-color: #ffc107;
         border: 4px solid #dc3545;
@@ -195,17 +211,9 @@
         left: 2px;
         font-size: 10px;
         color: #ffffff;
-        background-color: rgba(0,0,0,0.2);
-        padding: 1px 3px;
+        background-color: rgba(0,0,0,0.25);
+        padding: 1px 4px;
         border-radius: 3px;
-    }
-    
-    @media (min-width: 768px) {
-        .player-position {
-            font-size: 12px;
-            top: 3px;
-            left: 3px;
-        }
     }
 
     .pending-challenge .player-position {
@@ -213,13 +221,12 @@
         background-color: rgba(0,0,0,0.1);
     }
     
-    /* Data do desafio - CORRIGIDO posicionamento */
     .challenge-date,
     .pending-date {
         font-size: 9px;
         font-weight: normal;
         color: #fff;
-        padding: 1px 3px;
+        padding: 1px 4px;
         border-radius: 3px;
         position: absolute;
         bottom: 2px;
@@ -230,26 +237,13 @@
         z-index: 3;
     }
     
-    .challenge-date {
-        background-color: #17a2b8;
-    }
-    
-    .pending-date {
-        background-color: #dc3545;
-    }
-    
-    @media (min-width: 768px) {
-        .challenge-date,
-        .pending-date {
-            font-size: 11px;
-            padding: 2px 5px;
-        }
-    }
+    .challenge-date { background-color: #17a2b8; }
+    .pending-date { background-color: #dc3545; }
 
     .player-name {
         font-size: 10px;
         text-align: center;
-        margin-top: 3px;
+        margin-top: 2px;
         line-height: 1.1;
         width: 90%;
         overflow: hidden;
@@ -258,20 +252,9 @@
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         max-height: 24px;
-        padding-bottom: 14px;
-    }
-    
-    @media (min-width: 768px) {
-        .player-name {
-            font-size: 12px;
-            -webkit-line-clamp: 3;
-            max-height: 43px;
-            margin-top: 5px;
-            padding-bottom: 16px;
-        }
+        padding-bottom: 12px;
     }
 
-    /* Bandeira - posição fixa */
     .country-flag {
         position: absolute !important;
         top: 2px !important;
@@ -282,17 +265,7 @@
         box-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;
         border-radius: 1px !important;
     }
-    
-    @media (min-width: 768px) {
-        .country-flag {
-            width: 16px !important;
-            height: 12px !important;
-            top: 3px !important;
-            right: 3px !important;
-        }
-    }
 
-    /* Seta de desafio */
     .challenge-arrow {
         position: absolute !important;
         bottom: 2px !important;
@@ -303,14 +276,6 @@
         z-index: 4 !important;
         white-space: nowrap;
         letter-spacing: -0.5px;
-    }
-    
-    @media (min-width: 768px) {
-        .challenge-arrow {
-            font-size: 9px;
-            bottom: 3px !important;
-            right: 3px !important;
-        }
     }
 
     .arrow-challenged {
@@ -324,8 +289,9 @@
         border: 1px solid rgba(0, 0, 0, 0.2);
     }
 
-    /* TOOLTIP CORRIGIDO - não sai da tela */
+    /* Tooltip - apenas desktop */
     .pyramid-tooltip {
+        display: none;
         visibility: hidden;
         position: absolute;
         z-index: 100;
@@ -340,11 +306,10 @@
         width: max-content;
         max-width: 150px;
         opacity: 0;
-        transition: opacity 0.3s, visibility 0.3s;
         pointer-events: none;
         font-weight: normal;
         font-size: 11px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         line-height: 1.3;
     }
 
@@ -359,22 +324,18 @@
         border-color: #333 transparent transparent transparent;
     }
 
-    /* Tooltip visível ao hover (desktop) */
-    @media (min-width: 768px) {
+    @media (min-width: 992px) {
+        .pyramid-tooltip {
+            display: block;
+        }
+        
         .pyramid-cell:hover .pyramid-tooltip {
             visibility: visible;
             opacity: 1;
         }
     }
-    
-    /* No mobile, esconder tooltip (usar click para ir ao detalhe) */
-    @media (max-width: 767px) {
-        .pyramid-tooltip {
-            display: none !important;
-        }
-    }
 
-    /* Controles interativos */
+    /* Controles e legenda */
     .pyramid-controls {
         margin-bottom: 15px;
         padding: 10px;
@@ -386,7 +347,7 @@
         gap: 8px;
     }
     
-    @media (max-width: 767px) {
+    @media (max-width: 576px) {
         .pyramid-controls {
             flex-direction: column;
             align-items: stretch;
@@ -394,21 +355,14 @@
         
         .pyramid-controls .input-group {
             max-width: 100% !important;
-            width: 100%;
-        }
-        
-        .pyramid-controls .btn {
-            width: 100%;
-            margin-top: 5px;
         }
     }
 
-    /* Legenda */
     .legend-container {
         display: flex;
         flex-wrap: wrap;
         margin-bottom: 15px;
-        gap: 8px;
+        gap: 10px;
     }
     
     .legend-item {
@@ -418,56 +372,27 @@
     }
     
     .legend-color {
-        width: 16px;
-        height: 16px;
-        margin-right: 4px;
+        width: 18px;
+        height: 18px;
+        margin-right: 5px;
         border: 1px solid rgba(0,0,0,0.1);
-        border-radius: 2px;
+        border-radius: 3px;
     }
     
-    .legend-green {
-        background-color: #28a745;
-    }
-    
-    .legend-yellow {
-        background-color: #ffc107;
-    }
-    
-    .legend-blue {
-        background-color: #002970;
-    }
-    
-    @media (max-width: 767px) {
-        .legend-container {
-            gap: 5px;
-        }
-        
-        .legend-item {
-            font-size: 11px;
-        }
-        
-        .legend-item span[style*="font-size"] {
-            font-size: 9px !important;
-        }
-    }
+    .legend-green { background-color: #28a745; }
+    .legend-yellow { background-color: #ffc107; }
+    .legend-blue { background-color: #002970; }
 
-    /* Estilos para headers das pirâmides */
     .pyramid-header {
         margin-top: 1.5rem;
         margin-bottom: 0.75rem;
-        padding: 10px 15px;
-        border-radius: 5px;
+        padding: 12px 15px;
+        border-radius: 6px;
     }
     
     .pyramid-header h4 {
-        font-size: 1rem;
+        font-size: 1.1rem;
         margin: 0;
-    }
-    
-    @media (min-width: 768px) {
-        .pyramid-header h4 {
-            font-size: 1.25rem;
-        }
     }
     
     .pyramid-header.ladies {
@@ -480,35 +405,34 @@
         color: white;
     }
 
-    /* Indicação de scroll */
-    .scroll-hint {
-        display: none;
-        text-align: center;
-        font-style: italic;
-        color: #666;
-        margin-bottom: 10px;
-        padding: 8px;
-        background-color: #e9ecef;
-        border-radius: 4px;
-        font-size: 13px;
-    }
-    
-    @media (max-width: 767px) {
-        .scroll-hint {
-            display: block;
-        }
-    }
-    
-    /* Card header */
     .card-header h3 {
         font-size: 1.1rem;
-        margin: 0;
     }
     
     @media (min-width: 768px) {
         .card-header h3 {
-            font-size: 1.5rem;
+            font-size: 1.4rem;
         }
+    }
+    
+    /* Indicador de zoom atual */
+    .zoom-indicator {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(0,0,0,0.7);
+        color: white;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+        z-index: 50;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+    
+    .zoom-indicator.visible {
+        opacity: 1;
     }
 </style>
 {% endblock %}
@@ -519,14 +443,10 @@
         <h3 class="mb-0">🏆 PIRÂMIDES DOS RANKINGS 🏆</h3>
     </div>
     <div class="card-body">
-        <!-- Indicação de rolagem para dispositivos móveis -->
-        <div class="scroll-hint d-md-none">
-            <small><i class="fas fa-arrows-alt-h me-1"></i> Deslize para o lado para ver toda a pirâmide</small>
-        </div>
         
-        <!-- Controles interativos -->
+        <!-- Controles de busca -->
         <div class="pyramid-controls">
-            <div class="input-group mb-0 me-2" style="max-width: 250px;">
+            <div class="input-group mb-0" style="max-width: 250px;">
                 <input type="text" id="playerSearch" class="form-control" placeholder="Buscar jogador...">
                 <button class="btn btn-outline-secondary" type="button" id="clearSearch">
                     <i class="fas fa-times"></i>
@@ -535,14 +455,32 @@
             
             <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">Voltar para Lista</a>
             
-            <!-- BOTÃO DE CORREÇÃO (apenas para admins) -->
             {% if session.is_admin %}
-            <a href="{{ url_for('force_fix_positions') }}" class="btn btn-danger btn-sm ms-2" 
-            onclick="return confirm('🔧 FORÇAR CORREÇÃO DAS POSIÇÕES?\n\nEsta operação irá:\n• Eliminar TODAS as lacunas\n• Reorganizar posições sequenciais (1,2,3,4...)\n• Recalcular tiers corretos\n\nCONTINUAR?')">
-                <i class="fas fa-hammer me-1"></i>
-                FORÇAR CORREÇÃO
+            <a href="{{ url_for('force_fix_positions') }}" class="btn btn-danger btn-sm" 
+               onclick="return confirm('🔧 FORÇAR CORREÇÃO DAS POSIÇÕES?')">
+                <i class="fas fa-hammer me-1"></i> CORRIGIR
             </a>
             {% endif %}
+        </div>
+        
+        <!-- CONTROLES DE ZOOM -->
+        <div class="zoom-controls">
+            <span class="me-2"><i class="fas fa-search"></i> Zoom:</span>
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-primary" id="zoomOut" title="Diminuir zoom">
+                    <i class="fas fa-minus"></i>
+                </button>
+                <button type="button" class="btn btn-outline-primary" id="zoomIn" title="Aumentar zoom">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            <button type="button" class="btn btn-primary" id="zoomFit" title="Ver pirâmide inteira">
+                <i class="fas fa-expand"></i> Ver Tudo
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="zoomReset" title="Tamanho original">
+                <i class="fas fa-undo"></i> 100%
+            </button>
+            <span class="zoom-level" id="zoomLevelDisplay">100%</span>
         </div>
         
         <!-- Legenda -->
@@ -553,17 +491,16 @@
             </div>
             <div class="legend-item">
                 <span style="font-size: 11px; padding: 2px 5px; background-color: #17a2b8; color: #fff; border-radius: 3px;">(10/03)</span>
-                <span style="margin-left: 5px;">Data do desafio aceito</span>
+                <span class="ms-1">Data aceita</span>
             </div>
             <div class="legend-item">
-                <span style="font-size: 11px; padding: 2px 5px; background-color: #dc3545; color: #fff; border-radius: 3px;">(?) </span>
-                <span style="margin-left: 5px;">Aguardando data</span>
+                <span style="font-size: 11px; padding: 2px 5px; background-color: #dc3545; color: #fff; border-radius: 3px;">(?)</span>
+                <span class="ms-1">Aguardando</span>
             </div>
         </div>
 
         <!-- Separar jogadores por sexo -->
         {% set female_players = [] %}
-        
         {% for tier_letter, players in tiers %}
             {% for player in players %}
                 {% if player.sexo == 'feminino' %}
@@ -572,296 +509,290 @@
             {% endfor %}
         {% endfor %}
 
-        <!-- Ranking Masculino - Pirâmide Masculina -->
+        <!-- ==================== RANKING MASCULINO ==================== -->
         <div class="pyramid-header mens card-header">
             <h4 class="mb-0">
-                <i class="fas fa-trophy me-2"></i>
-                Ranking Masculino - Pirâmide
-                {% set male_count = 0 %}
-                {% for tier_letter, players in tiers %}
-                    {% for player in players %}
-                        {% if player.sexo != 'feminino' %}
-                            {% set male_count = male_count + 1 %}
-                        {% endif %}
-                    {% endfor %}
-                {% endfor %}
-                <span class="badge bg-light text-dark ms-2"></span>
+                <i class="fas fa-trophy me-2"></i> Ranking Masculino
             </h4>
         </div>
         
-        <div class="pyramid-container mens-pyramid">
-            <!-- Nível A ilustrativo para Homens -->
-            <div class="pyramid-row" data-tier="A" data-gender="masculino">
-                <div class="pyramid-cell first-col">A</div>
-                <div class="pyramid-cell top-tier champion-cell">
-                    <span class="trophy-icon">🏆</span>
-                    <span class="title-text">CAMPEÃO</span>
-                    <span class="player-name-champion">JOSÉ RICARDO<br>TRIGO</span>
-                </div>
-            </div>
-            
-            <!-- Nível B ilustrativo para Homens -->
-            <div class="pyramid-row" data-tier="B" data-gender="masculino">
-                <div class="pyramid-cell first-col">B</div>
-                <div class="pyramid-cell top-tier vice-champion-cell">
-                    <span class="trophy-icon">🥈</span>
-                    <span class="title-text">VICE-CAMPEÃO</span>
-                    <span class="player-name-champion">DIEGO GIL</span>
-                </div>
-                <div class="pyramid-cell top-tier third-place-cell">
-                    <span class="trophy-icon">🥉</span>
-                    <span class="title-text">3º LUGAR</span>
-                    <span class="player-name-champion">MARK LLOYD</span>
-                </div>
-            </div>
-            
-            <!-- Pirâmide masculina: usar os tiers originais filtrados por sexo -->
-            {% for tier_letter, players in tiers %}
-                {% set male_players_in_tier = [] %}
-                {% for player in players %}
-                    {% if player.sexo != 'feminino' %}
-                        {% set _ = male_players_in_tier.append(player) %}
-                    {% endif %}
-                {% endfor %}
-                
-                {% if male_players_in_tier %}
-                    <div class="pyramid-row" data-tier="{{ tier_letter }}" data-gender="masculino">
-                        <!-- Célula com a letra do tier -->
-                        <div class="pyramid-cell first-col">
-                            {{ tier_letter }}
-                        </div>
+        <!-- Container com zoom -->
+        <div class="zoom-wrapper">
+            <div class="zoom-indicator" id="zoomIndicator">100%</div>
+            <div class="zoom-container" id="mensZoomContainer">
+                <div class="zoom-content" id="mensZoomContent">
+                    <div class="pyramid-container mens-pyramid" id="mensPyramid">
                         
-                        <!-- Célula para cada posição no tier -->
-                        {% for player in male_players_in_tier|sort(attribute='position') %}
-                            <div class="pyramid-cell 
-                                 {% if player.has_pending_challenge %}pending-challenge{% endif %}
-                                 {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}"
-                                 data-player-name="{{ player.name|lower }}"
-                                 data-player-id="{{ player.id }}"
-                                 data-position="{{ player.position }}"
-                                 data-gender="masculino"
-                                 onclick="window.location='{{ url_for('player_detail', player_id=player.id) }}'">
-                                
-                                <span class="player-position">{{ player.position }}</span>
-                                
-                                <!-- Bandeira no canto superior direito -->
-                                {% if player.country %}
-                                    <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
-                                         alt="{{ player.country }}" class="country-flag" 
-                                         title="{{ player.country }}">
-                                {% endif %}
-                                
-                                <!-- Tooltip com informações adicionais -->
-                                <div class="pyramid-tooltip">
-                                    <strong>{{ player.name }}</strong><br>
-                                    Posição: #{{ player.position }}<br>
-                                    Nível: {{ tier_letter }}<br>
-                                    {% if player.country %}
-                                    País: {{ player.country }}<br>
-                                    {% endif %}
-                                    {% if player.hcp_index is not none %}
-                                    HCP: {{ player.hcp_index }}<br>
-                                    {% endif %}
-                                    {% if player.has_pending_challenge %}
-                                    <span class="text-warning">Tem desafio pendente</span><br>
-                                    {% endif %}
-                                    {% if player.challenge_status == 'completed_pending' %}
-                                    <span class="text-danger">Desafio concluído (c/ pendência)</span><br>
-                                    {% endif %}
-                                    {% if player.challenging_positions %}
-                                    <span class="text-info">Desafiando: {% for pos in player.challenging_positions %}{{ pos }}{% if not loop.last %}, {% endif %}{% endfor %}</span><br>
-                                    {% endif %}
-                                    {% if player.challenged_by_positions %}
-                                    <span class="text-info">Desafiado por: {% for pos in player.challenged_by_positions %}{{ pos }}{% if not loop.last %}, {% endif %}{% endfor %}</span><br>
-                                    {% endif %}
-                                    <small>Clique para detalhes</small>
-                                </div>
-                                
-                                <!-- Nome do jogador -->
-                                <span class="player-name">
-                                    {{ player.name }}
-                                </span>
-                                
-                                <!-- Data do jogo para desafios aceitos ou indicação para pendentes -->
-                                {% set displayed = false %}
-                                
-                                {# Primeiro verificamos desafios pendentes #}
-                                {% if player.has_pending_challenge and not displayed %}
-                                    {% for challenge in challenges %}
-                                        {% if not displayed and challenge.status == 'pending' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
-                                            <span class="pending-date">
-                                                (?)
-                                            </span>
-                                            {% set displayed = true %}
-                                        {% endif %}
-                                    {% endfor %}
-                                {% endif %}
-                                
-                                {# Depois buscamos desafios aceitos se ainda não exibimos nada #}
-                                {% for challenge in challenges %}
-                                    {% if not displayed and challenge.status == 'accepted' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
-                                        <span class="challenge-date">
-                                            {% if challenge.scheduled_date|string is defined %}
-                                                {% set date_str = challenge.scheduled_date|string %}
-                                                {% if '-' in date_str %}
-                                                    {% set date_parts = date_str.split('-') %}
-                                                    {% if date_parts|length >= 3 %}
-                                                        ({{ date_parts[2].split(' ')[0] }}/{{ date_parts[1] }})
-                                                    {% else %}
-                                                        ({{ challenge.scheduled_date }})
-                                                    {% endif %}
-                                                {% else %}
-                                                    ({{ challenge.scheduled_date }})
-                                                {% endif %}
-                                            {% else %}
-                                                ({{ challenge.scheduled_date }})
-                                            {% endif %}
-                                        </span>
-                                        {% set displayed = true %}
-                                    {% endif %}
-                                {% endfor %}
-                                
-                                <!-- Setas de desafio no canto inferior direito -->
-                                {% if player.challenging_positions %}
-                                    <!-- Se o jogador está desafiando alguém - fundo branco, texto preto -->
-                                    <span class="challenge-arrow arrow-challenger">
-                                        {{player.position}}→{% for pos in player.challenging_positions %}{{pos}}{% if not loop.last %},{% endif %}{% endfor %}
-                                    </span>
-                                {% elif player.challenged_by_positions %}
-                                    <!-- Se o jogador está sendo desafiado por alguém - fundo preto, texto branco -->
-                                    <span class="challenge-arrow arrow-challenged">
-                                        {% for pos in player.challenged_by_positions %}{{pos}}{% if not loop.last %},{% endif %}{% endfor %}→{{player.position}}
-                                    </span>
-                                {% endif %}
-                                
+                        <!-- Nível A - Campeão -->
+                        <div class="pyramid-row" data-tier="A" data-gender="masculino">
+                            <div class="pyramid-cell first-col">A</div>
+                            <div class="pyramid-cell top-tier champion-cell">
+                                <span class="trophy-icon">🏆</span>
+                                <span class="title-text">CAMPEÃO</span>
+                                <span class="player-name-champion">JOSÉ RICARDO<br>TRIGO</span>
                             </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            {% endfor %}
-        </div>
-
-        <!-- Liga Ladies - Pirâmide Feminina -->
-        {% if female_players %}
-        <div class="pyramid-header ladies card-header">
-            <h4 class="mb-0">
-                <i class="fas fa-crown me-2"></i>
-                Liga Ladies - Pirâmide Feminina
-                <span class="badge bg-light text-dark ms-2"></span>
-            </h4>
-        </div>
-        
-        <div class="pyramid-container ladies-pyramid">
-            <!-- Pirâmide feminina: A, B, C, D... jogadoras por nível (começando da linha A) -->
-            {% set female_by_position = female_players|sort(attribute='position') %}
-            {% set tier_letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'] %}
-            {% set current_index = [0] %}
-            
-            {% for level in range(1, 17) %}
-                {% if current_index[0] < female_by_position|length %}
-                    <div class="pyramid-row" data-tier="{{ tier_letters[level-1] }}" data-gender="feminino">
-                        <!-- Label do nível (A, B, C, D...) -->
-                        <div class="pyramid-cell first-col">
-                            {{ tier_letters[level-1] }}
                         </div>
                         
-                        <!-- Jogadoras neste nível (1, 2, 3, 4... por nível) -->
-                        {% for i in range(level) %}
-                            {% if current_index[0] < female_by_position|length %}
-                                {% set player = female_by_position[current_index[0]] %}
-                                <div class="pyramid-cell 
-                                     {% if player.has_pending_challenge %}pending-challenge{% endif %}
-                                     {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}"
-                                     data-player-name="{{ player.name|lower }}"
-                                     data-player-id="{{ player.id }}"
-                                     data-position="{{ player.position }}"
-                                     data-gender="feminino"
-                                     onclick="window.location='{{ url_for('player_detail', player_id=player.id) }}'">
+                        <!-- Nível B - Vice e 3º -->
+                        <div class="pyramid-row" data-tier="B" data-gender="masculino">
+                            <div class="pyramid-cell first-col">B</div>
+                            <div class="pyramid-cell top-tier vice-champion-cell">
+                                <span class="trophy-icon">🥈</span>
+                                <span class="title-text">VICE</span>
+                                <span class="player-name-champion">DIEGO GIL</span>
+                            </div>
+                            <div class="pyramid-cell top-tier third-place-cell">
+                                <span class="trophy-icon">🥉</span>
+                                <span class="title-text">3º LUGAR</span>
+                                <span class="player-name-champion">MARK LLOYD</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Tiers dinâmicos -->
+                        {% for tier_letter, players in tiers %}
+                            {% set male_players_in_tier = [] %}
+                            {% for player in players %}
+                                {% if player.sexo != 'feminino' %}
+                                    {% set _ = male_players_in_tier.append(player) %}
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if male_players_in_tier %}
+                                <div class="pyramid-row" data-tier="{{ tier_letter }}" data-gender="masculino">
+                                    <div class="pyramid-cell first-col">{{ tier_letter }}</div>
                                     
-                                    <span class="player-position">{{ player.position }}</span>
-                                    
-                                    {% if player.country %}
-                                        <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
-                                             alt="{{ player.country }}" class="country-flag" 
-                                             title="{{ player.country }}">
-                                    {% endif %}
-                                    
-                                    <div class="pyramid-tooltip">
-                                        <strong>{{ player.name }}</strong><br>
-                                        Posição: #{{ player.position }}<br>
-                                        Liga: Ladies<br>
-                                        {% if player.country %}País: {{ player.country }}<br>{% endif %}
-                                        {% if player.hcp_index is not none %}HCP: {{ player.hcp_index }}<br>{% endif %}
-                                        <small>Clique para detalhes</small>
-                                    </div>
-                                    
-                                    <span class="player-name">
-                                        <i class="fas fa-venus me-1" style="color: rgba(255,255,255,0.8);"></i>
-                                        {{ player.name }}
-                                    </span>
-                                    
-                                    <!-- Datas e setas de desafio -->
-                                    {% set displayed = false %}
-                                    {% if player.has_pending_challenge and not displayed %}
-                                        {% for challenge in challenges %}
-                                            {% if not displayed and challenge.status == 'pending' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
-                                                <span class="pending-date">(?)</span>
-                                                {% set displayed = true %}
+                                    {% for player in male_players_in_tier|sort(attribute='position') %}
+                                        <div class="pyramid-cell 
+                                             {% if player.has_pending_challenge %}pending-challenge{% endif %}
+                                             {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}"
+                                             data-player-name="{{ player.name|lower }}"
+                                             data-player-id="{{ player.id }}"
+                                             data-position="{{ player.position }}"
+                                             data-gender="masculino"
+                                             onclick="window.location='{{ url_for('player_detail', player_id=player.id) }}'">
+                                            
+                                            <span class="player-position">{{ player.position }}</span>
+                                            
+                                            {% if player.country %}
+                                                <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
+                                                     alt="{{ player.country }}" class="country-flag">
                                             {% endif %}
-                                        {% endfor %}
-                                    {% endif %}
-                                    
-                                    {% for challenge in challenges %}
-                                        {% if not displayed and challenge.status == 'accepted' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
-                                            <span class="challenge-date">
-                                                {% if challenge.scheduled_date|string is defined %}
-                                                    {% set date_str = challenge.scheduled_date|string %}
-                                                    {% if '-' in date_str %}
-                                                        {% set date_parts = date_str.split('-') %}
-                                                        {% if date_parts|length >= 3 %}
-                                                            ({{ date_parts[2].split(' ')[0] }}/{{ date_parts[1] }})
-                                                        {% else %}
-                                                            ({{ challenge.scheduled_date }})
-                                                        {% endif %}
-                                                    {% else %}
-                                                        ({{ challenge.scheduled_date }})
+                                            
+                                            <div class="pyramid-tooltip">
+                                                <strong>{{ player.name }}</strong><br>
+                                                Posição: #{{ player.position }}<br>
+                                                {% if player.hcp_index is not none %}HCP: {{ player.hcp_index }}{% endif %}
+                                            </div>
+                                            
+                                            <span class="player-name">{{ player.name }}</span>
+                                            
+                                            {% set displayed = false %}
+                                            {% if player.has_pending_challenge and not displayed %}
+                                                {% for challenge in challenges %}
+                                                    {% if not displayed and challenge.status == 'pending' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                                        <span class="pending-date">(?)</span>
+                                                        {% set displayed = true %}
                                                     {% endif %}
-                                                {% else %}
-                                                    ({{ challenge.scheduled_date }})
+                                                {% endfor %}
+                                            {% endif %}
+                                            
+                                            {% for challenge in challenges %}
+                                                {% if not displayed and challenge.status == 'accepted' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                                    <span class="challenge-date">
+                                                        {% set date_str = challenge.scheduled_date|string %}
+                                                        {% if '-' in date_str %}
+                                                            {% set parts = date_str.split('-') %}
+                                                            ({{ parts[2].split(' ')[0] }}/{{ parts[1] }})
+                                                        {% endif %}
+                                                    </span>
+                                                    {% set displayed = true %}
                                                 {% endif %}
-                                            </span>
-                                            {% set displayed = true %}
-                                        {% endif %}
+                                            {% endfor %}
+                                            
+                                            {% if player.challenging_positions %}
+                                                <span class="challenge-arrow arrow-challenger">
+                                                    {{player.position}}→{% for pos in player.challenging_positions %}{{pos}}{% endfor %}
+                                                </span>
+                                            {% elif player.challenged_by_positions %}
+                                                <span class="challenge-arrow arrow-challenged">
+                                                    {% for pos in player.challenged_by_positions %}{{pos}}{% endfor %}→{{player.position}}
+                                                </span>
+                                            {% endif %}
+                                        </div>
                                     {% endfor %}
-                                    
-                                    {% if player.challenging_positions %}
-                                        <span class="challenge-arrow arrow-challenger">
-                                            {{player.position}}→{% for pos in player.challenging_positions %}{{pos}}{% if not loop.last %},{% endif %}{% endfor %}
-                                        </span>
-                                    {% elif player.challenged_by_positions %}
-                                        <span class="challenge-arrow arrow-challenged">
-                                            {% for pos in player.challenged_by_positions %}{{pos}}{% if not loop.last %},{% endif %}{% endfor %}→{{player.position}}
-                                        </span>
-                                    {% endif %}
                                 </div>
-                                {% if current_index.append(current_index.pop() + 1) %}{% endif %}
                             {% endif %}
                         {% endfor %}
                     </div>
-                {% endif %}
-            {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== LIGA LADIES ==================== -->
+        {% if female_players %}
+        <div class="pyramid-header ladies card-header">
+            <h4 class="mb-0">
+                <i class="fas fa-crown me-2"></i> Liga Ladies
+            </h4>
+        </div>
+        
+        <div class="zoom-wrapper">
+            <div class="zoom-container" id="ladiesZoomContainer">
+                <div class="zoom-content" id="ladiesZoomContent">
+                    <div class="pyramid-container ladies-pyramid" id="ladiesPyramid">
+                        {% set female_by_position = female_players|sort(attribute='position') %}
+                        {% set tier_letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'] %}
+                        {% set current_index = [0] %}
+                        
+                        {% for level in range(1, 13) %}
+                            {% if current_index[0] < female_by_position|length %}
+                                <div class="pyramid-row" data-tier="{{ tier_letters[level-1] }}" data-gender="feminino">
+                                    <div class="pyramid-cell first-col">{{ tier_letters[level-1] }}</div>
+                                    
+                                    {% for i in range(level) %}
+                                        {% if current_index[0] < female_by_position|length %}
+                                            {% set player = female_by_position[current_index[0]] %}
+                                            <div class="pyramid-cell 
+                                                 {% if player.has_pending_challenge %}pending-challenge{% endif %}"
+                                                 data-player-name="{{ player.name|lower }}"
+                                                 data-player-id="{{ player.id }}"
+                                                 onclick="window.location='{{ url_for('player_detail', player_id=player.id) }}'">
+                                                
+                                                <span class="player-position">{{ player.position }}</span>
+                                                
+                                                {% if player.country %}
+                                                    <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
+                                                         alt="{{ player.country }}" class="country-flag">
+                                                {% endif %}
+                                                
+                                                <span class="player-name">
+                                                    <i class="fas fa-venus me-1" style="opacity: 0.8;"></i>
+                                                    {{ player.name }}
+                                                </span>
+                                            </div>
+                                            {% if current_index.append(current_index.pop() + 1) %}{% endif %}
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
         </div>
         {% endif %}
         
-        <!-- Informação de resultados de busca -->
+        <!-- Resultado de busca -->
         <div id="searchResults" class="alert alert-info mt-3" style="display: none;">
-            Nenhum jogador encontrado com o nome pesquisado.
+            Nenhum jogador encontrado.
         </div>
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // ==================== ZOOM CONTROLS ====================
+    let currentZoom = 1;
+    const minZoom = 0.2;
+    const maxZoom = 1.5;
+    const zoomStep = 0.1;
+    
+    const mensContent = document.getElementById('mensZoomContent');
+    const ladiesContent = document.getElementById('ladiesZoomContent');
+    const zoomDisplay = document.getElementById('zoomLevelDisplay');
+    const zoomIndicator = document.getElementById('zoomIndicator');
+    
+    function updateZoom(newZoom) {
+        currentZoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
+        
+        if (mensContent) {
+            mensContent.style.transform = `scale(${currentZoom})`;
+        }
+        if (ladiesContent) {
+            ladiesContent.style.transform = `scale(${currentZoom})`;
+        }
+        
+        const percentage = Math.round(currentZoom * 100);
+        zoomDisplay.textContent = percentage + '%';
+        
+        // Mostrar indicador temporário
+        zoomIndicator.textContent = percentage + '%';
+        zoomIndicator.classList.add('visible');
+        setTimeout(() => {
+            zoomIndicator.classList.remove('visible');
+        }, 1000);
+    }
+    
+    // Botão Zoom In
+    document.getElementById('zoomIn').addEventListener('click', function() {
+        updateZoom(currentZoom + zoomStep);
+    });
+    
+    // Botão Zoom Out
+    document.getElementById('zoomOut').addEventListener('click', function() {
+        updateZoom(currentZoom - zoomStep);
+    });
+    
+    // Botão Reset (100%)
+    document.getElementById('zoomReset').addEventListener('click', function() {
+        updateZoom(1);
+    });
+    
+    // Botão Ver Tudo - calcula o zoom para caber na tela
+    document.getElementById('zoomFit').addEventListener('click', function() {
+        const container = document.getElementById('mensZoomContainer');
+        const pyramid = document.getElementById('mensPyramid');
+        
+        if (container && pyramid) {
+            // Resetar zoom para medir tamanho real
+            mensContent.style.transform = 'scale(1)';
+            
+            // Pequeno delay para o DOM atualizar
+            setTimeout(() => {
+                const containerWidth = container.clientWidth - 20; // padding
+                const pyramidWidth = pyramid.scrollWidth;
+                
+                // Calcular zoom necessário
+                let fitZoom = containerWidth / pyramidWidth;
+                fitZoom = Math.max(minZoom, Math.min(1, fitZoom)); // Max 100%
+                
+                updateZoom(fitZoom);
+            }, 50);
+        }
+    });
+    
+    // ==================== PINCH TO ZOOM (Mobile) ====================
+    let initialDistance = 0;
+    let initialZoom = 1;
+    
+    function getDistance(touches) {
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    
+    const zoomContainers = document.querySelectorAll('.zoom-container');
+    
+    zoomContainers.forEach(container => {
+        container.addEventListener('touchstart', function(e) {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                initialDistance = getDistance(e.touches);
+                initialZoom = currentZoom;
+            }
+        }, { passive: false });
+        
+        container.addEventListener('touchmove', function(e) {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const currentDistance = getDistance(e.touches);
+                const scale = currentDistance / initialDistance;
+                updateZoom(initialZoom * scale);
+            }
+        }, { passive: false });
+    });
+    
+    // ==================== SEARCH ====================
     const playerSearch = document.getElementById('playerSearch');
     const clearSearch = document.getElementById('clearSearch');
     const searchResults = document.getElementById('searchResults');
@@ -870,82 +801,60 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function applySearch() {
         const searchTerm = playerSearch.value.trim().toLowerCase();
-        
         let visiblePlayers = 0;
         let visibleRows = new Set();
         
-        // Esconder todas as linhas primeiro
-        pyramidRows.forEach(row => {
-            row.style.display = 'none';
-        });
+        pyramidRows.forEach(row => row.style.display = 'none');
         
-        // Filtrar jogadores
         playerCells.forEach(cell => {
             const playerName = cell.getAttribute('data-player-name');
             const gender = cell.getAttribute('data-gender');
             const tierRow = cell.closest('.pyramid-row');
             const tier = tierRow ? tierRow.getAttribute('data-tier') : null;
             
-            const matchesSearch = searchTerm === '' || (playerName && playerName.includes(searchTerm));
+            const matches = searchTerm === '' || (playerName && playerName.includes(searchTerm));
             
-            if (matchesSearch) {
+            if (matches) {
                 cell.style.display = 'flex';
                 visiblePlayers++;
-                if (tier && gender) {
-                    visibleRows.add(`${tier}-${gender}`);
-                }
+                if (tier && gender) visibleRows.add(`${tier}-${gender}`);
                 
                 if (searchTerm !== '') {
-                    cell.style.transform = 'scale(1.05)';
-                    cell.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
-                    cell.style.zIndex = '5';
-                    
-                    setTimeout(() => {
-                        cell.style.transform = '';
-                        cell.style.boxShadow = '';
-                        cell.style.zIndex = '';
-                    }, 2000);
-                } else {
-                    cell.style.transform = '';
-                    cell.style.boxShadow = '';
-                    cell.style.zIndex = '';
+                    cell.style.boxShadow = '0 0 0 3px #007bff';
+                    setTimeout(() => { cell.style.boxShadow = ''; }, 2000);
                 }
             } else {
                 cell.style.display = 'none';
             }
         });
         
-        // Mostrar linhas com jogadores visíveis
         pyramidRows.forEach(row => {
             const tier = row.getAttribute('data-tier');
             const gender = row.getAttribute('data-gender');
-            if (tier && gender && visibleRows.has(`${tier}-${gender}`)) {
+            if (visibleRows.has(`${tier}-${gender}`)) {
                 row.style.display = 'flex';
             }
-        });
-        
-        // Sempre mostrar os níveis A e B ilustrativos apenas para o ranking masculino
-        pyramidRows.forEach(row => {
-            const tier = row.getAttribute('data-tier');
-            const gender = row.getAttribute('data-gender');
+            // Sempre mostrar A e B masculino
             if ((tier === 'A' || tier === 'B') && gender === 'masculino') {
                 row.style.display = 'flex';
             }
         });
         
-        if (visiblePlayers === 0 && searchTerm !== '') {
-            searchResults.style.display = 'block';
-        } else {
-            searchResults.style.display = 'none';
-        }
+        searchResults.style.display = (visiblePlayers === 0 && searchTerm !== '') ? 'block' : 'none';
     }
     
     playerSearch.addEventListener('input', applySearch);
-    
     clearSearch.addEventListener('click', function() {
         playerSearch.value = '';
         applySearch();
     });
+    
+    // ==================== AUTO-FIT on load (mobile) ====================
+    if (window.innerWidth < 768) {
+        setTimeout(() => {
+            document.getElementById('zoomFit').click();
+        }, 300);
+    }
 });
 </script>
 {% endblock %}
