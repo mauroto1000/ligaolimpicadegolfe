@@ -300,6 +300,13 @@
 </div>
 {% endif %}
 
+<!-- Mapeamento de tiers: C→A, D→B, E→C, etc. -->
+{% set tier_map = {
+    'C': 'A', 'D': 'B', 'E': 'C', 'F': 'D', 'G': 'E', 
+    'H': 'F', 'I': 'G', 'J': 'H', 'K': 'I', 'L': 'J', 
+    'M': 'K', 'N': 'L', 'O': 'M', 'P': 'N', 'Q': 'O', 'R': 'P'
+} %}
+
 <div class="row g-2">
     <div class="col-12">
         <h2 class="mb-2 fs-4">Rankings da Liga Olímpica de Golfe</h2>
@@ -374,7 +381,9 @@
                                     {% endif %}
                                     {{ player['name'] }}
                                 </td>
-                                <td class="text-center"><span class="badge badge-tier">{{ player['tier'] }}</span></td>
+                                <td class="text-center">
+                                    <span class="badge badge-tier">{{ tier_map.get(player['tier'], player['tier']) }}</span>
+                                </td>
                                 <td class="text-center actions-cell">
                                     <div class="d-flex justify-content-center gap-1">
                                         <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-primary py-0 px-1">
@@ -443,7 +452,9 @@
                                     {% endif %}
                                     {{ player['name'] }}
                                 </td>
-                                <td class="text-center"><span class="badge badge-tier">{{ player['tier'] }}</span></td>
+                                <td class="text-center">
+                                    <span class="badge badge-tier">{{ tier_map.get(player['tier'], player['tier']) }}</span>
+                                </td>
                                 <td class="text-center actions-cell">
                                     <div class="d-flex justify-content-center gap-1">
                                         <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-primary py-0 px-1">
