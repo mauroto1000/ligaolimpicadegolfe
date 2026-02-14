@@ -4,14 +4,19 @@
 
 {% block head %}
 <style>
-    /* Estilos para a pirâmide */
+    /* ========================================
+       PIRÂMIDE - VERSÃO CORRIGIDA MOBILE
+       ======================================== */
+    
+    /* Container principal - CORRIGIDO */
     .pyramid-container {
         display: flex;
         flex-direction: column;
         align-items: flex-start;
-        margin: 30px 0;
+        margin: 20px 0;
         width: 100%;
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch; /* Scroll suave no iOS */
         position: relative;
         padding-bottom: 15px;
     }
@@ -20,28 +25,45 @@
         display: flex;
         justify-content: flex-start;
         margin-bottom: 6px;
-        min-width: max-content;
+        /* REMOVIDO: min-width: max-content; - causava scroll forçado */
     }
 
+    /* Células - tamanho responsivo */
     .pyramid-cell {
-        width: 84px;
-        height: 84px;
-        margin: 0 6px 0 0;
+        /* Mobile-first: tamanho menor */
+        width: 70px;
+        height: 70px;
+        margin: 0 4px 0 0;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         color: white;
-        border-radius: 0;
+        border-radius: 4px;
         text-align: center;
-        font-size: 14px;
+        font-size: 12px;
         font-weight: bold;
-        position: relative !important;
+        position: relative;
         cursor: pointer;
         padding: 3px;
         box-sizing: border-box;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
-        overflow: visible !important;
+        overflow: visible;
+        background-color: #28a745;
+        border: 1px solid rgba(0,0,0,0.1);
+        /* Permitir interação touch */
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* Tamanho maior para telas grandes */
+    @media (min-width: 768px) {
+        .pyramid-cell {
+            width: 84px;
+            height: 84px;
+            margin: 0 6px 0 0;
+            font-size: 14px;
+        }
     }
     
     /* Estilo especial para células dos níveis A e B */
@@ -58,14 +80,14 @@
     
     .pyramid-cell.top-tier .title-text {
         font-weight: bold;
-        font-size: 11px;
+        font-size: 10px;
         color: #002970;
         margin: 2px 0;
         line-height: 1.1;
     }
     
     .pyramid-cell.top-tier .date-text {
-        font-size: 9px;
+        font-size: 8px;
         color: #dc3545;
         margin-top: 2px;
         font-weight: normal;
@@ -75,11 +97,19 @@
     .champion-cell,
     .vice-champion-cell,
     .third-place-cell {
-        height: 110px !important;
+        height: 90px !important;
         justify-content: space-evenly !important;
         padding: 5px 3px !important;
         background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    @media (min-width: 768px) {
+        .champion-cell,
+        .vice-champion-cell,
+        .third-place-cell {
+            height: 110px !important;
+        }
     }
 
     .champion-cell {
@@ -95,12 +125,18 @@
     }
 
     .trophy-icon {
-        font-size: 18px;
+        font-size: 16px;
         margin-bottom: 2px;
+    }
+    
+    @media (min-width: 768px) {
+        .trophy-icon {
+            font-size: 18px;
+        }
     }
 
     .player-name-champion {
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 600;
         color: #000;
         text-align: center;
@@ -109,11 +145,11 @@
         max-width: 95%;
         word-break: break-word;
     }
-
-    /* Cores e efeitos de hover para células */
-    .pyramid-cell {
-        background-color: #28a745;
-        border: 1px solid rgba(0,0,0,0.1);
+    
+    @media (min-width: 768px) {
+        .player-name-champion {
+            font-size: 10px;
+        }
     }
 
     /* Estilo específico para Liga Ladies */
@@ -125,8 +161,9 @@
         background-color: #ad1457;
     }
 
-    /* Efeitos de hover para células de jogadores */
-    .pyramid-cell:not(.first-col):hover {
+    /* Efeitos de hover/touch */
+    .pyramid-cell:not(.first-col):hover,
+    .pyramid-cell:not(.first-col):active {
         transform: scale(1.05);
         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         z-index: 5;
@@ -136,27 +173,7 @@
     .pyramid-cell.first-col {
         background-color: #002970;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    }
-
-    /* X preto para células bloqueadas (mantido no CSS para uso futuro) */
-    .pyramid-cell.blocked-tier::before,
-    .pyramid-cell.blocked-tier::after {
-        content: '';
-        position: absolute;
-        background-color: #000;
-        width: 4px;
-        height: 70px;
-        top: 50%;
-        left: 50%;
-        z-index: 10;
-    }
-    
-    .pyramid-cell.blocked-tier::before {
-        transform: translate(-50%, -50%) rotate(45deg);
-    }
-    
-    .pyramid-cell.blocked-tier::after {
-        transform: translate(-50%, -50%) rotate(-45deg);
+        cursor: default;
     }
 
     /* Estilo para jogadores com desafios pendentes */
@@ -168,143 +185,169 @@
     /* Estilo para jogadores com desafios concluídos com pendência */
     .pyramid-cell.completed-pending-challenge {
         background-color: #ffc107;
-        border: 5px solid #dc3545;
+        border: 4px solid #dc3545;
         color: #212529;
-        box-sizing: border-box;
     }
 
     .player-position {
         position: absolute;
-        top: 3px;
-        left: 3px;
-        font-size: 12px;
+        top: 2px;
+        left: 2px;
+        font-size: 10px;
         color: #ffffff;
         background-color: rgba(0,0,0,0.2);
         padding: 1px 3px;
         border-radius: 3px;
     }
+    
+    @media (min-width: 768px) {
+        .player-position {
+            font-size: 12px;
+            top: 3px;
+            left: 3px;
+        }
+    }
 
-    /* Ajuste da cor do número da posição para jogadores com desafios pendentes */
     .pending-challenge .player-position {
         color: #212529;
         background-color: rgba(0,0,0,0.1);
     }
     
-    /* Estilo para a data do desafio aceito */
-    .challenge-date {
-        font-size: 11px;
+    /* Data do desafio - CORRIGIDO posicionamento */
+    .challenge-date,
+    .pending-date {
+        font-size: 9px;
         font-weight: normal;
-        background-color: #17a2b8;
         color: #fff;
-        padding: 2px 5px;
+        padding: 1px 3px;
         border-radius: 3px;
         position: absolute;
-        bottom: 3px;
-        left: 25%;
+        bottom: 2px;
+        left: 50%;
         transform: translateX(-50%);
         white-space: nowrap;
         box-shadow: 0 1px 2px rgba(0,0,0,0.2);
         z-index: 3;
     }
     
-    /* Estilo para desafios pendentes */
+    .challenge-date {
+        background-color: #17a2b8;
+    }
+    
     .pending-date {
-        font-size: 11px;
-        font-weight: normal;
         background-color: #dc3545;
-        color: #fff;
-        padding: 2px 5px;
-        border-radius: 3px;
-        position: absolute;
-        bottom: 3px;
-        left: 25%;
-        transform: translateX(-50%);
-        white-space: nowrap;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-        z-index: 3;
+    }
+    
+    @media (min-width: 768px) {
+        .challenge-date,
+        .pending-date {
+            font-size: 11px;
+            padding: 2px 5px;
+        }
     }
 
     .player-name {
-        font-size: 12px;
+        font-size: 10px;
         text-align: center;
-        margin-top: 5px;
-        line-height: 1.2;
+        margin-top: 3px;
+        line-height: 1.1;
         width: 90%;
         overflow: hidden;
         word-break: break-word;
         display: -webkit-box;
-        -webkit-line-clamp: 3;
+        -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
-        max-height: 43px;
-        padding-bottom: 16px;
+        max-height: 24px;
+        padding-bottom: 14px;
+    }
+    
+    @media (min-width: 768px) {
+        .player-name {
+            font-size: 12px;
+            -webkit-line-clamp: 3;
+            max-height: 43px;
+            margin-top: 5px;
+            padding-bottom: 16px;
+        }
     }
 
-    /* Mover a bandeira para o canto superior direito */
+    /* Bandeira - posição fixa */
     .country-flag {
         position: absolute !important;
-        top: 3px !important;
-        right: 3px !important;
-        bottom: auto !important;
+        top: 2px !important;
+        right: 2px !important;
         z-index: 4 !important;
-        width: 16px !important;
-        height: 12px !important;
+        width: 14px !important;
+        height: 10px !important;
         box-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;
         border-radius: 1px !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        display: block !important;
+    }
+    
+    @media (min-width: 768px) {
+        .country-flag {
+            width: 16px !important;
+            height: 12px !important;
+            top: 3px !important;
+            right: 3px !important;
+        }
     }
 
-    /* Ajuste para remover espaço na seta de desafio */
+    /* Seta de desafio */
     .challenge-arrow {
         position: absolute !important;
-        bottom: 3px !important;
-        right: 3px !important;
-        top: auto !important;
-        font-size: 9px;
+        bottom: 2px !important;
+        right: 2px !important;
+        font-size: 7px;
         padding: 1px 2px;
-        border-radius: 3px;
+        border-radius: 2px;
         z-index: 4 !important;
         white-space: nowrap;
         letter-spacing: -0.5px;
     }
+    
+    @media (min-width: 768px) {
+        .challenge-arrow {
+            font-size: 9px;
+            bottom: 3px !important;
+            right: 3px !important;
+        }
+    }
 
-    /* Estilo para seta de desafiado */
     .arrow-challenged {
         background-color: rgba(0, 0, 0, 0.7);
         color: white;
     }
 
-    /* Estilo para seta de desafiante */
     .arrow-challenger {
         background-color: rgba(255, 255, 255, 0.9);
         color: black;
         border: 1px solid rgba(0, 0, 0, 0.2);
     }
 
-    /* Tooltip para mostrar mais informações ao passar o mouse */
+    /* TOOLTIP CORRIGIDO - não sai da tela */
     .pyramid-tooltip {
         visibility: hidden;
         position: absolute;
-        z-index: 10;
-        bottom: 110%;
+        z-index: 100;
+        bottom: calc(100% + 5px);
         left: 50%;
         transform: translateX(-50%);
         background-color: #333;
         color: white;
         text-align: center;
-        padding: 8px;
+        padding: 6px 8px;
         border-radius: 4px;
-        width: 160px;
+        width: max-content;
+        max-width: 150px;
         opacity: 0;
         transition: opacity 0.3s, visibility 0.3s;
         pointer-events: none;
         font-weight: normal;
-        font-size: 12px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        font-size: 11px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        line-height: 1.3;
     }
 
-    /* Seta para o tooltip */
     .pyramid-tooltip::after {
         content: "";
         position: absolute;
@@ -316,44 +359,70 @@
         border-color: #333 transparent transparent transparent;
     }
 
-    /* Mostra o tooltip ao passar o mouse */
-    .pyramid-cell:hover .pyramid-tooltip {
-        visibility: visible;
-        opacity: 1;
+    /* Tooltip visível ao hover (desktop) */
+    @media (min-width: 768px) {
+        .pyramid-cell:hover .pyramid-tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+    }
+    
+    /* No mobile, esconder tooltip (usar click para ir ao detalhe) */
+    @media (max-width: 767px) {
+        .pyramid-tooltip {
+            display: none !important;
+        }
     }
 
     /* Controles interativos */
     .pyramid-controls {
-        margin-bottom: 20px;
-        padding: 15px;
+        margin-bottom: 15px;
+        padding: 10px;
         background-color: #f8f9fa;
         border-radius: 5px;
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
+    }
+    
+    @media (max-width: 767px) {
+        .pyramid-controls {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .pyramid-controls .input-group {
+            max-width: 100% !important;
+            width: 100%;
+        }
+        
+        .pyramid-controls .btn {
+            width: 100%;
+            margin-top: 5px;
+        }
     }
 
-    /* Legenda para as cores */
+    /* Legenda */
     .legend-container {
         display: flex;
         flex-wrap: wrap;
         margin-bottom: 15px;
-        gap: 10px;
+        gap: 8px;
     }
     
     .legend-item {
         display: flex;
         align-items: center;
-        margin-right: 20px;
-        white-space: nowrap;
+        font-size: 12px;
     }
     
     .legend-color {
-        width: 20px;
-        height: 20px;
-        margin-right: 5px;
+        width: 16px;
+        height: 16px;
+        margin-right: 4px;
         border: 1px solid rgba(0,0,0,0.1);
+        border-radius: 2px;
     }
     
     .legend-green {
@@ -367,11 +436,38 @@
     .legend-blue {
         background-color: #002970;
     }
+    
+    @media (max-width: 767px) {
+        .legend-container {
+            gap: 5px;
+        }
+        
+        .legend-item {
+            font-size: 11px;
+        }
+        
+        .legend-item span[style*="font-size"] {
+            font-size: 9px !important;
+        }
+    }
 
     /* Estilos para headers das pirâmides */
     .pyramid-header {
-        margin-top: 2rem;
-        margin-bottom: 1rem;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+        padding: 10px 15px;
+        border-radius: 5px;
+    }
+    
+    .pyramid-header h4 {
+        font-size: 1rem;
+        margin: 0;
+    }
+    
+    @media (min-width: 768px) {
+        .pyramid-header h4 {
+            font-size: 1.25rem;
+        }
     }
     
     .pyramid-header.ladies {
@@ -384,177 +480,34 @@
         color: white;
     }
 
-    /* Classes para dispositivos móveis */
+    /* Indicação de scroll */
+    .scroll-hint {
+        display: none;
+        text-align: center;
+        font-style: italic;
+        color: #666;
+        margin-bottom: 10px;
+        padding: 8px;
+        background-color: #e9ecef;
+        border-radius: 4px;
+        font-size: 13px;
+    }
+    
     @media (max-width: 767px) {
-        .pyramid-container {
-            padding-bottom: 20px;
-        }
-        
-        .card-header h3 {
-            font-size: 1.2rem;
-        }
-        
-        .pyramid-controls {
-            flex-direction: column;
-            align-items: flex-start;
-            padding: 10px;
-        }
-        
         .scroll-hint {
             display: block;
-            text-align: center;
-            font-style: italic;
-            color: #666;
-            margin-bottom: 10px;
-            padding: 5px;
-            background-color: #f0f0f0;
-            border-radius: 4px;
-        }
-
-        .pyramid-tooltip {
-            width: 140px;
-            font-size: 11px;
-            padding: 6px;
-        }
-        
-        .pyramid-cell {
-            touch-action: manipulation;
-        }
-        
-        .pyramid-cell:active {
-            transform: scale(1.05);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        }
-        
-        .legend-item.tier-legend {
-            display: none;
-        }
-
-        .challenge-date, .pending-date {
-            font-size: 10px;
-            padding: 1px 3px;
-        }
-        
-        .challenge-arrow {
-            font-size: 8px;
-            padding: 1px 2px;
-            bottom: 2px !important;
-            right: 2px !important;
-        }
-        
-        .country-flag {
-            top: 2px !important;
-            right: 2px !important;
-        }
-        
-        /* Ajustar X nas células bloqueadas para mobile */
-        .pyramid-cell.blocked-tier::before,
-        .pyramid-cell.blocked-tier::after {
-            height: 70px;
-            width: 3px;
-        }
-
-        /* Ajustes para células de campeão em mobile */
-        .champion-cell,
-        .vice-champion-cell,
-        .third-place-cell {
-            height: 95px !important;
-        }
-        
-        .trophy-icon {
-            font-size: 16px;
-        }
-        
-        .pyramid-cell.top-tier .title-text {
-            font-size: 10px;
-        }
-        
-        .player-name-champion {
-            font-size: 9px;
-        }
-        
-        .pyramid-cell.top-tier .date-text {
-            font-size: 8px;
         }
     }
-
-    /* Para telas muito pequenas */
-    @media (max-width: 480px) {
-        .pyramid-cell {
-            width: 70px;
-            height: 70px;
-            margin-right: 4px;
-        }
-        
-        .player-name {
-            font-size: 10px;
-            max-height: 25px;
-            margin-top: 2px;
-            -webkit-line-clamp: 2;
-        }
-        
-        .player-position {
-            font-size: 10px;
-        }
-        
-        .legend-container {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 5px;
-        }
-        
-        .legend-item {
-            margin-right: 0;
-        }
-
-        .challenge-date, .pending-date {
-            font-size: 9px;
-            padding: 1px 2px;
-            left: 22%;
-        }
-        
-        .challenge-arrow {
-            font-size: 7px;
-            padding: 1px 1px;
-            bottom: 2px !important;
-            right: 2px !important;
-        }
-        
-        .country-flag {
-            width: 14px !important;
-            height: 10px !important;
-            top: 2px !important;
-            right: 2px !important;
-        }
-        
-        /* Ajustar X nas células bloqueadas para telas pequenas */
-        .pyramid-cell.blocked-tier::before,
-        .pyramid-cell.blocked-tier::after {
-            height: 55px;
-            width: 3px;
-        }
-
-        /* Ajustes para células de campeão em telas pequenas */
-        .champion-cell,
-        .vice-champion-cell,
-        .third-place-cell {
-            height: 85px !important;
-        }
-        
-        .trophy-icon {
-            font-size: 14px;
-        }
-        
-        .pyramid-cell.top-tier .title-text {
-            font-size: 9px;
-        }
-        
-        .player-name-champion {
-            font-size: 8px;
-        }
-        
-        .pyramid-cell.top-tier .date-text {
-            font-size: 7px;
+    
+    /* Card header */
+    .card-header h3 {
+        font-size: 1.1rem;
+        margin: 0;
+    }
+    
+    @media (min-width: 768px) {
+        .card-header h3 {
+            font-size: 1.5rem;
         }
     }
 </style>
