@@ -36,6 +36,117 @@
         }
     }
     
+    /* ========================================
+       SWITCH DE RANKINGS
+       ======================================== */
+    .ranking-switch {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 20px;
+        gap: 0;
+    }
+    
+    .ranking-switch .switch-btn {
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .ranking-switch .switch-btn:first-child {
+        border-radius: 25px 0 0 25px;
+    }
+    
+    .ranking-switch .switch-btn:last-child {
+        border-radius: 0 25px 25px 0;
+    }
+    
+    .ranking-switch .switch-btn.mens {
+        background: #e3f2fd;
+        color: #1976d2;
+        border: 2px solid #1976d2;
+    }
+    
+    .ranking-switch .switch-btn.mens.active {
+        background: linear-gradient(135deg, #1976d2, #42a5f5);
+        color: white;
+        box-shadow: 0 4px 15px rgba(25, 118, 210, 0.4);
+    }
+    
+    .ranking-switch .switch-btn.ladies {
+        background: #fce4ec;
+        color: #e91e63;
+        border: 2px solid #e91e63;
+        border-left: none;
+    }
+    
+    .ranking-switch .switch-btn.ladies.active {
+        background: linear-gradient(135deg, #e91e63, #f48fb1);
+        color: white;
+        box-shadow: 0 4px 15px rgba(233, 30, 99, 0.4);
+    }
+    
+    .ranking-switch .switch-btn:hover:not(.active) {
+        transform: translateY(-2px);
+    }
+    
+    .ranking-switch .badge {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 10px;
+    }
+    
+    .ranking-switch .switch-btn.mens .badge {
+        background: rgba(25, 118, 210, 0.2);
+        color: #1976d2;
+    }
+    
+    .ranking-switch .switch-btn.mens.active .badge {
+        background: rgba(255, 255, 255, 0.3);
+        color: white;
+    }
+    
+    .ranking-switch .switch-btn.ladies .badge {
+        background: rgba(233, 30, 99, 0.2);
+        color: #e91e63;
+    }
+    
+    .ranking-switch .switch-btn.ladies.active .badge {
+        background: rgba(255, 255, 255, 0.3);
+        color: white;
+    }
+    
+    @media (max-width: 576px) {
+        .ranking-switch .switch-btn {
+            padding: 10px 16px;
+            font-size: 13px;
+        }
+        
+        .ranking-switch .switch-btn i {
+            font-size: 16px;
+        }
+    }
+    
+    /* Seções de ranking */
+    .ranking-section {
+        display: none;
+        animation: fadeIn 0.3s ease;
+    }
+    
+    .ranking-section.active {
+        display: block;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
     /* Estilo especial para o Liga Ladies */
     .ladies-liga .card-header {
         background: linear-gradient(135deg, #e91e63, #f48fb1) !important;
@@ -81,9 +192,35 @@
     .mens-icon {
         color: #1976d2;
     }
+    
+    /* Busca de jogadores */
+    .search-container {
+        margin-bottom: 15px;
+    }
+    
+    .search-container .input-group {
+        max-width: 300px;
+    }
+    
+    @media (max-width: 576px) {
+        .search-container .input-group {
+            max-width: 100%;
+        }
+    }
+    
+    /* Highlight de busca */
+    tr.highlight {
+        background-color: #fff3cd !important;
+        animation: pulse 1s ease-in-out;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { background-color: #fff3cd; }
+        50% { background-color: #ffe69c; }
+    }
 </style>
 
-<!-- Banner de Consentimento de Cookies - Adicionar ao final do body ou como primeiro elemento -->
+<!-- Banner de Consentimento de Cookies -->
 <div id="cookie-consent-banner" class="position-fixed bottom-0 start-0 end-0 p-3 bg-dark text-white" style="z-index: 1050; display: none;">
     <div class="container">
         <div class="row align-items-center">
@@ -172,75 +309,37 @@
     {% set female_players = players|selectattr('sexo', 'equalto', 'feminino')|list %}
     {% set male_players = players|rejectattr('sexo', 'equalto', 'feminino')|list %}
     
-    <!-- Liga Ladies - Ranking Feminino -->
-    {% if female_players %}
+    <!-- ==================== SWITCH DE RANKINGS ==================== -->
     <div class="col-12">
-        <div class="card mb-3 ladies-liga">
-            <div class="card-header py-2">
-                <h4 class="mb-0 fs-5">
-                    <i class="fas fa-crown ladies-icon gender-icon"></i>
-                    Liga Ladies - Ranking Feminino
-                    <span class="badge bg-light text-dark ms-2">{{ female_players|length }} jogadoras</span>
-                </h4>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover mb-0">
-                        <thead class="table-dark">
-                            <tr>
-                                <th class="text-center">Pos</th>
-                                <th class="text-center">Código</th>
-                                <th>Nome</th>
-                                <th class="text-center">Linha</th>
-
-                                <th class="text-center">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for player in female_players %}
-                            <tr>
-                                <td class="text-center"><strong>{{ player['position'] }}</strong></td>
-                                <td class="text-center">{{ player['player_code'] }}</td>
-                                <td>
-                                    <i class="fas fa-venus ladies-icon gender-icon"></i>
-                                    {% if player['country'] %}
-                                        <img src="https://flagcdn.com/16x12/{{ player['country']|country_code }}.png" 
-                                             alt="{{ player['country'] }}" class="me-1" width="16" height="12" 
-                                             title="{{ player['country'] }}">
-                                    {% endif %}
-                                    {{ player['name'] }}
-                                </td>
-                                <td class="text-center"><span class="badge badge-tier">{{ player['tier'] }}</span></td>
-
-                                <td class="text-center actions-cell">
-                                    <div class="d-flex justify-content-center gap-1">
-                                        <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-primary py-0 px-1">
-                                            <i class="fas fa-user"></i> <span class="d-none d-md-inline">Detalhes</span>
-                                        </a>
-                                        {% if 'user_id' in session %}
-                                        <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}" class="btn btn-sm btn-outline-success py-0 px-1">
-                                            <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
-                                        </a>
-                                        {% else %}
-                                        <a href="{{ url_for('login') }}" class="btn btn-sm btn-danger py-0 px-1" title="Faça login para desafiar">
-                                            <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
-                                        </a>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+        <div class="ranking-switch">
+            <button type="button" class="switch-btn mens active" data-target="mens-ranking-section">
+                <i class="fas fa-mars"></i>
+                <span>Masculino</span>
+                <span class="badge">{{ male_players|length }}</span>
+            </button>
+            <button type="button" class="switch-btn ladies" data-target="ladies-ranking-section">
+                <i class="fas fa-venus"></i>
+                <span>Ladies</span>
+                <span class="badge">{{ female_players|length }}</span>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Busca de jogadores -->
+    <div class="col-12">
+        <div class="search-container">
+            <div class="input-group">
+                <input type="text" id="playerSearch" class="form-control" placeholder="Buscar jogador...">
+                <button class="btn btn-outline-secondary" type="button" id="clearSearch">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
         </div>
     </div>
-    {% endif %}
     
-    <!-- Ranking Masculino -->
-    {% if male_players %}
-    <div class="col-12">
+    <!-- ==================== RANKING MASCULINO ==================== -->
+    <div id="mens-ranking-section" class="col-12 ranking-section active">
+        {% if male_players %}
         <div class="card mb-3 mens-ranking">
             <div class="card-header py-2">
                 <h4 class="mb-0 fs-5">
@@ -251,20 +350,19 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover mb-0">
+                    <table class="table table-striped table-hover mb-0" id="mensTable">
                         <thead class="table-dark">
                             <tr>
                                 <th class="text-center">Pos</th>
                                 <th class="text-center">Código</th>
                                 <th>Nome</th>
                                 <th class="text-center">Linha</th>
-
                                 <th class="text-center">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for player in male_players %}
-                            <tr>
+                            <tr data-player-name="{{ player['name']|lower }}">
                                 <td class="text-center"><strong>{{ player['position'] }}</strong></td>
                                 <td class="text-center">{{ player['player_code'] }}</td>
                                 <td>
@@ -277,7 +375,6 @@
                                     {{ player['name'] }}
                                 </td>
                                 <td class="text-center"><span class="badge badge-tier">{{ player['tier'] }}</span></td>
-
                                 <td class="text-center actions-cell">
                                     <div class="d-flex justify-content-center gap-1">
                                         <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-primary py-0 px-1">
@@ -301,19 +398,28 @@
                 </div>
             </div>
         </div>
+        {% else %}
+        <div class="alert alert-info text-center">
+            <i class="fas fa-info-circle me-2"></i>
+            Nenhum jogador masculino cadastrado ainda.
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
     
-    <!-- Caso não haja jogadores separados por sexo, mostrar tabela unificada -->
-    {% if not female_players and not male_players %}
-    <div class="col-12">
-        <div class="card mb-3">
-            <div class="card-header bg-primary text-white py-1">
-                <h4 class="mb-0 fs-5">Tabela de Classificação</h4>
+    <!-- ==================== LIGA LADIES ==================== -->
+    <div id="ladies-ranking-section" class="col-12 ranking-section">
+        {% if female_players %}
+        <div class="card mb-3 ladies-liga">
+            <div class="card-header py-2">
+                <h4 class="mb-0 fs-5">
+                    <i class="fas fa-crown ladies-icon gender-icon"></i>
+                    Liga Ladies - Ranking Feminino
+                    <span class="badge bg-light text-dark ms-2">{{ female_players|length }} jogadoras</span>
+                </h4>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover mb-0">
+                    <table class="table table-striped table-hover mb-0" id="ladiesTable">
                         <thead class="table-dark">
                             <tr>
                                 <th class="text-center">Pos</th>
@@ -324,11 +430,12 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for player in players %}
-                            <tr>
-                                <td class="text-center">{{ player['position'] }}</td>
+                            {% for player in female_players %}
+                            <tr data-player-name="{{ player['name']|lower }}">
+                                <td class="text-center"><strong>{{ player['position'] }}</strong></td>
                                 <td class="text-center">{{ player['player_code'] }}</td>
                                 <td>
+                                    <i class="fas fa-venus ladies-icon gender-icon"></i>
                                     {% if player['country'] %}
                                         <img src="https://flagcdn.com/16x12/{{ player['country']|country_code }}.png" 
                                              alt="{{ player['country'] }}" class="me-1" width="16" height="12" 
@@ -336,7 +443,7 @@
                                     {% endif %}
                                     {{ player['name'] }}
                                 </td>
-                                <td class="text-center">{{ player['tier'] }}</td>
+                                <td class="text-center"><span class="badge badge-tier">{{ player['tier'] }}</span></td>
                                 <td class="text-center actions-cell">
                                     <div class="d-flex justify-content-center gap-1">
                                         <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-primary py-0 px-1">
@@ -360,9 +467,20 @@
                 </div>
             </div>
         </div>
+        {% else %}
+        <div class="alert alert-info text-center">
+            <i class="fas fa-info-circle me-2"></i>
+            Nenhuma jogadora cadastrada ainda.
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
     
+    <!-- Resultado de busca vazio -->
+    <div id="searchResults" class="col-12 alert alert-warning" style="display: none;">
+        <i class="fas fa-search me-2"></i>Nenhum jogador encontrado com esse nome.
+    </div>
+    
+    <!-- ==================== JOGADORES INATIVOS ==================== -->
     {% if inactive_players %}
     <div class="col-12">
         <div class="card mt-1 mb-3">
@@ -370,6 +488,7 @@
                 <h4 class="mb-0 fs-5">
                     <i class="fas fa-user-slash me-2"></i>
                     Jogadores Inativos
+                    <span class="badge bg-light text-dark ms-2">{{ inactive_players|length }}</span>
                 </h4>
             </div>
             <div class="card-body p-0">
@@ -445,19 +564,83 @@
 </div>
 
 <script>
-// Script para gerenciamento de cookies e consentimento LGPD
 document.addEventListener('DOMContentLoaded', function() {
-    // Verificar se o usuário já deu consentimento
+    
+    // ==================== SWITCH DE RANKINGS ====================
+    const switchButtons = document.querySelectorAll('.switch-btn');
+    const rankingSections = document.querySelectorAll('.ranking-section');
+    
+    switchButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            
+            // Atualizar botões
+            switchButtons.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Atualizar seções
+            rankingSections.forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(targetId).classList.add('active');
+            
+            // Limpar busca ao trocar de aba
+            document.getElementById('playerSearch').value = '';
+            applySearch();
+        });
+    });
+    
+    // ==================== BUSCA DE JOGADORES ====================
+    const playerSearch = document.getElementById('playerSearch');
+    const clearSearch = document.getElementById('clearSearch');
+    const searchResults = document.getElementById('searchResults');
+    
+    function applySearch() {
+        const searchTerm = playerSearch.value.trim().toLowerCase();
+        const activeSection = document.querySelector('.ranking-section.active');
+        const rows = activeSection.querySelectorAll('tbody tr');
+        
+        let visibleCount = 0;
+        
+        rows.forEach(row => {
+            const playerName = row.getAttribute('data-player-name');
+            const matches = searchTerm === '' || (playerName && playerName.includes(searchTerm));
+            
+            if (matches) {
+                row.style.display = '';
+                visibleCount++;
+                
+                // Destacar resultado
+                if (searchTerm !== '') {
+                    row.classList.add('highlight');
+                    setTimeout(() => {
+                        row.classList.remove('highlight');
+                    }, 2000);
+                }
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        // Mostrar mensagem se não encontrar
+        searchResults.style.display = (visibleCount === 0 && searchTerm !== '') ? 'block' : 'none';
+    }
+    
+    playerSearch.addEventListener('input', applySearch);
+    
+    clearSearch.addEventListener('click', function() {
+        playerSearch.value = '';
+        applySearch();
+    });
+    
+    // ==================== COOKIES ====================
     const cookieConsent = localStorage.getItem('cookieConsent');
     
     if (!cookieConsent) {
-        // Se não houver consentimento salvo, mostrar o banner
         document.getElementById('cookie-consent-banner').style.display = 'block';
     }
     
-    // Evento para o botão "Aceitar"
     document.getElementById('accept-cookies').addEventListener('click', function() {
-        // Salvar consentimento completo
         const consent = {
             necessary: true,
             functional: true,
@@ -470,14 +653,11 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('cookie-consent-banner').style.display = 'none';
     });
     
-    // Evento para o botão "Salvar Preferências"
     document.getElementById('save-preferences').addEventListener('click', function() {
-        // Obter valores dos checkboxes
-        const necessary = true; // Sempre necessário
+        const necessary = true;
         const functional = document.getElementById('functionalCookies').checked;
         const analytics = document.getElementById('analyticsCookies').checked;
         
-        // Salvar preferências personalizadas
         const consent = {
             necessary: necessary,
             functional: functional,
@@ -489,14 +669,12 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem('cookieConsent', JSON.stringify(consent));
         document.getElementById('cookie-consent-banner').style.display = 'none';
         
-        // Fechar o modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('cookieSettingsModal'));
         if (modal) {
             modal.hide();
         }
     });
     
-    // Carregar configurações salvas quando o modal for aberto
     document.getElementById('cookieSettingsModal').addEventListener('show.bs.modal', function() {
         const savedConsent = localStorage.getItem('cookieConsent');
         
