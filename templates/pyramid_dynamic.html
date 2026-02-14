@@ -579,15 +579,15 @@
             {% endif %}
         </div>
 
-        <!-- Separar jogadores por sexo (para contar) -->
+        <!-- Separar jogadores por sexo (para contar) - CORRIGIDO -->
         {% set female_players = [] %}
-        {% set male_count = 0 %}
+        {% set male_players = [] %}
         {% for tier_letter, players in tiers %}
             {% for player in players %}
                 {% if player.sexo == 'feminino' %}
                     {% set _ = female_players.append(player) %}
                 {% else %}
-                    {% set male_count = male_count + 1 %}
+                    {% set _ = male_players.append(player) %}
                 {% endif %}
             {% endfor %}
         {% endfor %}
@@ -597,7 +597,7 @@
             <button type="button" class="switch-btn mens active" data-target="mens-section">
                 <i class="fas fa-mars"></i>
                 <span>Masculino</span>
-                <span class="badge">{{ male_count }}</span>
+                <span class="badge">{{ male_players|length }}</span>
             </button>
             <button type="button" class="switch-btn ladies" data-target="ladies-section">
                 <i class="fas fa-venus"></i>
@@ -646,7 +646,7 @@
         <div id="mens-section" class="pyramid-section active">
             <div class="section-header mens">
                 <h4><i class="fas fa-trophy me-2"></i>Ranking Masculino</h4>
-                <div class="subtitle">{{ male_count }} jogadores</div>
+                <div class="subtitle">{{ male_players|length }} jogadores</div>
             </div>
             
             <div class="zoom-wrapper">
