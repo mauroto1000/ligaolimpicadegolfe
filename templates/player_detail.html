@@ -232,11 +232,19 @@
                     </div>
                 </div>
                 
-                <!-- Seção com Posição e Tier -->
+                <!-- Seção com Posição e Tier - ATUALIZADA COM BOTÃO DE AJUSTAR -->
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <h5>Posição Atual</h5>
-                        <p>{{ player['position'] or 'N/A' }}</p>
+                        <p class="d-flex align-items-center">
+                            <span class="me-2">{{ player['position'] or 'N/A' }}</span>
+                            {% if is_admin and player.active == 1 %}
+                            <a href="{{ url_for('adjust_player_position', player_id=player.id) }}" 
+                               class="btn btn-sm btn-outline-warning" title="Ajustar Posição">
+                                <i class="fas fa-sort-numeric-down"></i>
+                            </a>
+                            {% endif %}
+                        </p>
                     </div>
                     <div class="col-md-6">
                         <h5>Nível (Tier)</h5>
@@ -260,7 +268,7 @@
                 </div>
                 {% endif %}
 
-                <!-- Botão de Reset de Senha (visível apenas para admins) -->
+                <!-- Botão de Reset de Senha e Ajustar Posição (visível apenas para admins) -->
                 {% if is_admin %}
                 <div class="card mb-3">
                     <div class="card-header bg-warning text-dark">
@@ -268,9 +276,18 @@
                     </div>
                     <div class="card-body">
                         <p>Código do jogador: <strong>{{ player['player_code'] }}</strong></p>
-                        <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#resetPasswordModal">
-                            <i class="fas fa-key"></i> Resetar Senha
-                        </button>
+                        
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#resetPasswordModal">
+                                <i class="fas fa-key me-1"></i> Resetar Senha
+                            </button>
+                            
+                            {% if player.active == 1 %}
+                            <a href="{{ url_for('adjust_player_position', player_id=player.id) }}" class="btn btn-info">
+                                <i class="fas fa-sort-numeric-down me-1"></i> Ajustar Posição
+                            </a>
+                            {% endif %}
+                        </div>
                         
                         <!-- Modal para confirmar reset de senha -->
                         <div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
@@ -632,11 +649,9 @@ function toggleEditName() {
     const formElement = document.getElementById('editNameForm');
 
     if (formElement.classList.contains('d-none')) {
-        // Mostrar formulário, ocultar display
         displayElement.classList.add('d-none');
         formElement.classList.remove('d-none');
     } else {
-        // Ocultar formulário, mostrar display
         displayElement.classList.remove('d-none');
         formElement.classList.add('d-none');
     }
@@ -647,11 +662,9 @@ function toggleEditContact() {
     const formElement = document.getElementById('editContactForm');
 
     if (formElement.classList.contains('d-none')) {
-        // Mostrar formulário, ocultar display
         displayElement.classList.add('d-none');
         formElement.classList.remove('d-none');
     } else {
-        // Ocultar formulário, mostrar display
         displayElement.classList.remove('d-none');
         formElement.classList.add('d-none');
     }
@@ -662,11 +675,9 @@ function toggleEditCountry() {
     const formElement = document.getElementById('editCountryForm');
 
     if (formElement.classList.contains('d-none')) {
-        // Mostrar formulário, ocultar display
         displayElement.classList.add('d-none');
         formElement.classList.remove('d-none');
     } else {
-        // Ocultar formulário, mostrar display
         displayElement.classList.remove('d-none');
         formElement.classList.add('d-none');
     }
@@ -677,11 +688,9 @@ function toggleEditSexo() {
     const formElement = document.getElementById('editSexoForm');
 
     if (formElement.classList.contains('d-none')) {
-        // Mostrar formulário, ocultar display
         displayElement.classList.add('d-none');
         formElement.classList.remove('d-none');
     } else {
-        // Ocultar formulário, mostrar display
         displayElement.classList.remove('d-none');
         formElement.classList.add('d-none');
     }
