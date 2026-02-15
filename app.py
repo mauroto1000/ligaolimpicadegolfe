@@ -6,6 +6,8 @@ from functools import wraps
 import hashlib
 from werkzeug.utils import secure_filename  # Adicione esta linha
 import json
+from flask import send_file
+from io import BytesIO
 
 # Adicionando session config
 app = Flask(__name__)
@@ -887,16 +889,16 @@ if __name__ == '__main__':
 
 # 1. NOVA ESTRUTURA ESTENDIDA DA PIRÂMIDE
 PYRAMID_STRUCTURE = {
-    'C': [1, 2, 3, 4],                       # Nível C: 4 posições
-    'D': [5, 6, 7, 8, 9, 10],                # Nível D: 6 posições
-    'E': [11, 12, 13, 14, 15, 16, 17, 18],   # Nível E: 8 posições
-    'F': [19, 20, 21, 22, 23, 24, 25, 26, 27, 28], # Nível F: 10 posições
-    'G': [29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40], # Nível G: 12 posições
-    'H': [41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54], # Nível H: 14 posições
-    'I': [55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70], # Nível I: 16 posições
-    'J': [71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88], # Nível J: 18 posições
-    'K': [89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108], # Nível K: 20 posições
-    'L': [109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130], # Nível L: 22 posições
+    'A': [1, 2, 3, 4, 5],                                                    # 5 posições (1-5)
+    'B': [6, 7, 8, 9, 10, 11, 12],                                           # 7 posições (6-12)
+    'C': [13, 14, 15, 16, 17, 18, 19, 20, 21],                               # 9 posições (13-21)
+    'D': [22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],                       # 11 posições (22-32)
+    'E': [33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45],               # 13 posições (33-45)
+    'F': [46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60],       # 15 posições (46-60)
+    'G': [61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77], # 17 posições (61-77)
+    'H': [78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96], # 19 posições (78-96)
+    'I': [97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117], # 21 posições (97-117)
+    'J': [118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140], # 23 posições (118-140)
 }
 
 
@@ -1383,7 +1385,7 @@ def fix_history():
 def get_tier_from_position(position):
     """
     Determina o nível (tier) com base na posição na pirâmide.
-    Versão corrigida que usa a estrutura estendida e calcula dinamicamente tiers além dela.
+    Estrutura: A:5, B:7, C:9, D:11... (+2 a cada tier)
     """
     # Verificar em cada tier definido na estrutura
     for tier, positions in PYRAMID_STRUCTURE.items():
@@ -1391,27 +1393,21 @@ def get_tier_from_position(position):
             return tier
     
     # Para posições que excederam a estrutura definida
-    # Calcular dinamicamente baseado no padrão da pirâmide
-    
-    # Obter informações do último tier definido
     last_tier_letter = list(PYRAMID_STRUCTURE.keys())[-1]
     last_tier_positions = PYRAMID_STRUCTURE[last_tier_letter]
     last_tier_end = max(last_tier_positions)
     
     # Se a posição está além da estrutura definida
     if position > last_tier_end:
-        # Calcular qual tier seria baseado no padrão: C:4, D:6, E:8... (+2 a cada tier)
         remaining_position = position - last_tier_end
         current_tier_letter = last_tier_letter
         current_tier_size = len(PYRAMID_STRUCTURE[last_tier_letter])
         position_counter = 0
         
         while position_counter < remaining_position:
-            # Avançar para o próximo tier
             current_tier_letter = chr(ord(current_tier_letter) + 1)
-            current_tier_size += 2  # Cada tier tem 2 posições a mais
+            current_tier_size += 2
             
-            # Verificar se a posição cabe neste tier
             if position_counter + current_tier_size >= remaining_position:
                 return current_tier_letter
             
@@ -1419,8 +1415,7 @@ def get_tier_from_position(position):
         
         return current_tier_letter
     
-    # Fallback (não deveria chegar aqui)
-    return 'Z'
+    return 'A'
 
 
 
@@ -1544,8 +1539,11 @@ def rebalance_positions_after_challenge(conn, winner_id, loser_id, winner_new_po
 
 def process_challenge_result(conn, challenge_id, status, result):
     """
-    Processa o resultado de um desafio, atualizando posições e tiers conforme necessário.
-    Versão atualizada que inclui a regra: quando o desafiante perde, ele troca de posição com o jogador abaixo.
+    Processa o resultado de um desafio, atualizando posições conforme as novas regras:
+    
+    NOVAS REGRAS:
+    - Desafiante vence: assume posição do desafiado, desafiado desce 1 posição
+    - Desafiado vence: desafiado sobe 1 posição (permuta com quem está acima), desafiante NÃO muda
     """
     # Atualizar o status e resultado do desafio
     conn.execute('UPDATE challenges SET status = ?, result = ? WHERE id = ?', 
@@ -1560,8 +1558,8 @@ def process_challenge_result(conn, challenge_id, status, result):
         # Buscar informações detalhadas do desafio
         challenge = conn.execute('''
             SELECT c.*, 
-                   p1.id as challenger_id, p1.position as challenger_position, p1.tier as challenger_tier,
-                   p2.id as challenged_id, p2.position as challenged_position, p2.tier as challenged_tier
+                   p1.id as challenger_id, p1.position as challenger_position, p1.tier as challenger_tier, p1.sexo as challenger_sexo,
+                   p2.id as challenged_id, p2.position as challenged_position, p2.tier as challenged_tier, p2.sexo as challenged_sexo
             FROM challenges c
             JOIN players p1 ON c.challenger_id = p1.id
             JOIN players p2 ON c.challenged_id = p2.id
@@ -1580,108 +1578,151 @@ def process_challenge_result(conn, challenge_id, status, result):
         challenged_id = challenge['challenged_id']
         challenged_old_pos = challenge['challenged_position']
         challenged_old_tier = challenge['challenged_tier']
+        player_sexo = challenge['challenger_sexo'] or 'masculino'
         
         try:
             if result == 'challenger_win':
-                # O desafiante vence e assume a posição do desafiado
-                rebalance_positions_after_challenge(
-                    conn, 
-                    challenge['challenger_id'], 
-                    challenge['challenged_id'],
-                    challenge['challenged_position'],  # Nova posição do vencedor (desafiante)
-                    challenge['challenged_position'] + 1  # Nova posição do perdedor (desafiado)
-                )
+                # =====================================================
+                # DESAFIANTE VENCE:
+                # - Desafiante assume a posição do desafiado
+                # - Desafiado desce 1 posição
+                # - Todos entre eles descem 1 posição
+                # =====================================================
+                
+                new_challenger_pos = challenged_old_pos  # Desafiante vai para posição do desafiado
+                new_challenged_pos = challenged_old_pos + 1  # Desafiado desce 1
+                
+                # Empurrar todos os jogadores entre as posições para baixo
+                conn.execute('''
+                    UPDATE players 
+                    SET position = position + 1 
+                    WHERE position >= ? AND position < ?
+                    AND id != ? AND id != ?
+                    AND active = 1
+                    AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+                ''', (new_challenger_pos, challenger_old_pos, challenger_id, challenged_id, player_sexo, player_sexo))
+                
+                # Atualizar posição do desafiante (vencedor)
+                conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                           (new_challenger_pos, challenger_id))
+                
+                # Atualizar posição do desafiado (perdedor)
+                conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                           (new_challenged_pos, challenged_id))
+                
+                # Registrar no histórico - Desafiante
+                conn.execute('''
+                    INSERT INTO ranking_history 
+                    (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (challenger_id, challenger_old_pos, new_challenger_pos, 
+                     challenger_old_tier, get_tier_from_position(new_challenger_pos), 
+                     'challenge_win', challenge_id))
+                
+                # Registrar no histórico - Desafiado
+                conn.execute('''
+                    INSERT INTO ranking_history 
+                    (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (challenged_id, challenged_old_pos, new_challenged_pos, 
+                     challenged_old_tier, get_tier_from_position(new_challenged_pos), 
+                     'challenge_loss', challenge_id))
+                
+                print(f"✅ Desafiante venceu: {challenger_id} ({challenger_old_pos} → {new_challenger_pos}), "
+                      f"Desafiado: {challenged_id} ({challenged_old_pos} → {new_challenged_pos})")
+                
             elif result == 'challenged_win':
-                # NOVA REGRA: Se o desafiado ganhar, o desafiante troca de posição com quem está uma posição abaixo
+                # =====================================================
+                # DESAFIADO VENCE:
+                # - Desafiado sobe 1 posição (permuta com quem está acima)
+                # - Desafiante NÃO muda de posição
+                # =====================================================
                 
-                # Primeiro, verificar se existe alguém uma posição abaixo do desafiante
-                player_below = conn.execute('''
-                    SELECT id, position FROM players 
+                # Verificar se existe alguém uma posição acima do desafiado
+                player_above = conn.execute('''
+                    SELECT id, position, tier FROM players 
                     WHERE position = ? AND active = 1
-                ''', (challenger_old_pos + 1,)).fetchone()
+                    AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+                ''', (challenged_old_pos - 1, player_sexo, player_sexo)).fetchone()
                 
-                if player_below:
-                    # Se existe um jogador abaixo, trocar as posições
-                    player_below_id = player_below['id']
+                if player_above and challenged_old_pos > 1:
+                    # Existe alguém acima - fazer a permuta
+                    player_above_id = player_above['id']
+                    player_above_old_pos = player_above['position']
+                    player_above_old_tier = player_above['tier']
                     
-                    # Atualizando para a nova regra: desafiante troca com quem está abaixo
-                    conn.execute('UPDATE players SET position = ? WHERE id = ?', 
-                               (challenger_old_pos + 1, challenger_id))
-                    conn.execute('UPDATE players SET position = ? WHERE id = ?', 
-                               (challenger_old_pos, player_below_id))
+                    new_challenged_pos = challenged_old_pos - 1  # Desafiado sobe 1
+                    new_above_pos = challenged_old_pos  # Jogador acima desce 1
                     
-                    # Registrar a mudança no histórico para o desafiante que perdeu
+                    # Atualizar posição do desafiado (vencedor - sobe)
+                    conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                               (new_challenged_pos, challenged_id))
+                    
+                    # Atualizar posição do jogador que estava acima (desce)
+                    conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                               (new_above_pos, player_above_id))
+                    
+                    # Registrar no histórico - Desafiado (vencedor)
                     conn.execute('''
                         INSERT INTO ranking_history 
                         (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ''', (challenger_id, challenger_old_pos, challenger_old_pos + 1, 
-                         challenger_old_tier, get_tier_from_position(challenger_old_pos + 1), 
-                         'challenge_loss_demotion', challenge_id))
+                    ''', (challenged_id, challenged_old_pos, new_challenged_pos, 
+                         challenged_old_tier, get_tier_from_position(new_challenged_pos), 
+                         'challenge_defense_win_promotion', challenge_id))
                     
-                    # E também para o jogador que subiu uma posição
+                    # Registrar no histórico - Jogador que foi ultrapassado
                     conn.execute('''
                         INSERT INTO ranking_history 
                         (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ''', (player_below_id, challenger_old_pos + 1, challenger_old_pos, 
-                         get_tier_from_position(challenger_old_pos + 1), get_tier_from_position(challenger_old_pos), 
-                         'player_promoted_due_to_challenge', challenge_id))
+                    ''', (player_above_id, player_above_old_pos, new_above_pos, 
+                         player_above_old_tier, get_tier_from_position(new_above_pos), 
+                         'displaced_by_challenge_winner', challenge_id))
+                    
+                    print(f"✅ Desafiado venceu e subiu: {challenged_id} ({challenged_old_pos} → {new_challenged_pos}), "
+                          f"Permuta com: {player_above_id} ({player_above_old_pos} → {new_above_pos}), "
+                          f"Desafiante não muda: {challenger_id} (posição {challenger_old_pos})")
                 else:
-                    # Se não houver ninguém abaixo, não há troca de posição
-                    print(f"Não há jogador abaixo da posição {challenger_old_pos} para trocar")
+                    # Desafiado já está na posição 1 ou não há ninguém acima
+                    print(f"ℹ️ Desafiado venceu mas já está na posição mais alta possível. "
+                          f"Nenhuma mudança de posição.")
+                
+                # IMPORTANTE: Desafiante NÃO muda de posição quando perde
+                
             else:
-                # Resultado inválido
                 print(f"Erro: Resultado inválido: {result}")
                 conn.rollback()
                 return
             
-            # Verificar se houve mudança nas posições
-            new_challenger = conn.execute('SELECT position, tier FROM players WHERE id = ?', 
-                                        (challenger_id,)).fetchone()
-            new_challenged = conn.execute('SELECT position, tier FROM players WHERE id = ?', 
-                                        (challenged_id,)).fetchone()
+            # =====================================================
+            # NORMALIZAÇÃO DO RANKING
+            # =====================================================
+            print("🔧 Executando normalização do ranking...")
             
-            # O registro no histórico para o desafiante já foi feito, se necessário
-            # O registro para o desafiado também já foi feito se ele perdeu
-            
-            # ✨ CORREÇÃO AUTOMÁTICA COMPLETA DO RANKING MASCULINO
-            # Normalizar posições e recalcular tiers após qualquer mudança
-            print("🔧 Executando normalização completa do ranking masculino...")
-            
-            # Buscar jogadores masculinos ordenados pela posição atual
-            male_players = conn.execute('''
+            # Buscar jogadores do mesmo sexo ordenados pela posição atual
+            players_to_normalize = conn.execute('''
                 SELECT id, name, position, tier
                 FROM players 
-                WHERE active = 1 AND (sexo != 'feminino' OR sexo IS NULL)
+                WHERE active = 1 AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
                 ORDER BY position, name
-            ''').fetchall()
+            ''', (player_sexo, player_sexo)).fetchall()
             
             # Reassignar posições sequenciais e recalcular tiers
-            for i, player in enumerate(male_players, 1):
+            for i, player in enumerate(players_to_normalize, 1):
                 new_position = i
                 new_tier = get_tier_from_position(new_position)
                 
-                # Atualizar apenas se houve mudança
                 if player['position'] != new_position or player['tier'] != new_tier:
                     conn.execute('''
                         UPDATE players 
                         SET position = ?, tier = ? 
                         WHERE id = ?
                     ''', (new_position, new_tier, player['id']))
-                    
-                    # Registrar no histórico apenas mudanças significativas
-                    if abs(player['position'] - new_position) > 0:
-                        conn.execute('''
-                            INSERT INTO ranking_history 
-                            (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        ''', (player['id'], player['position'], new_position, player['tier'], 
-                             new_tier, 'auto_normalization_after_challenge', challenge_id))
             
-            print(f"✅ Ranking masculino normalizado: {len(male_players)} jogadores")
+            print(f"✅ Ranking normalizado: {len(players_to_normalize)} jogadores")
             
-            # Sincronizar as tabelas de histórico para garantir consistência
+            # Sincronizar as tabelas de histórico
             sync_ranking_history_tables(conn)
             
         except Exception as e:
@@ -1689,11 +1730,12 @@ def process_challenge_result(conn, challenge_id, status, result):
             conn.rollback()
             raise
     
-    # ✨ NOVA ADIÇÃO: Auto-corrigir ranking feminino se necessário
+    # Auto-corrigir ranking feminino se necessário
     auto_fix_female_ranking(conn)
     
     conn.commit()
-    print("✅ Rankings masculino e feminino processados e normalizados com sucesso!")
+    print("✅ Resultado do desafio processado com sucesso!")
+
 
 def revert_challenge_result(conn, challenge_id):
     """
@@ -2002,7 +2044,7 @@ def deactivate_player(player_id):
         conn.close()
     
     return redirect(url_for('index'))
-    
+
 
 @app.route('/reactivate_player/<int:player_id>', methods=['GET', 'POST'])
 def reactivate_player(player_id):
@@ -2497,6 +2539,28 @@ def pyramid_dynamic():
                           tiers=sorted_tiers, 
                           challenges=challenges_for_display)
 
+@app.route('/pyramid_print')
+def pyramid_print():
+    """Página de impressão da pirâmide em alta resolução"""
+    conn = get_db_connection()
+    
+    # Buscar jogadores ativos
+    players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
+    
+    # Organizar jogadores por tier
+    tiers = {}
+    for player in players:
+        if player['tier'] not in tiers:
+            tiers[player['tier']] = []
+        tiers[player['tier']].append(dict(player))
+    
+    # Ordenar tiers alfabeticamente
+    sorted_tiers = sorted(tiers.items())
+    
+    conn.close()
+    return render_template('pyramid_print.html', tiers=sorted_tiers)
+
+
 # Rota original (mantida para compatibilidade ou redirecionamento)
 # Altere estas rotas no seu arquivo app.py:
 
@@ -2665,30 +2729,26 @@ def new_challenge():
             else:
                 error = "Um dos jogadores já está envolvido em um desafio pendente ou aceito. Conclua o desafio atual antes de criar um novo."
         
-        # MODIFICAÇÃO PRINCIPAL: Aplicar regras de tier e posição APENAS para o admin principal
+        # =====================================================
+        # NOVA REGRA: Limite de 8 posições acima
+        # =====================================================
         if not error and not is_main_admin:
-            challenger_tier = challenger['tier']
-            challenged_tier = challenged['tier']
+            challenger_position = challenger['position']
+            challenged_position = challenged['position']
             
-            # Verificar níveis especiais A ou B
-            if challenged_tier in ['A', 'B']:
-                error = "Não é possível desafiar jogadores dos níveis A ou B. Esses níveis são reservados para os vencedores do play-off."
-            else:
-                # Calcular diferença de níveis
-                tier_difference = ord(challenger_tier) - ord(challenged_tier)
-                
-                # Verificar restrições de tier
-                if tier_difference < 0:
-                    error = "Você só pode desafiar jogadores de níveis acima do seu."
-                elif tier_difference > 1:
-                    error = "Você só pode desafiar jogadores até uma linha acima da sua."
-                # Verificar posição
-                elif challenged['position'] > challenger['position']:
-                    error = "Você só pode desafiar jogadores em posições melhores que a sua."
+            # Calcular diferença de posições
+            position_difference = challenger_position - challenged_position
+            
+            # Regra 1: Só pode desafiar jogadores em posições melhores (número menor)
+            if challenged_position >= challenger_position:
+                error = "Você só pode desafiar jogadores em posições melhores que a sua."
+            # Regra 2: Limite de 8 posições acima
+            elif position_difference > 8:
+                error = f"Você só pode desafiar jogadores até 8 posições acima da sua. Sua posição: {challenger_position}, posição do desafiado: {challenged_position} (diferença: {position_difference})."
         
         # Se for admin principal, mostrar uma mensagem informativa no log
         if is_main_admin and not error:
-            print(f"Admin principal criando desafio sem restrições: {challenger['name']} (Pos {challenger['position']}, Tier {challenger['tier']}) vs {challenged['name']} (Pos {challenged['position']}, Tier {challenged['tier']})")
+            print(f"Admin principal criando desafio sem restrições: {challenger['name']} (Pos {challenger['position']}) vs {challenged['name']} (Pos {challenged['position']})")
         
         if error:
             conn.close()
@@ -2736,7 +2796,7 @@ def new_challenge():
             # Adicionar nota especial se for admin principal criando sem restrições
             notes = f"Desafio criado. Marcado para {scheduled_date}"
             if is_main_admin:
-                notes += " (Criado pelo admin principal sem restrições de tier/posição)"
+                notes += " (Criado pelo admin principal sem restrições)"
             
             # Inserir o log de criação
             conn.execute('''
@@ -2770,19 +2830,32 @@ def new_challenge():
         
         return redirect(url_for('challenges_calendar'))
     
+    # =====================================================
     # Para requisições GET, mostrar formulário
+    # =====================================================
     preselected_challenger_id = None
     all_players = []
     eligible_challenged = []
     
+    # Buscar jogadores com desafios pendentes (usado para filtrar)
+    pending_challenges = conn.execute('''
+        SELECT challenger_id, challenged_id 
+        FROM challenges 
+        WHERE status IN ('pending', 'accepted')
+    ''').fetchall()
+    
+    players_with_challenges = set()
+    for challenge in pending_challenges:
+        players_with_challenges.add(challenge['challenger_id'])
+        players_with_challenges.add(challenge['challenged_id'])
+    
     if is_main_admin:
-        # MODIFICAÇÃO: Apenas o admin principal vê TODOS os jogadores ativos como possíveis desafiados
+        # Admin principal vê TODOS os jogadores ativos como possíveis desafiados
         all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
         
         # Verificar se há um desafiante pré-selecionado na query string
         preselected_challenger_id = request.args.get('challenger_id')
         
-        # Se há um desafiante pré-selecionado, buscar TODOS os outros jogadores ativos
         if preselected_challenger_id:
             try:
                 preselected_challenger_id = int(preselected_challenger_id)
@@ -2798,35 +2871,22 @@ def new_challenge():
                         ORDER BY position
                     ''', (preselected_challenger_id,)).fetchall()
                     
-                    # Verificar jogadores com desafios pendentes
-                    players_with_challenges = set()
-                    pending_challenges = conn.execute('''
-                        SELECT challenger_id, challenged_id 
-                        FROM challenges 
-                        WHERE status IN ('pending', 'accepted')
-                    ''').fetchall()
-                    
-                    for challenge in pending_challenges:
-                        players_with_challenges.add(challenge['challenger_id'])
-                        players_with_challenges.add(challenge['challenged_id'])
-                    
                     # Verificar se o desafiante já tem desafios pendentes
                     if preselected_challenger_id in players_with_challenges:
                         flash('Este jogador já está envolvido em um desafio pendente ou aceito.', 'warning')
                     
-                    # Filtrar jogadores com desafios pendentes (mantém esta restrição mesmo para admin principal)
+                    # Filtrar jogadores com desafios pendentes
                     eligible_challenged = [player for player in eligible_challenged 
                                           if player['id'] not in players_with_challenges]
             except (ValueError, TypeError):
                 preselected_challenger_id = None
+                
     elif is_admin:
-        # Outros admins seguem as regras normais, mas podem selecionar qualquer jogador como desafiante
+        # Outros admins podem selecionar qualquer jogador como desafiante
         all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
         
-        # Verificar se há um desafiante pré-selecionado na query string
         preselected_challenger_id = request.args.get('challenger_id')
         
-        # Se há um desafiante pré-selecionado, aplicar regras normais de tier
         if preselected_challenger_id:
             try:
                 preselected_challenger_id = int(preselected_challenger_id)
@@ -2834,30 +2894,19 @@ def new_challenge():
                                          (preselected_challenger_id,)).fetchone()
                 
                 if challenger:
-                    # Para outros admins, aplicar regras normais de tier
-                    tier = challenger['tier']
-                    prev_tier = chr(ord(tier) - 1) if ord(tier) > ord('C') else tier
+                    # =====================================================
+                    # NOVA REGRA: Limite de 8 posições acima
+                    # =====================================================
+                    min_position = max(1, challenger['position'] - 8)
                     
                     eligible_challenged = conn.execute('''
                         SELECT * FROM players 
                         WHERE active = 1
-                        AND position < ? 
-                        AND (tier = ? OR tier = ?)
-                        AND tier NOT IN ('A', 'B')
-                        ORDER BY position
-                    ''', (challenger['position'], tier, prev_tier)).fetchall()
-                    
-                    # Verificar jogadores com desafios pendentes
-                    players_with_challenges = set()
-                    pending_challenges = conn.execute('''
-                        SELECT challenger_id, challenged_id 
-                        FROM challenges 
-                        WHERE status IN ('pending', 'accepted')
-                    ''').fetchall()
-                    
-                    for challenge in pending_challenges:
-                        players_with_challenges.add(challenge['challenger_id'])
-                        players_with_challenges.add(challenge['challenged_id'])
+                        AND position < ?
+                        AND position >= ?
+                        AND id != ?
+                        ORDER BY position DESC
+                    ''', (challenger['position'], min_position, preselected_challenger_id)).fetchall()
                     
                     # Verificar se o desafiante já tem desafios pendentes
                     if preselected_challenger_id in players_with_challenges:
@@ -2869,7 +2918,7 @@ def new_challenge():
             except (ValueError, TypeError):
                 preselected_challenger_id = None
     else:
-        # Para jogadores normais, manter lógica atual
+        # Para jogadores normais
         if 'user_id' in session and not is_admin:
             preselected_challenger_id = session['user_id']
         else:
@@ -2879,23 +2928,6 @@ def new_challenge():
                     preselected_challenger_id = int(temp_id)
                 except (ValueError, TypeError):
                     preselected_challenger_id = None
-        
-        # Buscar jogadores com desafios pendentes
-        challenges = conn.execute('''
-            SELECT DISTINCT c.challenger_id, c.challenged_id, c.status, c.scheduled_date,
-                p1.position as challenger_position, p2.position as challenged_position
-            FROM challenges c
-            JOIN players p1 ON c.challenger_id = p1.id
-            JOIN players p2 ON c.challenged_id = p2.id
-            WHERE c.status IN ('pending', 'accepted')
-        ''').fetchall()
-
-        players_with_challenges = set()
-        for challenge in challenges:
-            challenger_id = challenge['challenger_id']
-            challenged_id = challenge['challenged_id']
-            players_with_challenges.add(challenger_id)
-            players_with_challenges.add(challenged_id)
         
         if preselected_challenger_id:
             if preselected_challenger_id in players_with_challenges:
@@ -2909,15 +2941,21 @@ def new_challenge():
             if challenger:
                 all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
                 
+                # =====================================================
+                # NOVA REGRA: Limite de 8 posições acima
+                # =====================================================
+                min_position = max(1, challenger['position'] - 8)
+                
                 eligible_challenged = conn.execute('''
                     SELECT * FROM players 
                     WHERE active = 1
-                    AND position < ? 
-                    AND (tier = ? OR tier = ?)
-                    AND tier NOT IN ('A', 'B')
-                    ORDER BY position
-                ''', (challenger['position'], challenger['tier'], chr(ord(challenger['tier'])-1))).fetchall()
+                    AND position < ?
+                    AND position >= ?
+                    AND id != ?
+                    ORDER BY position DESC
+                ''', (challenger['position'], min_position, preselected_challenger_id)).fetchall()
                 
+                # Filtrar jogadores com desafios pendentes
                 eligible_challenged = [player for player in eligible_challenged 
                                       if player['id'] not in players_with_challenges]
         else:
@@ -5988,6 +6026,521 @@ def toggle_player_results():
     conn.close()
     
     return render_template('toggle_player_results.html', is_enabled=is_enabled, updated_at=updated_at)
+
+
+@app.route('/migrate_tiers_to_new_structure')
+@login_required
+def migrate_tiers_to_new_structure():
+    """
+    Migra todos os jogadores para a nova estrutura de tiers (A, B, C... ao invés de C, D, E...)
+    """
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    conn = get_db_connection()
+    try:
+        # Buscar todos os jogadores ativos ordenados por posição
+        players = conn.execute('''
+            SELECT id, name, position, tier 
+            FROM players 
+            WHERE active = 1
+            ORDER BY position
+        ''').fetchall()
+        
+        updated_count = 0
+        
+        for player in players:
+            # Calcular o tier correto baseado na posição
+            correct_tier = get_tier_from_position(player['position'])
+            
+            # Atualizar se necessário
+            if player['tier'] != correct_tier:
+                conn.execute('''
+                    UPDATE players SET tier = ? WHERE id = ?
+                ''', (correct_tier, player['id']))
+                updated_count += 1
+                print(f"Atualizado: {player['name']} - Posição {player['position']}: {player['tier']} → {correct_tier}")
+        
+        conn.commit()
+        flash(f'✅ Migração concluída! {updated_count} jogadores tiveram seus tiers atualizados.', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'❌ Erro na migração: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('pyramid_dynamic'))
+
+
+# ADICIONE ESTA ROTA NO app.py
+# Certifique-se de ter o openpyxl instalado: pip install openpyxl
+
+from io import BytesIO
+from datetime import datetime
+
+
+# ADICIONE ESTA ROTA NO app.py
+# Certifique-se de ter o openpyxl instalado: pip install openpyxl
+
+from io import BytesIO
+from datetime import datetime
+
+@app.route('/export_ranking_excel')
+def export_ranking_excel():
+    """Exporta o ranking de jogadores para Excel"""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    except ImportError:
+        flash('Erro: biblioteca openpyxl não instalada.', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    
+    # Buscar jogadores ativos ordenados por posição
+    players = conn.execute('''
+        SELECT name, position, player_code, sexo 
+        FROM players 
+        WHERE active = 1 
+        ORDER BY position
+    ''').fetchall()
+    
+    conn.close()
+    
+    # Criar workbook
+    wb = openpyxl.Workbook()
+    
+    # Estilos
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    cell_alignment = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # ==================== ABA MASCULINO ====================
+    ws_masc = wb.active
+    ws_masc.title = "Ranking Masculino"
+    
+    header_fill_masc = PatternFill(start_color="002970", end_color="002970", fill_type="solid")
+    
+    # Título
+    ws_masc.merge_cells('A1:C1')
+    ws_masc['A1'] = f"Ranking Masculino - Liga Olímpica de Golfe - {datetime.now().strftime('%d/%m/%Y')}"
+    ws_masc['A1'].font = Font(bold=True, size=14, color="002970")
+    ws_masc['A1'].alignment = Alignment(horizontal="center")
+    ws_masc.row_dimensions[1].height = 30
+    
+    # Cabeçalhos
+    headers = ["Posição", "Código", "Nome"]
+    for col, header in enumerate(headers, 1):
+        cell = ws_masc.cell(row=3, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill_masc
+        cell.alignment = header_alignment
+        cell.border = thin_border
+    
+    # Dados masculinos
+    row = 4
+    position_counter = 0
+    for player in players:
+        if player['sexo'] != 'feminino':
+            position_counter += 1
+            ws_masc.cell(row=row, column=1, value=position_counter).alignment = cell_alignment
+            ws_masc.cell(row=row, column=2, value=player['player_code']).alignment = cell_alignment
+            ws_masc.cell(row=row, column=3, value=player['name']).alignment = Alignment(horizontal="left", vertical="center")
+            
+            # Aplicar bordas
+            for col in range(1, 4):
+                ws_masc.cell(row=row, column=col).border = thin_border
+            
+            row += 1
+    
+    # Ajustar largura das colunas
+    ws_masc.column_dimensions['A'].width = 10  # Posição
+    ws_masc.column_dimensions['B'].width = 12  # Código
+    ws_masc.column_dimensions['C'].width = 35  # Nome
+    
+    # ==================== ABA FEMININO ====================
+    ws_fem = wb.create_sheet("Ranking Ladies")
+    
+    header_fill_ladies = PatternFill(start_color="E91E63", end_color="E91E63", fill_type="solid")
+    
+    # Título
+    ws_fem.merge_cells('A1:C1')
+    ws_fem['A1'] = f"Ranking Ladies - Liga Olímpica de Golfe - {datetime.now().strftime('%d/%m/%Y')}"
+    ws_fem['A1'].font = Font(bold=True, size=14, color="E91E63")
+    ws_fem['A1'].alignment = Alignment(horizontal="center")
+    ws_fem.row_dimensions[1].height = 30
+    
+    # Cabeçalhos
+    for col, header in enumerate(headers, 1):
+        cell = ws_fem.cell(row=3, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill_ladies
+        cell.alignment = header_alignment
+        cell.border = thin_border
+    
+    # Dados femininos
+    row = 4
+    position_counter = 0
+    for player in players:
+        if player['sexo'] == 'feminino':
+            position_counter += 1
+            ws_fem.cell(row=row, column=1, value=position_counter).alignment = cell_alignment
+            ws_fem.cell(row=row, column=2, value=player['player_code']).alignment = cell_alignment
+            ws_fem.cell(row=row, column=3, value=player['name']).alignment = Alignment(horizontal="left", vertical="center")
+            
+            # Aplicar bordas
+            for col in range(1, 4):
+                ws_fem.cell(row=row, column=col).border = thin_border
+            
+            row += 1
+    
+    # Ajustar largura das colunas
+    ws_fem.column_dimensions['A'].width = 10
+    ws_fem.column_dimensions['B'].width = 12
+    ws_fem.column_dimensions['C'].width = 35
+    
+    # Salvar em memória
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    # Nome do arquivo com data
+    filename = f"ranking_golf_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+# ADICIONE ESTA ROTA NO app.py (área de rotas admin)
+
+# ADICIONE ESTA ROTA NO app.py (área de rotas admin)
+
+# ADICIONE ESTA ROTA NO app.py (área de rotas admin)
+
+@app.route('/admin/reset_challenges', methods=['GET', 'POST'])
+@login_required
+def reset_challenges():
+    """
+    Reseta todos os desafios e histórico para iniciar uma nova etapa do ranking.
+    Arquiva os desafios e histórico antigos e limpa as tabelas.
+    """
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        # Confirmação de segurança
+        confirm_text = request.form.get('confirm_text', '')
+        if confirm_text != 'RESETAR':
+            flash('❌ Texto de confirmação incorreto. Digite RESETAR para confirmar.', 'error')
+            return redirect(url_for('reset_challenges'))
+        
+        conn = get_db_connection()
+        try:
+            # Contar desafios antes de resetar
+            stats = conn.execute('''
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                    SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) as accepted,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
+                FROM challenges
+            ''').fetchone()
+            
+            # Contar registros de histórico
+            history_count = 0
+            try:
+                history_result = conn.execute('SELECT COUNT(*) as total FROM ranking_history').fetchone()
+                history_count = history_result['total'] if history_result else 0
+            except:
+                pass  # Tabela pode não existir
+            
+            # Verificar colunas existentes na tabela challenges
+            columns_info = conn.execute("PRAGMA table_info(challenges)").fetchall()
+            existing_columns = [col[1] for col in columns_info]
+            
+            # Criar tabela de histórico de desafios se não existir
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS challenges_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    original_id INTEGER,
+                    challenger_id INTEGER,
+                    challenged_id INTEGER,
+                    scheduled_date TEXT,
+                    status TEXT,
+                    winner_id INTEGER,
+                    challenger_score TEXT,
+                    challenged_score TEXT,
+                    notes TEXT,
+                    created_at TEXT,
+                    archived_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    etapa TEXT
+                )
+            ''')
+            
+            # Criar tabela de histórico de ranking arquivado se não existir
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS ranking_history_archive (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    original_id INTEGER,
+                    player_id INTEGER,
+                    position INTEGER,
+                    tier TEXT,
+                    record_date TEXT,
+                    archived_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    etapa TEXT
+                )
+            ''')
+            
+            # Definir nome da etapa
+            etapa_name = request.form.get('etapa_name', f"Etapa até {datetime.now().strftime('%d/%m/%Y')}")
+            
+            # ==================== ARQUIVAR DESAFIOS ====================
+            desired_columns = [
+                'id', 'challenger_id', 'challenged_id', 'scheduled_date',
+                'status', 'winner_id', 'challenger_score', 'challenged_score', 
+                'notes', 'created_at'
+            ]
+            
+            columns_to_copy = [col for col in desired_columns if col in existing_columns]
+            
+            if columns_to_copy:
+                dest_columns = ['original_id' if col == 'id' else col for col in columns_to_copy]
+                dest_columns.append('etapa')
+                
+                source_columns = columns_to_copy.copy()
+                
+                insert_query = f'''
+                    INSERT INTO challenges_history ({', '.join(dest_columns)})
+                    SELECT {', '.join(source_columns)}, ?
+                    FROM challenges
+                '''
+                
+                conn.execute(insert_query, (etapa_name,))
+            
+            # Limpar tabela de desafios
+            conn.execute('DELETE FROM challenges')
+            
+            # Resetar o autoincrement
+            conn.execute("DELETE FROM sqlite_sequence WHERE name='challenges'")
+            
+            # ==================== ARQUIVAR HISTÓRICO DO RANKING ====================
+            try:
+                # Verificar se a tabela ranking_history existe
+                table_exists = conn.execute('''
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='ranking_history'
+                ''').fetchone()
+                
+                if table_exists:
+                    # Verificar colunas da tabela ranking_history
+                    history_columns_info = conn.execute("PRAGMA table_info(ranking_history)").fetchall()
+                    history_existing_columns = [col[1] for col in history_columns_info]
+                    
+                    # Colunas desejadas para copiar
+                    history_desired_columns = ['id', 'player_id', 'position', 'tier', 'record_date']
+                    history_columns_to_copy = [col for col in history_desired_columns if col in history_existing_columns]
+                    
+                    if history_columns_to_copy:
+                        hist_dest_columns = ['original_id' if col == 'id' else col for col in history_columns_to_copy]
+                        hist_dest_columns.append('etapa')
+                        
+                        hist_source_columns = history_columns_to_copy.copy()
+                        
+                        hist_insert_query = f'''
+                            INSERT INTO ranking_history_archive ({', '.join(hist_dest_columns)})
+                            SELECT {', '.join(hist_source_columns)}, ?
+                            FROM ranking_history
+                        '''
+                        
+                        conn.execute(hist_insert_query, (etapa_name,))
+                    
+                    # Limpar tabela de histórico
+                    conn.execute('DELETE FROM ranking_history')
+                    
+                    # Resetar o autoincrement
+                    conn.execute("DELETE FROM sqlite_sequence WHERE name='ranking_history'")
+            except Exception as e:
+                print(f"Aviso ao processar ranking_history: {e}")
+            
+            conn.commit()
+            
+            total = stats['total'] or 0
+            pending = stats['pending'] or 0
+            accepted = stats['accepted'] or 0
+            completed = stats['completed'] or 0
+            cancelled = stats['cancelled'] or 0
+            
+            flash(f'✅ Nova etapa iniciada! {total} desafios e {history_count} registros de histórico foram arquivados. '
+                  f'(Desafios - Pendentes: {pending}, Aceitos: {accepted}, '
+                  f'Concluídos: {completed}, Cancelados: {cancelled})', 'success')
+            
+        except Exception as e:
+            conn.rollback()
+            flash(f'❌ Erro ao resetar desafios: {str(e)}', 'error')
+        finally:
+            conn.close()
+        
+        return redirect(url_for('dashboard'))
+    
+    # GET - Mostrar página de confirmação
+    conn = get_db_connection()
+    stats = conn.execute('''
+        SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+            SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) as accepted,
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+            SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
+        FROM challenges
+    ''').fetchone()
+    
+    # Contar histórico
+    history_count = 0
+    try:
+        history_result = conn.execute('SELECT COUNT(*) as total FROM ranking_history').fetchone()
+        history_count = history_result['total'] if history_result else 0
+    except:
+        pass
+    
+    conn.close()
+    
+    return render_template('admin_reset_challenges.html', stats=stats, history_count=history_count)
+
+
+# IMPORTANTE: Adicione também o import no topo do app.py:
+# from flask import send_file
+
+
+
+# ADICIONE ESTA ROTA NO app.py (área de rotas admin)
+
+@app.route('/admin/adjust_position/<int:player_id>', methods=['GET', 'POST'])
+@login_required
+def adjust_player_position(player_id):
+    """
+    Permite ao admin ajustar manualmente a posição de um jogador no ranking.
+    """
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    
+    # Buscar jogador
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('❌ Jogador não encontrado.', 'error')
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        try:
+            new_position = int(request.form.get('new_position'))
+            reason = request.form.get('reason', '').strip()
+            
+            if new_position < 1:
+                flash('❌ A posição deve ser maior que zero.', 'error')
+                return redirect(url_for('adjust_player_position', player_id=player_id))
+            
+            old_position = player['position']
+            player_sexo = player['sexo']
+            
+            if new_position == old_position:
+                flash('ℹ️ A nova posição é igual à posição atual. Nenhuma alteração feita.', 'info')
+                return redirect(url_for('player_detail', player_id=player_id))
+            
+            # Buscar jogadores do mesmo sexo ordenados por posição
+            players_same_gender = conn.execute('''
+                SELECT id, position FROM players 
+                WHERE active = 1 AND sexo = ? AND id != ?
+                ORDER BY position
+            ''', (player_sexo, player_id)).fetchall()
+            
+            # Verificar posição máxima
+            max_position = len(players_same_gender) + 1
+            if new_position > max_position:
+                new_position = max_position
+            
+            # Reorganizar posições
+            if new_position < old_position:
+                # Jogador subiu no ranking - empurrar outros para baixo
+                conn.execute('''
+                    UPDATE players 
+                    SET position = position + 1 
+                    WHERE active = 1 AND sexo = ? AND position >= ? AND position < ? AND id != ?
+                ''', (player_sexo, new_position, old_position, player_id))
+            else:
+                # Jogador desceu no ranking - puxar outros para cima
+                conn.execute('''
+                    UPDATE players 
+                    SET position = position - 1 
+                    WHERE active = 1 AND sexo = ? AND position > ? AND position <= ? AND id != ?
+                ''', (player_sexo, old_position, new_position, player_id))
+            
+            # Atualizar posição do jogador
+            new_tier = get_tier_from_position(new_position)
+            conn.execute('''
+                UPDATE players SET position = ?, tier = ? WHERE id = ?
+            ''', (new_position, new_tier, player_id))
+            
+            # Registrar log da alteração
+            log_note = f"Ajuste manual de posição pelo admin: {old_position} → {new_position}"
+            if reason:
+                log_note += f". Motivo: {reason}"
+            
+            try:
+                conn.execute('''
+                    INSERT INTO challenge_logs (challenge_id, action, old_value, new_value, changed_by, notes)
+                    VALUES (NULL, 'admin_position_adjust', ?, ?, ?, ?)
+                ''', (str(old_position), str(new_position), session.get('username', 'admin'), log_note))
+            except:
+                pass  # Tabela de logs pode não existir
+            
+            conn.commit()
+            
+            flash(f'✅ Posição de {player["name"]} alterada de #{old_position} para #{new_position}.', 'success')
+            
+            return redirect(url_for('player_detail', player_id=player_id))
+            
+        except ValueError:
+            flash('❌ Posição inválida. Digite um número.', 'error')
+        except Exception as e:
+            conn.rollback()
+            flash(f'❌ Erro ao ajustar posição: {str(e)}', 'error')
+        finally:
+            conn.close()
+        
+        return redirect(url_for('adjust_player_position', player_id=player_id))
+    
+    # GET - Mostrar formulário
+    # Buscar jogadores do mesmo sexo para mostrar contexto
+    players_same_gender = conn.execute('''
+        SELECT id, name, position, tier FROM players 
+        WHERE active = 1 AND sexo = ?
+        ORDER BY position
+    ''', (player['sexo'],)).fetchall()
+    
+    conn.close()
+    
+    return render_template('admin_adjust_position.html', 
+                           player=player, 
+                           players_list=players_same_gender)
+
 
 
 if __name__ == '__main__':

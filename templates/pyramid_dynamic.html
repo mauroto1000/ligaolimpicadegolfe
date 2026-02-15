@@ -515,15 +515,19 @@
             
             <a href="{{ url_for('index') }}" class="btn btn-secondary btn-sm">Voltar para Lista</a>
             
+            <a href="{{ url_for('pyramid_print') }}" class="btn btn-info btn-sm" target="_blank">
+                <i class="fas fa-print me-1"></i> Imprimir
+            </a>
+            
             {% if session.is_admin %}
-            <a href="{{ url_for('force_fix_positions') }}" class="btn btn-danger btn-sm" 
-               onclick="return confirm('🔧 FORÇAR CORREÇÃO DAS POSIÇÕES?')">
+            <a href="{{ url_for('fix_pyramid_hybrid') }}" class="btn btn-danger btn-sm" 
+               onclick="return confirm('🔧 CORRIGIR ESTRUTURA DA PIRÂMIDE?')">
                 <i class="fas fa-hammer me-1"></i> CORRIGIR
             </a>
             {% endif %}
         </div>
 
-        <!-- Separar jogadores por sexo (para contar) -->
+        <!-- Separar jogadores por sexo -->
         {% set female_players = [] %}
         {% set male_players = [] %}
         {% for tier_letter, players in tiers %}
@@ -550,7 +554,7 @@
             </button>
         </div>
         
-        <!-- CONTROLES DE ZOOM (compartilhado) -->
+        <!-- CONTROLES DE ZOOM -->
         <div class="zoom-controls">
             <span class="me-2"><i class="fas fa-search"></i> Zoom:</span>
             <div class="btn-group">
@@ -599,11 +603,10 @@
                     <div class="zoom-content" id="mensZoomContent">
                         <div class="pyramid-container mens-pyramid" id="mensPyramid">
                             
-                            <!-- Mapeamento de letras: A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P -->
-                            {% set new_tier_letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'] %}
-                            {% set tier_index = [0] %}
+                            <!-- Contador de posição sequencial -->
+                            {% set position_counter = [0] %}
                             
-                            <!-- Tiers dinâmicos masculinos (renumerados) -->
+                            <!-- Tiers dinâmicos masculinos - tier_letter vem direto do banco -->
                             {% for tier_letter, players in tiers %}
                                 {% set male_players_in_tier = [] %}
                                 {% for player in players %}
@@ -613,21 +616,21 @@
                                 {% endfor %}
                                 
                                 {% if male_players_in_tier %}
-                                    {% set display_letter = new_tier_letters[tier_index[0]] %}
-                                    <div class="pyramid-row" data-tier="{{ display_letter }}" data-gender="masculino">
-                                        <div class="pyramid-cell first-col">{{ display_letter }}</div>
+                                    <div class="pyramid-row" data-tier="{{ tier_letter }}" data-gender="masculino">
+                                        <div class="pyramid-cell first-col">{{ tier_letter }}</div>
                                         
                                         {% for player in male_players_in_tier|sort(attribute='position') %}
+                                            {% if position_counter.append(position_counter.pop() + 1) %}{% endif %}
                                             <div class="pyramid-cell 
                                                  {% if player.has_pending_challenge %}pending-challenge{% endif %}
                                                  {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}"
                                                  data-player-name="{{ player.name|lower }}"
                                                  data-player-id="{{ player.id }}"
-                                                 data-position="{{ player.position }}"
+                                                 data-position="{{ position_counter[0] }}"
                                                  data-gender="masculino"
                                                  onclick="window.location='{{ url_for('player_detail', player_id=player.id) }}'">
                                                 
-                                                <span class="player-position">{{ player.position }}</span>
+                                                <span class="player-position">{{ position_counter[0] }}</span>
                                                 
                                                 {% if player.country %}
                                                     <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
@@ -636,7 +639,8 @@
                                                 
                                                 <div class="pyramid-tooltip">
                                                     <strong>{{ player.name }}</strong><br>
-                                                    Posição: #{{ player.position }}<br>
+                                                    Posição: #{{ position_counter[0] }}<br>
+                                                    Linha: {{ tier_letter }}<br>
                                                     {% if player.hcp_index is not none %}HCP: {{ player.hcp_index }}{% endif %}
                                                 </div>
                                                 
@@ -667,17 +671,16 @@
                                                 
                                                 {% if player.challenging_positions %}
                                                     <span class="challenge-arrow arrow-challenger">
-                                                        {{player.position}}→{% for pos in player.challenging_positions %}{{pos}}{% endfor %}
+                                                        {{position_counter[0]}}→{% for pos in player.challenging_positions %}{{pos}}{% endfor %}
                                                     </span>
                                                 {% elif player.challenged_by_positions %}
                                                     <span class="challenge-arrow arrow-challenged">
-                                                        {% for pos in player.challenged_by_positions %}{{pos}}{% endfor %}→{{player.position}}
+                                                        {% for pos in player.challenged_by_positions %}{{pos}}{% endfor %}→{{position_counter[0]}}
                                                     </span>
                                                 {% endif %}
                                             </div>
                                         {% endfor %}
                                     </div>
-                                    {% if tier_index.append(tier_index.pop() + 1) %}{% endif %}
                                 {% endif %}
                             {% endfor %}
                         </div>
@@ -700,25 +703,28 @@
                     <div class="zoom-content" id="ladiesZoomContent">
                         <div class="pyramid-container ladies-pyramid" id="ladiesPyramid">
                             {% set female_by_position = female_players|sort(attribute='position') %}
-                            {% set tier_letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'] %}
+                            {% set tier_letters_ladies = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'] %}
                             {% set current_index = [0] %}
+                            {% set ladies_position = [0] %}
                             
                             {% for level in range(1, 13) %}
                                 {% if current_index[0] < female_by_position|length %}
-                                    <div class="pyramid-row" data-tier="{{ tier_letters[level-1] }}" data-gender="feminino">
-                                        <div class="pyramid-cell first-col">{{ tier_letters[level-1] }}</div>
+                                    <div class="pyramid-row" data-tier="{{ tier_letters_ladies[level-1] }}" data-gender="feminino">
+                                        <div class="pyramid-cell first-col">{{ tier_letters_ladies[level-1] }}</div>
                                         
                                         {% for i in range(level) %}
                                             {% if current_index[0] < female_by_position|length %}
                                                 {% set player = female_by_position[current_index[0]] %}
+                                                {% if ladies_position.append(ladies_position.pop() + 1) %}{% endif %}
                                                 <div class="pyramid-cell 
                                                      {% if player.has_pending_challenge %}pending-challenge{% endif %}"
                                                      data-player-name="{{ player.name|lower }}"
                                                      data-player-id="{{ player.id }}"
+                                                     data-position="{{ ladies_position[0] }}"
                                                      data-gender="feminino"
                                                      onclick="window.location='{{ url_for('player_detail', player_id=player.id) }}'">
                                                     
-                                                    <span class="player-position">{{ player.position }}</span>
+                                                    <span class="player-position">{{ ladies_position[0] }}</span>
                                                     
                                                     {% if player.country %}
                                                         <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
