@@ -48,8 +48,6 @@
                                 <span class="badge bg-info">Aceito</span>
                             {% elif challenge.status == 'completed' %}
                                 <span class="badge bg-success">Concluído</span>
-                            {% elif challenge.status == 'completed_pending' %}
-                                <span class="badge bg-secondary">Concluído (pendente)</span>
                             {% elif challenge.status == 'cancelled' %}
                                 <span class="badge bg-danger">Cancelado</span>
                             {% else %}
@@ -76,8 +74,32 @@
                                 {% else %}
                                     {{ challenge.result }}
                                 {% endif %}
+                                
+                                {# Exibir badge de WO se aplicável #}
+                                {% if challenge.result_type and challenge.result_type != 'normal' %}
+                                    <span class="badge bg-warning text-dark ms-2">
+                                        <i class="fas fa-user-slash"></i> WO
+                                    </span>
+                                {% endif %}
                             </td>
                         </tr>
+                        {# Linha adicional com detalhes do WO #}
+                        {% if challenge.result_type and challenge.result_type != 'normal' %}
+                        <tr>
+                            <th>Tipo:</th>
+                            <td>
+                                {% if challenge.result_type == 'wo_challenger' %}
+                                    <span class="text-warning">
+                                        <i class="fas fa-user-slash"></i> WO - Desafiado não compareceu
+                                    </span>
+                                {% elif challenge.result_type == 'wo_challenged' %}
+                                    <span class="text-warning">
+                                        <i class="fas fa-user-slash"></i> WO - Desafiante não compareceu
+                                    </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
                     {% endif %}
                 </table>
             </div>
@@ -90,7 +112,7 @@
                     {% set is_challenged = challenge.challenged_id|int == session.user_id|int %}
                     {% set is_participant = is_challenger or is_challenged %}
                     
-                    {# NOVA LÓGICA: Verificar se jogadores podem submeter resultados #}
+                    {# Verificar se jogadores podem submeter resultados #}
                     {% set can_submit_result = is_admin or (players_can_submit and is_participant) %}
                     
                     {# Aviso quando jogadores não podem submeter resultados #}
@@ -105,19 +127,19 @@
                     {% if challenge.status in ['pending', 'accepted'] %}
                         {# Verifica se o usuário pode realizar ações #}
                         {% if can_submit_result %}
-                            <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post" class="mb-2">
-                                <div class="input-group">
-                                    <select name="status" class="form-select" required>
+                            <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post" class="mb-2" id="challengeForm">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Ação:</label>
+                                    <select name="status" class="form-select" required id="statusSelect">
                                         <option value="">-- Selecione uma ação --</option>
                                         {% if challenge.status == 'pending' and is_challenged %}
                                             <option value="accepted">Aceitar Desafio</option>
                                             <option value="cancelled">Rejeitar/Cancelar Desafio</option>
                                         {% endif %}
                                         
-                                        {# Opções disponíveis para participantes (se habilitado) ou admin #}
+                                        {# Opção de concluir para participantes (se habilitado) ou admin #}
                                         {% if challenge.status in ['pending', 'accepted'] and can_submit_result %}
                                             <option value="completed">Marcar como Concluído</option>
-                                            <option value="completed_pending">Concluído (com pendência)</option>
                                         {% endif %}
                                         
                                         {# Para admins, mostrar todas as opções #}
@@ -128,23 +150,48 @@
                                             {% endif %}
                                         {% endif %}
                                     </select>
-                                    
-                                    <div id="resultOptions" style="display: none;" class="input-group-append">
-                                        <select name="result" class="form-select">
-                                            <option value="">-- Selecione o resultado --</option>
-                                            <option value="challenger_win">Vitória do Desafiante</option>
-                                            <option value="challenged_win">Vitória do Desafiado</option>
+                                </div>
+                                
+                                {# Opções de resultado - aparecem quando status é completed #}
+                                <div id="resultOptions" style="display: none;">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Quem venceu?</label>
+                                        <select name="result" class="form-select" id="resultSelect">
+                                            <option value="">-- Selecione o vencedor --</option>
+                                            <option value="challenger_win">{{ challenge.challenger_name }} (Desafiante)</option>
+                                            <option value="challenged_win">{{ challenge.challenged_name }} (Desafiado)</option>
                                         </select>
                                     </div>
                                     
-                                    {# Campo para observações do administrador #}
-                                    {% if is_admin %}
-                                    <input type="text" name="admin_notes" class="form-control" placeholder="Observações (opcional)" id="adminNotesInput" style="display: none;">
-                                    <input type="hidden" name="modified_by_admin" value="true">
-                                    {% endif %}
-                                    
-                                    <button type="submit" class="btn btn-primary">Executar</button>
+                                    {# Tipo de resultado (Normal ou WO) #}
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Tipo de Resultado:</label>
+                                        <select name="result_type" class="form-select" id="resultTypeSelect">
+                                            <option value="normal">Jogo Normal</option>
+                                            <option value="wo_challenger">WO - Desafiado não compareceu</option>
+                                            <option value="wo_challenged">WO - Desafiante não compareceu</option>
+                                        </select>
+                                        <small class="text-muted">
+                                            <i class="fas fa-info-circle"></i> 
+                                            WO (Walkover): Vitória por ausência do adversário
+                                        </small>
+                                    </div>
                                 </div>
+                                
+                                {# Campo para observações do administrador #}
+                                {% if is_admin %}
+                                <div id="adminNotesDiv" style="display: none;">
+                                    <div class="mb-3">
+                                        <label class="form-label">Observações (opcional):</label>
+                                        <input type="text" name="admin_notes" class="form-control" placeholder="Observações sobre o resultado...">
+                                    </div>
+                                </div>
+                                <input type="hidden" name="modified_by_admin" value="true">
+                                {% endif %}
+                                
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-check"></i> Executar
+                                </button>
                             </form>
                         {% endif %}
                     {% endif %}
@@ -184,7 +231,7 @@
             </div>
         {% endif %}
         
-        {# Bloco para ações do desafiado - MODIFICADO COM VERIFICAÇÃO DE PERMISSÃO #}
+        {# Bloco para ações do desafiado #}
         {% if challenge.status == 'pending' and challenge.challenged_id|int == session.user_id|int %}
         <div class="card mb-4 border-warning">
             <div class="card-header bg-warning text-white">
@@ -212,6 +259,7 @@
                             <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post" onsubmit="return confirm('Tem certeza que deseja rejeitar o desafio? Isto será considerado uma vitória para o desafiante.');">
                                 <input type="hidden" name="status" value="completed">
                                 <input type="hidden" name="result" value="challenger_win">
+                                <input type="hidden" name="result_type" value="wo_challenged">
                                 <button type="submit" class="btn btn-danger w-100">Rejeitar Desafio</button>
                             </form>
                         </div>
@@ -253,7 +301,7 @@
         </div>
         {% endif %}
         
-        {# NOVA SEÇÃO: Informativo para jogadores quando está desabilitado e desafio está aceito #}
+        {# Informativo para jogadores quando está desabilitado e desafio está aceito #}
         {% if challenge.status == 'accepted' and not players_can_submit and not session.get('is_admin', False) %}
             {% if is_challenger or is_challenged %}
             <div class="alert alert-info mt-3">
@@ -304,32 +352,89 @@
 {% endif %}
 
 <script>
-    // Script para mostrar/ocultar o campo de resultado e notas do admin
     document.addEventListener('DOMContentLoaded', function() {
-        const statusSelect = document.querySelector('select[name="status"]');
+        const statusSelect = document.getElementById('statusSelect');
         const resultOptions = document.getElementById('resultOptions');
-        const adminNotesInput = document.getElementById('adminNotesInput');
+        const adminNotesDiv = document.getElementById('adminNotesDiv');
+        const resultSelect = document.getElementById('resultSelect');
+        const resultTypeSelect = document.getElementById('resultTypeSelect');
         
+        // Mostrar/ocultar opções de resultado baseado no status
         if (statusSelect) {
             statusSelect.addEventListener('change', function() {
-                if (this.value === 'completed' || this.value === 'completed_pending') {
+                if (this.value === 'completed') {
                     resultOptions.style.display = 'block';
-                    if (adminNotesInput) {
-                        adminNotesInput.style.display = 'block';
+                    if (adminNotesDiv) {
+                        adminNotesDiv.style.display = 'block';
                     }
                 } else {
                     resultOptions.style.display = 'none';
-                    if (adminNotesInput) {
-                        adminNotesInput.style.display = 'none';
+                    if (adminNotesDiv) {
+                        adminNotesDiv.style.display = 'none';
                     }
                 }
+            });
+        }
+        
+        // Auto-selecionar vencedor quando escolher WO
+        if (resultTypeSelect) {
+            resultTypeSelect.addEventListener('change', function() {
+                if (this.value === 'wo_challenger') {
+                    // Desafiado não compareceu = Desafiante vence
+                    resultSelect.value = 'challenger_win';
+                } else if (this.value === 'wo_challenged') {
+                    // Desafiante não compareceu = Desafiado vence
+                    resultSelect.value = 'challenged_win';
+                }
+            });
+        }
+        
+        // Validação do formulário
+        const challengeForm = document.getElementById('challengeForm');
+        if (challengeForm) {
+            challengeForm.addEventListener('submit', function(e) {
+                const status = statusSelect.value;
+                
+                if (status === 'completed') {
+                    const result = resultSelect.value;
+                    const resultType = resultTypeSelect.value;
+                    
+                    // Validar se selecionou vencedor
+                    if (!result) {
+                        e.preventDefault();
+                        alert('Por favor, selecione quem venceu o desafio.');
+                        return false;
+                    }
+                    
+                    // Validar consistência WO
+                    if (resultType === 'wo_challenger' && result !== 'challenger_win') {
+                        e.preventDefault();
+                        alert('Se o desafiado não compareceu (WO), o vencedor deve ser o desafiante.');
+                        return false;
+                    }
+                    
+                    if (resultType === 'wo_challenged' && result !== 'challenged_win') {
+                        e.preventDefault();
+                        alert('Se o desafiante não compareceu (WO), o vencedor deve ser o desafiado.');
+                        return false;
+                    }
+                    
+                    // Confirmação para WO
+                    if (resultType !== 'normal') {
+                        if (!confirm('Você está registrando uma vitória por WO (ausência). Confirma?')) {
+                            e.preventDefault();
+                            return false;
+                        }
+                    }
+                }
+                
+                return true;
             });
         }
         
         // Validação da data para o modal de propor nova data
         const newDateField = document.getElementById('new_scheduled_date');
         if (newDateField) {
-            // Função para calcular a data máxima (hoje + 7 dias)
             function getMaxDate() {
                 const today = new Date();
                 const maxDate = new Date();
@@ -337,7 +442,6 @@
                 return maxDate;
             }
             
-            // Formatar data para o formato yyyy-mm-dd (usado em inputs date)
             function formatDateForInput(date) {
                 const year = date.getFullYear();
                 const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -345,20 +449,16 @@
                 return `${year}-${month}-${day}`;
             }
             
-            // Definir a data máxima (7 dias a partir de hoje)
             const maxDate = getMaxDate();
             newDateField.max = formatDateForInput(maxDate);
             
-            // Definir a data mínima (hoje)
             const today = new Date();
             newDateField.min = formatDateForInput(today);
             
-            // Definir valor inicial (amanhã)
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
             newDateField.value = formatDateForInput(tomorrow);
             
-            // Função para validar a data
             function validateDate() {
                 const selectedDate = new Date(newDateField.value);
                 selectedDate.setHours(0, 0, 0, 0);
@@ -385,14 +485,10 @@
                 }
             }
             
-            // Adicionar eventos de validação
             newDateField.addEventListener('change', validateDate);
             newDateField.addEventListener('input', validateDate);
-            
-            // Validar data inicial
             validateDate();
             
-            // Validar ao enviar o formulário
             const form = newDateField.closest('form');
             if (form) {
                 form.addEventListener('submit', function(event) {
