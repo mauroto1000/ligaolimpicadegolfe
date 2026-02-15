@@ -3201,11 +3201,11 @@ def edit_challenge(challenge_id):
     return render_template('edit_challenge.html', challenge=challenge, ranking_affected=ranking_affected)
 
 # Alteração na rota update_challenge (opcional, caso a atualização de status também deva ter restrição)
-# Modificação na rota update_challenge
 @app.route('/update_challenge/<int:challenge_id>', methods=['POST'])
 def update_challenge(challenge_id):
     status = request.form['status']
     result = request.form.get('result', None)
+    result_type = request.form.get('result_type', 'normal')  # NOVO: tipo de resultado
     admin_notes = request.form.get('admin_notes', '')
     is_admin_action = request.form.get('modified_by_admin') == 'true'
     
@@ -3251,6 +3251,8 @@ def update_challenge(challenge_id):
     log_message = f"Status alterado de '{challenge['status']}' para '{status}'"
     if result:
         log_message += f", resultado: '{result}'"
+    if result_type and result_type != 'normal':
+        log_message += f", tipo: '{result_type}'"  # NOVO: registrar tipo no log
     if admin_notes:
         log_message += f", observações: '{admin_notes}'"
     
@@ -3291,7 +3293,7 @@ def update_challenge(challenge_id):
             status,
             challenge['result'],
             result,
-            admin_notes,
+            f"{admin_notes} [Tipo: {result_type}]" if result_type != 'normal' else admin_notes,
             current_datetime
         ))
         
@@ -3301,9 +3303,17 @@ def update_challenge(challenge_id):
     
     # Processar o desafio conforme o status
     if status == 'completed' and result:
+        # NOVO: Atualizar também o result_type
+        conn.execute('UPDATE challenges SET result_type = ? WHERE id = ?', (result_type, challenge_id))
+        
         # Processar o resultado do desafio (alterando a pirâmide)
         process_challenge_result(conn, challenge_id, status, result)
-        flash('Status do desafio atualizado para Concluído e ranking atualizado.', 'success')
+        
+        # Mensagem diferenciada para WO
+        if result_type in ['wo_challenger', 'wo_challenged']:
+            flash('Status do desafio atualizado para Concluído (WO) e ranking atualizado.', 'success')
+        else:
+            flash('Status do desafio atualizado para Concluído e ranking atualizado.', 'success')
     else:
         # Apenas atualizar o status
         conn.execute('UPDATE challenges SET status = ? WHERE id = ?', (status, challenge_id))
@@ -3313,6 +3323,35 @@ def update_challenge(challenge_id):
     conn.close()
     
     return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+
+
+# ============================================================
+# PASSO 4: Criar filtro Jinja2 para exibir tipo de resultado
+# ============================================================
+# Adicione este filtro no app.py (perto dos outros filtros)
+
+@app.template_filter('result_type_label')
+def result_type_label_filter(result_type):
+    """Converte o tipo de resultado para texto legível"""
+    labels = {
+        'normal': '',
+        'wo_challenger': '(WO)',
+        'wo_challenged': '(WO)',
+        None: ''
+    }
+    return labels.get(result_type, '')
+
+
+@app.template_filter('result_type_description')
+def result_type_description_filter(result_type):
+    """Descrição completa do tipo de resultado"""
+    descriptions = {
+        'normal': 'Jogo disputado normalmente',
+        'wo_challenger': 'Vitória por WO - Desafiado não compareceu',
+        'wo_challenged': 'Vitória por WO - Desafiante não compareceu',
+        None: ''
+    }
+    return descriptions.get(result_type, '')
 
 
 
@@ -3467,6 +3506,27 @@ def challenge_detail(challenge_id):
                           days_remaining=days_remaining,
                           expired=expired,
                           players_can_submit=players_can_submit)  # NOVA VARIÁVEL
+
+
+
+
+def add_result_type_column():
+    """Adiciona coluna result_type na tabela challenges para registrar WO"""
+    conn = get_db_connection()
+    
+    # Verificar se a coluna já existe
+    columns_info = conn.execute('PRAGMA table_info(challenges)').fetchall()
+    column_names = [col[1] for col in columns_info]
+    
+    if 'result_type' not in column_names:
+        conn.execute('ALTER TABLE challenges ADD COLUMN result_type TEXT DEFAULT "normal"')
+        conn.commit()
+        print("Coluna 'result_type' adicionada à tabela challenges.")
+    else:
+        print("Coluna 'result_type' já existe na tabela challenges.")
+    
+    conn.close()
+
 
 
 
@@ -6576,6 +6636,8 @@ if __name__ == '__main__':
     
     conn.commit()
     conn.close()
+
+    add_result_type_column()
 
     # Criar a tabela de histórico de HCP
     create_hcp_history_table()
