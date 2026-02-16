@@ -6622,6 +6622,16 @@ Adicione este código ao seu app.py
 ============================================================
 """
 
+"""
+============================================================
+CARTEIRINHA DIGITAL - Implementação Completa
+============================================================
+
+Adicione este código ao seu app.py
+
+============================================================
+"""
+
 import secrets
 from datetime import datetime, timedelta
 
@@ -6672,7 +6682,7 @@ def parse_datetime(dt_value):
                 return datetime.strptime(dt_value, fmt)
             except ValueError:
                 continue
-    return dt_value
+    return None
 
 
 def generate_verification_token(player_id, validity_minutes=10):
@@ -6703,9 +6713,12 @@ def generate_verification_token(player_id, validity_minutes=10):
     
     if existing:
         conn.close()
+        expires = parse_datetime(existing['expires_at'])
+        if expires is None:
+            expires = datetime.now() + timedelta(minutes=validity_minutes)
         return {
             'token': existing['token'],
-            'expires_at': parse_datetime(existing['expires_at'])
+            'expires_at': expires
         }
     
     # Gerar novo token
@@ -6813,8 +6826,10 @@ def carteirinha():
     
     # Garantir que expires_at é um datetime
     expires_at = token_data['expires_at']
-    if isinstance(expires_at, str):
+    if not isinstance(expires_at, datetime):
         expires_at = parse_datetime(expires_at)
+    if expires_at is None:
+        expires_at = datetime.now() + timedelta(minutes=10)
     
     return render_template('carteirinha.html', 
                           player=player,
@@ -6870,16 +6885,13 @@ def verificar_carteirinha(token):
     Página pública para verificação da carteirinha.
     O estabelecimento escaneia o QR code e vê esta página.
     """
-    print(f"=== TOKEN RECEBIDO: {token} ===")  # <-- PRIMEIRO
+    verified_at = datetime.now()
     
     try:
         result = validate_verification_token(token)
-        print(f"=== RESULTADO: {result} ===")
     except Exception as e:
-        print(f"=== ERRO NA VALIDAÇÃO: {e} ===")
+        print(f"Erro ao validar token: {e}")
         result = None
-
-    verified_at = datetime.now()
     
     if not result:
         return render_template('verificar_carteirinha.html', 
@@ -6889,12 +6901,17 @@ def verificar_carteirinha(token):
     
     # Calcular tempo restante
     try:
-        expires_at = parse_datetime(result['expires_at'])
-        time_remaining = expires_at - datetime.now()
-        minutes_remaining = int(time_remaining.total_seconds() // 60)
-        seconds_remaining = int(time_remaining.total_seconds() % 60)
+        expires_at = parse_datetime(result.get('expires_at'))
+        if expires_at:
+            time_remaining = expires_at - datetime.now()
+            total_seconds = max(0, time_remaining.total_seconds())
+            minutes_remaining = int(total_seconds // 60)
+            seconds_remaining = int(total_seconds % 60)
+        else:
+            minutes_remaining = 0
+            seconds_remaining = 0
     except Exception as e:
-        print(f"=== ERRO NO TEMPO: {e} ===")
+        print(f"Erro ao calcular tempo: {e}")
         minutes_remaining = 0
         seconds_remaining = 0
     
@@ -6921,23 +6938,29 @@ def api_verificar_carteirinha(token):
             'error': 'Token inválido ou expirado'
         }, 404
     
-    expires_at = parse_datetime(result['expires_at'])
-    time_remaining = (expires_at - datetime.now()).total_seconds()
+    try:
+        expires_at = parse_datetime(result.get('expires_at'))
+        if expires_at:
+            time_remaining = (expires_at - datetime.now()).total_seconds()
+        else:
+            time_remaining = 0
+    except:
+        time_remaining = 0
     
     return {
         'valid': True,
         'player': {
-            'id': result['player_id'],
-            'name': result['name'],
-            'player_code': result['player_code'],
-            'country': result['country'],
-            'active': bool(result['active']),
-            'profile_photo': result['profile_photo']
+            'id': result.get('player_id'),
+            'name': result.get('name'),
+            'player_code': result.get('player_code'),
+            'country': result.get('country'),
+            'active': bool(result.get('active')),
+            'profile_photo': result.get('profile_photo')
         },
         'verification': {
             'verified_at': datetime.now().isoformat(),
-            'expires_at': expires_at.isoformat(),
-            'seconds_remaining': int(time_remaining)
+            'expires_at': expires_at.isoformat() if expires_at else None,
+            'seconds_remaining': int(max(0, time_remaining))
         }
     }
 
