@@ -6612,33 +6612,12 @@ Adicione este código ao seu app.py
 ============================================================
 """
 
-"""
-============================================================
-CARTEIRINHA DIGITAL - Implementação Completa
-============================================================
-
-Adicione este código ao seu app.py
-
-============================================================
-"""
-
-"""
-============================================================
-CARTEIRINHA DIGITAL - Implementação Completa
-============================================================
-
-Adicione este código ao seu app.py
-
-============================================================
-"""
-
 import secrets
 from datetime import datetime, timedelta
 
 # ============================================================
 # PASSO 1: Função para criar a tabela de tokens
 # ============================================================
-# Adicione esta função no app.py e chame no bloco if __name__ == '__main__':
 
 def create_verification_tokens_table():
     """Cria a tabela para armazenar tokens de verificação da carteirinha"""
@@ -6657,7 +6636,6 @@ def create_verification_tokens_table():
         )
     ''')
     
-    # Criar índice para buscas rápidas por token
     conn.execute('CREATE INDEX IF NOT EXISTS idx_token ON verification_tokens(token)')
     
     conn.commit()
@@ -6676,7 +6654,6 @@ def parse_datetime(dt_value):
     if isinstance(dt_value, datetime):
         return dt_value
     if isinstance(dt_value, str):
-        # Tentar diferentes formatos
         for fmt in ['%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S']:
             try:
                 return datetime.strptime(dt_value, fmt)
@@ -6686,16 +6663,7 @@ def parse_datetime(dt_value):
 
 
 def generate_verification_token(player_id, validity_minutes=10):
-    """
-    Gera um token de verificação temporário para a carteirinha.
-    
-    Args:
-        player_id: ID do jogador
-        validity_minutes: Minutos de validade do token (padrão: 10)
-    
-    Returns:
-        dict com token e data de expiração (datetime)
-    """
+    """Gera um token de verificação temporário para a carteirinha."""
     conn = get_db_connection()
     
     # Limpar tokens expirados do jogador
@@ -6740,15 +6708,7 @@ def generate_verification_token(player_id, validity_minutes=10):
 
 
 def validate_verification_token(token):
-    """
-    Valida um token de verificação.
-    
-    Args:
-        token: Token a ser validado
-    
-    Returns:
-        dict com dados do jogador se válido, None se inválido
-    """
+    """Valida um token de verificação."""
     conn = get_db_connection()
     
     result = conn.execute('''
@@ -6775,18 +6735,6 @@ def validate_verification_token(token):
     return None
 
 
-def invalidate_token(token):
-    """Marca um token como usado"""
-    conn = get_db_connection()
-    conn.execute('''
-        UPDATE verification_tokens 
-        SET used_at = ? 
-        WHERE token = ?
-    ''', (datetime.now(), token))
-    conn.commit()
-    conn.close()
-
-
 # ============================================================
 # PASSO 3: Rota da Carteirinha (para o jogador)
 # ============================================================
@@ -6802,12 +6750,7 @@ def carteirinha():
         return redirect(url_for('login'))
     
     conn = get_db_connection()
-    
-    # Buscar dados do jogador
-    player = conn.execute('''
-        SELECT * FROM players WHERE id = ?
-    ''', (user_id,)).fetchone()
-    
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (user_id,)).fetchone()
     conn.close()
     
     if not player:
@@ -6824,17 +6767,21 @@ def carteirinha():
     # URL de verificação
     verification_url = url_for('verificar_carteirinha', token=token_data['token'], _external=True)
     
-    # Garantir que expires_at é um datetime
+    # Calcular segundos restantes
     expires_at = token_data['expires_at']
     if not isinstance(expires_at, datetime):
         expires_at = parse_datetime(expires_at)
     if expires_at is None:
         expires_at = datetime.now() + timedelta(minutes=10)
     
+    seconds_remaining = int((expires_at - datetime.now()).total_seconds())
+    seconds_remaining = max(0, seconds_remaining)
+    
     return render_template('carteirinha.html', 
                           player=player,
                           token=token_data['token'],
                           expires_at=expires_at,
+                          seconds_remaining=seconds_remaining,
                           verification_url=verification_url)
 
 
@@ -6848,12 +6795,7 @@ def renovar_carteirinha():
         return {'error': 'Não autorizado'}, 401
     
     conn = get_db_connection()
-    
-    # Invalidar tokens anteriores
-    conn.execute('''
-        DELETE FROM verification_tokens 
-        WHERE player_id = ?
-    ''', (user_id,))
+    conn.execute('DELETE FROM verification_tokens WHERE player_id = ?', (user_id,))
     conn.commit()
     conn.close()
     
@@ -6861,16 +6803,17 @@ def renovar_carteirinha():
     token_data = generate_verification_token(user_id, validity_minutes=10)
     verification_url = url_for('verificar_carteirinha', token=token_data['token'], _external=True)
     
-    # Garantir formato ISO para JSON
+    # Calcular segundos restantes
     expires_at = token_data['expires_at']
     if isinstance(expires_at, datetime):
-        expires_at_str = expires_at.isoformat()
+        seconds_remaining = int((expires_at - datetime.now()).total_seconds())
     else:
-        expires_at_str = str(expires_at)
+        seconds_remaining = 600
     
     return {
         'token': token_data['token'],
-        'expires_at': expires_at_str,
+        'expires_at': expires_at.isoformat() if isinstance(expires_at, datetime) else str(expires_at),
+        'seconds_remaining': max(0, seconds_remaining),
         'verification_url': verification_url
     }
 
@@ -6881,111 +6824,45 @@ def renovar_carteirinha():
 
 @app.route('/verificar/<token>')
 def verificar_carteirinha(token):
-    """
-    Página pública para verificação da carteirinha.
-    O estabelecimento escaneia o QR code e vê esta página.
-    """
-    verified_at = datetime.now()
+    """Página pública para verificação da carteirinha."""
+    import traceback
     
     try:
+        verified_at = datetime.now()
+        
         result = validate_verification_token(token)
-    except Exception as e:
-        print(f"Erro ao validar token: {e}")
-        result = None
-    
-    if not result:
-        return render_template('verificar_carteirinha.html', 
-                              valid=False,
-                              error='Token inválido ou expirado',
-                              verified_at=verified_at)
-    
-    # Calcular tempo restante
-    try:
+        
+        if not result:
+            return render_template('verificar_carteirinha.html', 
+                                  valid=False,
+                                  error='Token inválido ou expirado',
+                                  verified_at=verified_at)
+        
+        # Calcular tempo restante
         expires_at = parse_datetime(result.get('expires_at'))
         if expires_at:
-            time_remaining = expires_at - datetime.now()
-            total_seconds = max(0, time_remaining.total_seconds())
+            total_seconds = max(0, (expires_at - datetime.now()).total_seconds())
             minutes_remaining = int(total_seconds // 60)
             seconds_remaining = int(total_seconds % 60)
         else:
             minutes_remaining = 0
             seconds_remaining = 0
+        
+        return render_template('verificar_carteirinha.html',
+                              valid=True,
+                              player=result,
+                              verified_at=verified_at,
+                              minutes_remaining=minutes_remaining,
+                              seconds_remaining=seconds_remaining)
+    
     except Exception as e:
-        print(f"Erro ao calcular tempo: {e}")
-        minutes_remaining = 0
-        seconds_remaining = 0
-    
-    return render_template('verificar_carteirinha.html',
-                          valid=True,
-                          player=result,
-                          verified_at=verified_at,
-                          minutes_remaining=minutes_remaining,
-                          seconds_remaining=seconds_remaining)
-
-
-# ============================================================
-# PASSO 5: API para verificação (opcional - para apps)
-# ============================================================
-
-@app.route('/api/verificar/<token>')
-def api_verificar_carteirinha(token):
-    """API para verificação programática da carteirinha"""
-    result = validate_verification_token(token)
-    
-    if not result:
-        return {
-            'valid': False,
-            'error': 'Token inválido ou expirado'
-        }, 404
-    
-    try:
-        expires_at = parse_datetime(result.get('expires_at'))
-        if expires_at:
-            time_remaining = (expires_at - datetime.now()).total_seconds()
-        else:
-            time_remaining = 0
-    except:
-        time_remaining = 0
-    
-    return {
-        'valid': True,
-        'player': {
-            'id': result.get('player_id'),
-            'name': result.get('name'),
-            'player_code': result.get('player_code'),
-            'country': result.get('country'),
-            'active': bool(result.get('active')),
-            'profile_photo': result.get('profile_photo')
-        },
-        'verification': {
-            'verified_at': datetime.now().isoformat(),
-            'expires_at': expires_at.isoformat() if expires_at else None,
-            'seconds_remaining': int(max(0, time_remaining))
-        }
-    }
-
-
-# ============================================================
-# PASSO 6: Limpeza de tokens expirados (opcional)
-# ============================================================
-
-def cleanup_expired_tokens():
-    """Remove tokens expirados do banco de dados"""
-    conn = get_db_connection()
-    
-    result = conn.execute('''
-        DELETE FROM verification_tokens 
-        WHERE expires_at < ?
-    ''', (datetime.now(),))
-    
-    deleted_count = result.rowcount
-    conn.commit()
-    conn.close()
-    
-    if deleted_count > 0:
-        print(f"🧹 {deleted_count} tokens expirados removidos.")
-    
-    return deleted_count
+        # Mostra o erro na página para debug
+        error_details = traceback.format_exc()
+        return f"""
+        <h1>Erro na verificação</h1>
+        <p><strong>Erro:</strong> {str(e)}</p>
+        <pre>{error_details}</pre>
+        """, 500
 
 
 # ============================================================
