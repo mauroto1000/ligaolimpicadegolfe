@@ -6870,7 +6870,15 @@ def verificar_carteirinha(token):
     Página pública para verificação da carteirinha.
     O estabelecimento escaneia o QR code e vê esta página.
     """
-    result = validate_verification_token(token)
+    print(f"=== TOKEN RECEBIDO: {token} ===")  # <-- PRIMEIRO
+    
+    try:
+        result = validate_verification_token(token)
+        print(f"=== RESULTADO: {result} ===")
+    except Exception as e:
+        print(f"=== ERRO NA VALIDAÇÃO: {e} ===")
+        result = None
+
     verified_at = datetime.now()
     
     if not result:
@@ -6880,10 +6888,15 @@ def verificar_carteirinha(token):
                               verified_at=verified_at)
     
     # Calcular tempo restante
-    expires_at = parse_datetime(result['expires_at'])
-    time_remaining = expires_at - datetime.now()
-    minutes_remaining = int(time_remaining.total_seconds() // 60)
-    seconds_remaining = int(time_remaining.total_seconds() % 60)
+    try:
+        expires_at = parse_datetime(result['expires_at'])
+        time_remaining = expires_at - datetime.now()
+        minutes_remaining = int(time_remaining.total_seconds() // 60)
+        seconds_remaining = int(time_remaining.total_seconds() % 60)
+    except Exception as e:
+        print(f"=== ERRO NO TEMPO: {e} ===")
+        minutes_remaining = 0
+        seconds_remaining = 0
     
     return render_template('verificar_carteirinha.html',
                           valid=True,
