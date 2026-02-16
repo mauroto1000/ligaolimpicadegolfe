@@ -148,7 +148,9 @@
 <script>
     // Variáveis globais
     let countdownInterval;
-    let expiresAt = new Date("{{ expires_at.isoformat() if expires_at.isoformat is defined else expires_at }}");
+    // Tempo restante em segundos (calculado pelo servidor)
+    let totalSecondsRemaining = {{ seconds_remaining }};
+    let expiresAt = new Date(Date.now() + totalSecondsRemaining * 1000);
     let verificationUrl = "{{ verification_url }}";
     
     // Gerar QR Code
@@ -211,7 +213,9 @@
             
             const data = await response.json();
             
-            expiresAt = new Date(data.expires_at);
+            // Usar seconds_remaining para calcular expiresAt
+            totalSecondsRemaining = data.seconds_remaining || 600;
+            expiresAt = new Date(Date.now() + totalSecondsRemaining * 1000);
             verificationUrl = data.verification_url;
             
             generateQRCode(verificationUrl);
