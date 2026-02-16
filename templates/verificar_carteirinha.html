@@ -302,9 +302,9 @@
             
             <!-- Foto -->
             <div class="player-photo-container">
-                {% if player.profile_photo %}
-                    <img src="{{ url_for('static', filename='profile_photos/' + player.profile_photo) }}" 
-                         alt="{{ player.name }}" 
+                {% if player['profile_photo'] %}
+                    <img src="{{ url_for('static', filename='profile_photos/' + player['profile_photo']) }}" 
+                         alt="{{ player['name'] }}" 
                          class="player-photo">
                 {% else %}
                     <div class="player-photo-placeholder">
@@ -314,17 +314,17 @@
             </div>
             
             <!-- Nome -->
-            <div class="player-name">{{ player.name }}</div>
+            <div class="player-name">{{ player['name'] }}</div>
             
             <!-- Código do Jogador -->
             <div class="player-code-container">
                 <span class="player-code-label">CÓD. JOGADOR</span>
-                <div class="player-code">{{ player.player_code }}</div>
+                <div class="player-code">{{ player['player_code'] }}</div>
             </div>
             
             <!-- Status Ativo -->
             <div>
-                {% if player.active %}
+                {% if player['active'] %}
                     <span class="status-badge badge-active">
                         <i class="fas fa-check-circle"></i> MEMBRO ATIVO
                     </span>
@@ -345,7 +345,7 @@
                     Verificação válida por mais:
                 </div>
                 <div class="timer-value" id="countdown">
-                    {{ '%02d:%02d'|format(minutes_remaining, seconds_remaining) }}
+                    {{ '%02d:%02d'|format(minutes_remaining|default(0), seconds_remaining|default(0)) }}
                 </div>
                 <div class="countdown-bar">
                     <div class="countdown-progress" id="progressBar" style="width: 100%;"></div>
@@ -354,7 +354,7 @@
             
             <div class="verification-info">
                 <i class="fas fa-shield-alt me-1"></i>
-                Verificado em {{ verified_at.strftime('%d/%m/%Y às %H:%M:%S') }}
+                Verificado em {{ verified_at.strftime('%d/%m/%Y às %H:%M:%S') if verified_at else 'agora' }}
             </div>
         </div>
         
@@ -395,8 +395,8 @@
     {% if valid %}
     <script>
         // Countdown
-        let totalSeconds = {{ minutes_remaining * 60 + seconds_remaining }};
-        const initialSeconds = totalSeconds;
+        let totalSeconds = {{ (minutes_remaining|default(0)) * 60 + (seconds_remaining|default(0)) }};
+        const initialSeconds = totalSeconds > 0 ? totalSeconds : 600;
         
         function updateCountdown() {
             if (totalSeconds <= 0) {
