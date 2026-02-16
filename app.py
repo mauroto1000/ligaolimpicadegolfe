@@ -6602,6 +6602,363 @@ def adjust_player_position(player_id):
                            players_list=players_same_gender)
 
 
+"""
+============================================================
+CARTEIRINHA DIGITAL - Implementação Completa
+============================================================
+
+Adicione este código ao seu app.py
+
+============================================================
+"""
+
+"""
+============================================================
+CARTEIRINHA DIGITAL - Implementação Completa
+============================================================
+
+Adicione este código ao seu app.py
+
+============================================================
+"""
+
+import secrets
+from datetime import datetime, timedelta
+
+# ============================================================
+# PASSO 1: Função para criar a tabela de tokens
+# ============================================================
+# Adicione esta função no app.py e chame no bloco if __name__ == '__main__':
+
+def create_verification_tokens_table():
+    """Cria a tabela para armazenar tokens de verificação da carteirinha"""
+    conn = get_db_connection()
+    
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS verification_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            player_id INTEGER NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME NOT NULL,
+            used_at DATETIME,
+            used_by_business TEXT,
+            FOREIGN KEY (player_id) REFERENCES players(id)
+        )
+    ''')
+    
+    # Criar índice para buscas rápidas por token
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_token ON verification_tokens(token)')
+    
+    conn.commit()
+    conn.close()
+    print("Tabela 'verification_tokens' verificada/criada.")
+
+
+# ============================================================
+# PASSO 2: Funções auxiliares para tokens
+# ============================================================
+
+def parse_datetime(dt_value):
+    """Converte string para datetime se necessário"""
+    if dt_value is None:
+        return None
+    if isinstance(dt_value, datetime):
+        return dt_value
+    if isinstance(dt_value, str):
+        # Tentar diferentes formatos
+        for fmt in ['%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S']:
+            try:
+                return datetime.strptime(dt_value, fmt)
+            except ValueError:
+                continue
+    return dt_value
+
+
+def generate_verification_token(player_id, validity_minutes=10):
+    """
+    Gera um token de verificação temporário para a carteirinha.
+    
+    Args:
+        player_id: ID do jogador
+        validity_minutes: Minutos de validade do token (padrão: 10)
+    
+    Returns:
+        dict com token e data de expiração (datetime)
+    """
+    conn = get_db_connection()
+    
+    # Limpar tokens expirados do jogador
+    conn.execute('''
+        DELETE FROM verification_tokens 
+        WHERE player_id = ? AND expires_at < ?
+    ''', (player_id, datetime.now()))
+    
+    # Verificar se já existe um token válido
+    existing = conn.execute('''
+        SELECT token, expires_at FROM verification_tokens 
+        WHERE player_id = ? AND expires_at > ? AND used_at IS NULL
+        ORDER BY expires_at DESC LIMIT 1
+    ''', (player_id, datetime.now())).fetchone()
+    
+    if existing:
+        conn.close()
+        return {
+            'token': existing['token'],
+            'expires_at': parse_datetime(existing['expires_at'])
+        }
+    
+    # Gerar novo token
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now() + timedelta(minutes=validity_minutes)
+    
+    conn.execute('''
+        INSERT INTO verification_tokens (player_id, token, expires_at)
+        VALUES (?, ?, ?)
+    ''', (player_id, token, expires_at))
+    
+    conn.commit()
+    conn.close()
+    
+    return {
+        'token': token,
+        'expires_at': expires_at
+    }
+
+
+def validate_verification_token(token):
+    """
+    Valida um token de verificação.
+    
+    Args:
+        token: Token a ser validado
+    
+    Returns:
+        dict com dados do jogador se válido, None se inválido
+    """
+    conn = get_db_connection()
+    
+    result = conn.execute('''
+        SELECT vt.*, 
+               p.id as player_id, 
+               p.name, 
+               p.player_code,
+               p.position, 
+               p.tier, 
+               p.handicap, 
+               p.country, 
+               p.profile_photo, 
+               p.active, 
+               p.created_at as member_since
+        FROM verification_tokens vt
+        JOIN players p ON vt.player_id = p.id
+        WHERE vt.token = ? AND vt.expires_at > ?
+    ''', (token, datetime.now())).fetchone()
+    
+    conn.close()
+    
+    if result:
+        return dict(result)
+    return None
+
+
+def invalidate_token(token):
+    """Marca um token como usado"""
+    conn = get_db_connection()
+    conn.execute('''
+        UPDATE verification_tokens 
+        SET used_at = ? 
+        WHERE token = ?
+    ''', (datetime.now(), token))
+    conn.commit()
+    conn.close()
+
+
+# ============================================================
+# PASSO 3: Rota da Carteirinha (para o jogador)
+# ============================================================
+
+@app.route('/carteirinha')
+@login_required
+def carteirinha():
+    """Exibe a carteirinha digital do jogador logado"""
+    user_id = session.get('user_id')
+    
+    if not user_id:
+        flash('Você precisa estar logado para acessar sua carteirinha.', 'error')
+        return redirect(url_for('login'))
+    
+    conn = get_db_connection()
+    
+    # Buscar dados do jogador
+    player = conn.execute('''
+        SELECT * FROM players WHERE id = ?
+    ''', (user_id,)).fetchone()
+    
+    conn.close()
+    
+    if not player:
+        flash('Jogador não encontrado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if not player['active']:
+        flash('Sua carteirinha está inativa. Entre em contato com a administração.', 'warning')
+        return redirect(url_for('dashboard'))
+    
+    # Gerar token de verificação (válido por 10 minutos)
+    token_data = generate_verification_token(user_id, validity_minutes=10)
+    
+    # URL de verificação
+    verification_url = url_for('verificar_carteirinha', token=token_data['token'], _external=True)
+    
+    # Garantir que expires_at é um datetime
+    expires_at = token_data['expires_at']
+    if isinstance(expires_at, str):
+        expires_at = parse_datetime(expires_at)
+    
+    return render_template('carteirinha.html', 
+                          player=player,
+                          token=token_data['token'],
+                          expires_at=expires_at,
+                          verification_url=verification_url)
+
+
+@app.route('/carteirinha/renovar', methods=['POST'])
+@login_required
+def renovar_carteirinha():
+    """Renova o token da carteirinha (gera um novo)"""
+    user_id = session.get('user_id')
+    
+    if not user_id:
+        return {'error': 'Não autorizado'}, 401
+    
+    conn = get_db_connection()
+    
+    # Invalidar tokens anteriores
+    conn.execute('''
+        DELETE FROM verification_tokens 
+        WHERE player_id = ?
+    ''', (user_id,))
+    conn.commit()
+    conn.close()
+    
+    # Gerar novo token
+    token_data = generate_verification_token(user_id, validity_minutes=10)
+    verification_url = url_for('verificar_carteirinha', token=token_data['token'], _external=True)
+    
+    # Garantir formato ISO para JSON
+    expires_at = token_data['expires_at']
+    if isinstance(expires_at, datetime):
+        expires_at_str = expires_at.isoformat()
+    else:
+        expires_at_str = str(expires_at)
+    
+    return {
+        'token': token_data['token'],
+        'expires_at': expires_at_str,
+        'verification_url': verification_url
+    }
+
+
+# ============================================================
+# PASSO 4: Rota de Verificação (para o estabelecimento)
+# ============================================================
+
+@app.route('/verificar/<token>')
+def verificar_carteirinha(token):
+    """
+    Página pública para verificação da carteirinha.
+    O estabelecimento escaneia o QR code e vê esta página.
+    """
+    result = validate_verification_token(token)
+    verified_at = datetime.now()
+    
+    if not result:
+        return render_template('verificar_carteirinha.html', 
+                              valid=False,
+                              error='Token inválido ou expirado',
+                              verified_at=verified_at)
+    
+    # Calcular tempo restante
+    expires_at = parse_datetime(result['expires_at'])
+    time_remaining = expires_at - datetime.now()
+    minutes_remaining = int(time_remaining.total_seconds() // 60)
+    seconds_remaining = int(time_remaining.total_seconds() % 60)
+    
+    return render_template('verificar_carteirinha.html',
+                          valid=True,
+                          player=result,
+                          verified_at=verified_at,
+                          minutes_remaining=minutes_remaining,
+                          seconds_remaining=seconds_remaining)
+
+
+# ============================================================
+# PASSO 5: API para verificação (opcional - para apps)
+# ============================================================
+
+@app.route('/api/verificar/<token>')
+def api_verificar_carteirinha(token):
+    """API para verificação programática da carteirinha"""
+    result = validate_verification_token(token)
+    
+    if not result:
+        return {
+            'valid': False,
+            'error': 'Token inválido ou expirado'
+        }, 404
+    
+    expires_at = parse_datetime(result['expires_at'])
+    time_remaining = (expires_at - datetime.now()).total_seconds()
+    
+    return {
+        'valid': True,
+        'player': {
+            'id': result['player_id'],
+            'name': result['name'],
+            'player_code': result['player_code'],
+            'country': result['country'],
+            'active': bool(result['active']),
+            'profile_photo': result['profile_photo']
+        },
+        'verification': {
+            'verified_at': datetime.now().isoformat(),
+            'expires_at': expires_at.isoformat(),
+            'seconds_remaining': int(time_remaining)
+        }
+    }
+
+
+# ============================================================
+# PASSO 6: Limpeza de tokens expirados (opcional)
+# ============================================================
+
+def cleanup_expired_tokens():
+    """Remove tokens expirados do banco de dados"""
+    conn = get_db_connection()
+    
+    result = conn.execute('''
+        DELETE FROM verification_tokens 
+        WHERE expires_at < ?
+    ''', (datetime.now(),))
+    
+    deleted_count = result.rowcount
+    conn.commit()
+    conn.close()
+    
+    if deleted_count > 0:
+        print(f"🧹 {deleted_count} tokens expirados removidos.")
+    
+    return deleted_count
+
+
+# ============================================================
+# LEMBRETE: Adicionar no bloco if __name__ == '__main__':
+# ============================================================
+# 
+# create_verification_tokens_table()
+#
+
 
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
@@ -6638,6 +6995,8 @@ if __name__ == '__main__':
     conn.close()
 
     add_result_type_column()
+
+    create_verification_tokens_table()
 
     # Criar a tabela de histórico de HCP
     create_hcp_history_table()

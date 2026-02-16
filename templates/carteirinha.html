@@ -1,0 +1,505 @@
+{% extends 'base.html' %}
+
+{% block title %}Minha Carteirinha{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-xl-7">
+            
+            <!-- Carteirinha Frente -->
+            <div class="carteirinha-container mb-4" id="carteirinhaFrente">
+                <div class="carteirinha-card">
+                    <!-- Fundo com imagem de campo de golfe -->
+                    <div class="carteirinha-bg">
+                        <!-- Faixa dourada decorativa -->
+                        <div class="faixa-dourada"></div>
+                        
+                        <!-- Logo no canto superior esquerdo -->
+                        <div class="logo-area">
+                            <div class="logo-icon">
+                                <svg viewBox="0 0 60 60" width="50" height="50">
+                                    <circle cx="30" cy="15" r="6" fill="none" stroke="#d4af37" stroke-width="2"/>
+                                    <circle cx="18" cy="35" r="6" fill="none" stroke="#d4af37" stroke-width="2"/>
+                                    <circle cx="42" cy="35" r="6" fill="none" stroke="#d4af37" stroke-width="2"/>
+                                    <line x1="30" y1="21" x2="24" y2="29" stroke="#d4af37" stroke-width="2"/>
+                                    <line x1="30" y1="21" x2="36" y2="29" stroke="#d4af37" stroke-width="2"/>
+                                    <line x1="24" y1="35" x2="36" y2="35" stroke="#d4af37" stroke-width="2"/>
+                                </svg>
+                            </div>
+                            <div class="logo-text">
+                                <span class="liga-nome">Liga Olímpica de Golfe</span>
+                                <span class="liga-subtitulo">GOLFE & AMIGOS</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Foto do Jogador no canto superior direito -->
+                        <div class="foto-area">
+                            {% if player.profile_photo %}
+                                <img src="{{ url_for('static', filename='profile_photos/' + player.profile_photo) }}" 
+                                     alt="{{ player.name }}" 
+                                     class="foto-jogador">
+                            {% else %}
+                                <div class="foto-placeholder">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Nome do Jogador centralizado -->
+                        <div class="nome-area">
+                            <h1 class="nome-jogador">{{ player.name|upper }}</h1>
+                        </div>
+                        
+                        <!-- Código do Jogador centralizado -->
+                        <div class="codigo-area">
+                            <span class="codigo-label">CÓD. JOGADOR:</span>
+                            <span class="codigo-numero">{{ player.player_code }}</span>
+                        </div>
+                        
+                        <!-- Bola de golfe - canto inferior esquerdo -->
+                        <div class="bola-golfe">
+                            <svg viewBox="0 0 100 100" width="80" height="80">
+                                <defs>
+                                    <radialGradient id="ballGradient" cx="30%" cy="30%">
+                                        <stop offset="0%" style="stop-color:#ffffff"/>
+                                        <stop offset="100%" style="stop-color:#e0e0e0"/>
+                                    </radialGradient>
+                                </defs>
+                                <circle cx="50" cy="50" r="45" fill="url(#ballGradient)"/>
+                                <circle cx="35" cy="35" r="3" fill="#d0d0d0"/>
+                                <circle cx="50" cy="30" r="3" fill="#d0d0d0"/>
+                                <circle cx="65" cy="35" r="3" fill="#d0d0d0"/>
+                                <circle cx="30" cy="50" r="3" fill="#d0d0d0"/>
+                                <circle cx="45" cy="45" r="3" fill="#d0d0d0"/>
+                                <circle cx="60" cy="50" r="3" fill="#d0d0d0"/>
+                                <circle cx="35" cy="65" r="3" fill="#d0d0d0"/>
+                                <circle cx="50" cy="60" r="3" fill="#d0d0d0"/>
+                                <circle cx="65" cy="65" r="3" fill="#d0d0d0"/>
+                            </svg>
+                        </div>
+                        
+                        <!-- Campo com buraco e bandeira -->
+                        <div class="campo-area">
+                            <div class="campo-verde"></div>
+                            <div class="buraco-bandeira">
+                                <div class="mastro"></div>
+                                <div class="bandeira"></div>
+                                <div class="buraco"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Seção do QR Code -->
+            <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px;">
+                <div class="card-body text-center p-4">
+                    <h5 class="mb-3">
+                        <i class="fas fa-qrcode me-2 text-success"></i>
+                        QR Code de Verificação
+                    </h5>
+                    
+                    <p class="text-muted mb-3">
+                        Apresente este QR Code no estabelecimento parceiro para validar sua carteirinha.
+                    </p>
+                    
+                    <!-- QR Code -->
+                    <div id="qrcode" class="d-inline-block p-3 bg-white rounded shadow-sm mb-3"></div>
+                    
+                    <!-- Timer -->
+                    <div class="alert alert-warning py-2 mb-3" id="timerAlert">
+                        <small>
+                            <i class="fas fa-clock me-1"></i>
+                            QR válido por: <strong id="countdown">10:00</strong>
+                        </small>
+                    </div>
+                    
+                    <!-- Botão Renovar -->
+                    <button type="button" class="btn btn-outline-success" id="btnRenovar" onclick="renovarToken()">
+                        <i class="fas fa-sync-alt me-1"></i> Renovar QR Code
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Instruções -->
+            <div class="card border-0 shadow-sm" style="border-radius: 15px;">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="fas fa-info-circle text-info me-2"></i>
+                        Como usar sua carteirinha
+                    </h6>
+                    <ol class="mb-0 small">
+                        <li>Apresente o QR Code ao estabelecimento parceiro</li>
+                        <li>O funcionário irá escanear para verificar sua identidade</li>
+                        <li>O QR Code é válido por 10 minutos por segurança</li>
+                        <li>Clique em "Renovar QR Code" se precisar de mais tempo</li>
+                    </ol>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+
+<!-- QRCode.js Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script>
+    // Variáveis globais
+    let countdownInterval;
+    let expiresAt = new Date("{{ expires_at.isoformat() if expires_at.isoformat is defined else expires_at }}");
+    let verificationUrl = "{{ verification_url }}";
+    
+    // Gerar QR Code
+    function generateQRCode(url) {
+        const qrcodeDiv = document.getElementById('qrcode');
+        qrcodeDiv.innerHTML = '';
+        
+        new QRCode(qrcodeDiv, {
+            text: url,
+            width: 180,
+            height: 180,
+            colorDark: "#1a5f2a",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+    }
+    
+    // Atualizar countdown
+    function updateCountdown() {
+        const now = new Date();
+        const diff = expiresAt - now;
+        
+        if (diff <= 0) {
+            document.getElementById('countdown').textContent = 'EXPIRADO';
+            document.getElementById('timerAlert').classList.remove('alert-warning');
+            document.getElementById('timerAlert').classList.add('alert-danger');
+            clearInterval(countdownInterval);
+            return;
+        }
+        
+        const minutes = Math.floor(diff / 60000);
+        const seconds = Math.floor((diff % 60000) / 1000);
+        
+        document.getElementById('countdown').textContent = 
+            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        if (diff < 60000) {
+            document.getElementById('timerAlert').classList.remove('alert-warning');
+            document.getElementById('timerAlert').classList.add('alert-danger');
+        }
+    }
+    
+    // Renovar token
+    async function renovarToken() {
+        const btn = document.getElementById('btnRenovar');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Renovando...';
+        
+        try {
+            const response = await fetch('/carteirinha/renovar', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Erro ao renovar');
+            }
+            
+            const data = await response.json();
+            
+            expiresAt = new Date(data.expires_at);
+            verificationUrl = data.verification_url;
+            
+            generateQRCode(verificationUrl);
+            
+            document.getElementById('timerAlert').classList.remove('alert-danger');
+            document.getElementById('timerAlert').classList.add('alert-warning');
+            
+            clearInterval(countdownInterval);
+            countdownInterval = setInterval(updateCountdown, 1000);
+            updateCountdown();
+            
+        } catch (error) {
+            alert('Erro ao renovar o QR Code. Tente novamente.');
+            console.error(error);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Renovar QR Code';
+        }
+    }
+    
+    // Inicialização
+    document.addEventListener('DOMContentLoaded', function() {
+        generateQRCode(verificationUrl);
+        updateCountdown();
+        countdownInterval = setInterval(updateCountdown, 1000);
+    });
+</script>
+
+<style>
+    .carteirinha-container {
+        perspective: 1000px;
+    }
+    
+    .carteirinha-card {
+        position: relative;
+        width: 100%;
+        max-width: 550px;
+        aspect-ratio: 1.586;
+        margin: 0 auto;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+    }
+    
+    .carteirinha-bg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(160deg, #1a5f2a 0%, #0d3d1a 40%, #1a5f2a 70%, #2d8a3e 100%);
+    }
+    
+    /* Faixa dourada */
+    .faixa-dourada {
+        position: absolute;
+        top: 25%;
+        left: -10%;
+        width: 120%;
+        height: 50px;
+        background: linear-gradient(90deg, transparent, #d4af37 20%, #f4d03f 50%, #d4af37 80%, transparent);
+        transform: rotate(-5deg);
+        opacity: 0.7;
+    }
+    
+    /* Logo no canto superior esquerdo */
+    .logo-area {
+        position: absolute;
+        top: 15px;
+        left: 20px;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .logo-icon {
+        flex-shrink: 0;
+    }
+    
+    .logo-text {
+        display: flex;
+        flex-direction: column;
+        color: #d4af37;
+    }
+    
+    .liga-nome {
+        font-size: 1.1rem;
+        font-weight: 600;
+        line-height: 1.2;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        white-space: nowrap;
+    }
+    
+    .liga-subtitulo {
+        font-size: 0.7rem;
+        letter-spacing: 2px;
+        margin-top: 2px;
+        opacity: 0.9;
+    }
+    
+    /* Foto do jogador no canto superior direito */
+    .foto-area {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        width: 150px;
+        height: 180px;
+        border: 3px solid white;
+        border-radius: 5px;
+        overflow: hidden;
+        background: white;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    
+    .foto-jogador {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .foto-placeholder {
+        width: 100%;
+        height: 100%;
+        background: #e9ecef;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #6c757d;
+        font-size: 2.5rem;
+    }
+    
+    /* Nome do jogador centralizado */
+    .nome-area {
+        position: absolute;
+        top: 42%;
+        left: 20px;
+        right: 180px;
+        text-align: center;
+    }
+    
+    .nome-jogador {
+        font-size: clamp(1.2rem, 4vw, 1.8rem);
+        font-weight: 700;
+        color: #d4af37;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+        letter-spacing: 1px;
+        margin: 0;
+        word-wrap: break-word;
+    }
+    
+    /* Código centralizado */
+    .codigo-area {
+        position: absolute;
+        top: 58%;
+        left: 20px;
+        right: 180px;
+        text-align: center;
+    }
+    
+    .codigo-label {
+        font-size: 0.9rem;
+        color: #7cb87c;
+        font-weight: 500;
+    }
+    
+    .codigo-numero {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #d4af37;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        letter-spacing: 3px;
+        display: block;
+        margin-top: 5px;
+    }
+    
+    /* Bola de golfe */
+    .bola-golfe {
+        position: absolute;
+        bottom: 5%;
+        left: 5%;
+        opacity: 0.9;
+    }
+    
+    /* Campo com buraco */
+    .campo-area {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 30%;
+        overflow: hidden;
+    }
+    
+    .campo-verde {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 100%;
+        background: linear-gradient(180deg, transparent 0%, rgba(34, 139, 34, 0.3) 30%, rgba(34, 139, 34, 0.6) 100%);
+        border-radius: 50% 50% 0 0 / 30% 30% 0 0;
+    }
+    
+    .buraco-bandeira {
+        position: absolute;
+        bottom: 10px;
+        right: 60px;
+    }
+    
+    .mastro {
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        width: 3px;
+        height: 60px;
+        background: #333;
+        transform: translateX(-50%);
+    }
+    
+    .bandeira {
+        position: absolute;
+        bottom: 45px;
+        left: 3px;
+        width: 0;
+        height: 0;
+        border-top: 12px solid transparent;
+        border-bottom: 12px solid transparent;
+        border-left: 25px solid #dc3545;
+    }
+    
+    .buraco {
+        position: absolute;
+        bottom: -3px;
+        left: 50%;
+        width: 20px;
+        height: 8px;
+        background: #1a1a1a;
+        border-radius: 50%;
+        transform: translateX(-50%);
+    }
+    
+    /* Responsividade */
+    @media (max-width: 576px) {
+        .foto-area {
+            width: 105px;
+            height: 128px;
+        }
+        
+        .nome-area {
+            right: 120px;
+        }
+        
+        .codigo-area {
+            right: 120px;
+        }
+        
+        .logo-icon svg {
+            width: 35px;
+            height: 35px;
+        }
+        
+        .liga-nome {
+            font-size: 0.9rem;
+        }
+        
+        .liga-subtitulo {
+            font-size: 0.6rem;
+        }
+        
+        .codigo-numero {
+            font-size: 1.4rem;
+        }
+        
+        .bola-golfe svg {
+            width: 50px;
+            height: 50px;
+        }
+    }
+    
+    @media print {
+        .btn, .alert, .card:last-child {
+            display: none !important;
+        }
+        
+        .carteirinha-card {
+            box-shadow: none;
+            border: 1px solid #ccc;
+        }
+    }
+</style>
+{% endblock %}
