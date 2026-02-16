@@ -1,508 +1,372 @@
-{% extends 'base.html' %}
+"""
+============================================================
+CARTEIRINHA DIGITAL - Implementação Completa
+============================================================
 
-{% block title %}Minha Carteirinha{% endblock %}
+Adicione este código ao seu app.py
 
-{% block content %}
-<div class="container py-4">
-    <div class="row justify-content-center">
-        <div class="col-lg-8 col-xl-7">
-            
-            <!-- Carteirinha Frente -->
-            <div class="carteirinha-container mb-4" id="carteirinhaFrente">
-                <div class="carteirinha-card">
-                    <!-- Fundo com imagem de campo de golfe -->
-                    <div class="carteirinha-bg">
-                        <!-- Faixa dourada decorativa -->
-                        <div class="faixa-dourada"></div>
-                        
-                        <!-- Logo no canto superior esquerdo -->
-                        <div class="logo-area">
-                            <div class="logo-icon">
-                                <svg viewBox="0 0 60 60" width="50" height="50">
-                                    <circle cx="30" cy="15" r="6" fill="none" stroke="#d4af37" stroke-width="2"/>
-                                    <circle cx="18" cy="35" r="6" fill="none" stroke="#d4af37" stroke-width="2"/>
-                                    <circle cx="42" cy="35" r="6" fill="none" stroke="#d4af37" stroke-width="2"/>
-                                    <line x1="30" y1="21" x2="24" y2="29" stroke="#d4af37" stroke-width="2"/>
-                                    <line x1="30" y1="21" x2="36" y2="29" stroke="#d4af37" stroke-width="2"/>
-                                    <line x1="24" y1="35" x2="36" y2="35" stroke="#d4af37" stroke-width="2"/>
-                                </svg>
-                            </div>
-                            <div class="logo-text">
-                                <span class="liga-nome">Liga Olímpica de Golfe</span>
-                                <span class="liga-subtitulo">GOLFE & AMIGOS</span>
-                            </div>
-                        </div>
-                        
-                        <!-- Foto do Jogador no canto superior direito -->
-                        <div class="foto-area">
-                            {% if player.profile_photo %}
-                                <img src="{{ url_for('static', filename='profile_photos/' + player.profile_photo) }}" 
-                                     alt="{{ player.name }}" 
-                                     class="foto-jogador">
-                            {% else %}
-                                <div class="foto-placeholder">
-                                    <i class="fas fa-user"></i>
-                                </div>
-                            {% endif %}
-                        </div>
-                        
-                        <!-- Nome do Jogador centralizado -->
-                        <div class="nome-area">
-                            <h1 class="nome-jogador">{{ player.name|upper }}</h1>
-                        </div>
-                        
-                        <!-- Código do Jogador centralizado -->
-                        <div class="codigo-area">
-                            <span class="codigo-label">CÓD. JOGADOR:</span>
-                            <span class="codigo-numero">{{ player.player_code }}</span>
-                        </div>
-                        
-                        <!-- Bola de golfe - canto inferior esquerdo -->
-                        <div class="bola-golfe">
-                            <svg viewBox="0 0 100 100" width="80" height="80">
-                                <defs>
-                                    <radialGradient id="ballGradient" cx="30%" cy="30%">
-                                        <stop offset="0%" style="stop-color:#ffffff"/>
-                                        <stop offset="100%" style="stop-color:#e0e0e0"/>
-                                    </radialGradient>
-                                </defs>
-                                <circle cx="50" cy="50" r="45" fill="url(#ballGradient)"/>
-                                <circle cx="35" cy="35" r="3" fill="#d0d0d0"/>
-                                <circle cx="50" cy="30" r="3" fill="#d0d0d0"/>
-                                <circle cx="65" cy="35" r="3" fill="#d0d0d0"/>
-                                <circle cx="30" cy="50" r="3" fill="#d0d0d0"/>
-                                <circle cx="45" cy="45" r="3" fill="#d0d0d0"/>
-                                <circle cx="60" cy="50" r="3" fill="#d0d0d0"/>
-                                <circle cx="35" cy="65" r="3" fill="#d0d0d0"/>
-                                <circle cx="50" cy="60" r="3" fill="#d0d0d0"/>
-                                <circle cx="65" cy="65" r="3" fill="#d0d0d0"/>
-                            </svg>
-                        </div>
-                        
-                        <!-- Campo com buraco e bandeira -->
-                        <div class="campo-area">
-                            <div class="campo-verde"></div>
-                            <div class="buraco-bandeira">
-                                <div class="mastro"></div>
-                                <div class="bandeira"></div>
-                                <div class="buraco"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Seção do QR Code -->
-            <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px;">
-                <div class="card-body text-center p-4">
-                    <h5 class="mb-3">
-                        <i class="fas fa-qrcode me-2 text-success"></i>
-                        QR Code de Verificação
-                    </h5>
-                    
-                    <p class="text-muted mb-3">
-                        Apresente este QR Code no estabelecimento parceiro para validar sua carteirinha.
-                    </p>
-                    
-                    <!-- QR Code -->
-                    <div id="qrcode" class="d-inline-block p-3 bg-white rounded shadow-sm mb-3"></div>
-                    
-                    <!-- Timer -->
-                    <div class="alert alert-warning py-2 mb-3" id="timerAlert">
-                        <small>
-                            <i class="fas fa-clock me-1"></i>
-                            QR válido por: <strong id="countdown">10:00</strong>
-                        </small>
-                    </div>
-                    
-                    <!-- Botão Renovar -->
-                    <button type="button" class="btn btn-outline-success" id="btnRenovar" onclick="renovarToken()">
-                        <i class="fas fa-sync-alt me-1"></i> Renovar QR Code
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Instruções -->
-            <div class="card border-0 shadow-sm" style="border-radius: 15px;">
-                <div class="card-body">
-                    <h6 class="card-title">
-                        <i class="fas fa-info-circle text-info me-2"></i>
-                        Como usar sua carteirinha
-                    </h6>
-                    <ol class="mb-0 small">
-                        <li>Apresente o QR Code ao estabelecimento parceiro</li>
-                        <li>O funcionário irá escanear para verificar sua identidade</li>
-                        <li>O QR Code é válido por 10 minutos por segurança</li>
-                        <li>Clique em "Renovar QR Code" se precisar de mais tempo</li>
-                    </ol>
-                </div>
-            </div>
-            
-        </div>
-    </div>
-</div>
+============================================================
+"""
 
-<!-- QRCode.js Library -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+import secrets
+from datetime import datetime, timedelta
 
-<script>
-    // Variáveis globais
-    let countdownInterval;
-    let expiresAt = new Date("{{ expires_at.isoformat() if expires_at.isoformat is defined else expires_at }}");
-    let verificationUrl = "{{ verification_url }}";
-    
-    // Gerar QR Code
-    function generateQRCode(url) {
-        const qrcodeDiv = document.getElementById('qrcode');
-        qrcodeDiv.innerHTML = '';
-        
-        new QRCode(qrcodeDiv, {
-            text: url,
-            width: 180,
-            height: 180,
-            colorDark: "#1a5f2a",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.H
-        });
-    }
-    
-    // Atualizar countdown
-    function updateCountdown() {
-        const now = new Date();
-        const diff = expiresAt - now;
-        
-        if (diff <= 0) {
-            document.getElementById('countdown').textContent = 'EXPIRADO';
-            document.getElementById('timerAlert').classList.remove('alert-warning');
-            document.getElementById('timerAlert').classList.add('alert-danger');
-            clearInterval(countdownInterval);
-            return;
-        }
-        
-        const minutes = Math.floor(diff / 60000);
-        const seconds = Math.floor((diff % 60000) / 1000);
-        
-        document.getElementById('countdown').textContent = 
-            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        
-        if (diff < 60000) {
-            document.getElementById('timerAlert').classList.remove('alert-warning');
-            document.getElementById('timerAlert').classList.add('alert-danger');
-        }
-    }
-    
-    // Renovar token
-    async function renovarToken() {
-        const btn = document.getElementById('btnRenovar');
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Renovando...';
-        
-        try {
-            const response = await fetch('/carteirinha/renovar', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error('Erro ao renovar');
-            }
-            
-            const data = await response.json();
-            
-            expiresAt = new Date(data.expires_at);
-            verificationUrl = data.verification_url;
-            
-            generateQRCode(verificationUrl);
-            
-            document.getElementById('timerAlert').classList.remove('alert-danger');
-            document.getElementById('timerAlert').classList.add('alert-warning');
-            
-            clearInterval(countdownInterval);
-            countdownInterval = setInterval(updateCountdown, 1000);
-            updateCountdown();
-            
-        } catch (error) {
-            alert('Erro ao renovar o QR Code. Tente novamente.');
-            console.error(error);
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Renovar QR Code';
-        }
-    }
-    
-    // Inicialização
-    document.addEventListener('DOMContentLoaded', function() {
-        generateQRCode(verificationUrl);
-        updateCountdown();
-        countdownInterval = setInterval(updateCountdown, 1000);
-    });
-</script>
+# ============================================================
+# PASSO 1: Função para criar a tabela de tokens
+# ============================================================
+# Adicione esta função no app.py e chame no bloco if __name__ == '__main__':
 
-<style>
-    .carteirinha-container {
-        perspective: 1000px;
-    }
+def create_verification_tokens_table():
+    """Cria a tabela para armazenar tokens de verificação da carteirinha"""
+    conn = get_db_connection()
     
-    .carteirinha-card {
-        position: relative;
-        width: 100%;
-        max-width: 550px;
-        aspect-ratio: 1.586;
-        margin: 0 auto;
-        border-radius: 20px;
-        overflow: hidden;
-        box-shadow: 0 15px 35px rgba(0,0,0,0.3);
-    }
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS verification_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            player_id INTEGER NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME NOT NULL,
+            used_at DATETIME,
+            used_by_business TEXT,
+            FOREIGN KEY (player_id) REFERENCES players(id)
+        )
+    ''')
     
-    .carteirinha-bg {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(160deg, #1a5f2a 0%, #0d3d1a 40%, #1a5f2a 70%, #2d8a3e 100%);
-    }
+    # Criar índice para buscas rápidas por token
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_token ON verification_tokens(token)')
     
-    /* Faixa dourada */
-    .faixa-dourada {
-        position: absolute;
-        top: 25%;
-        left: -10%;
-        width: 120%;
-        height: 50px;
-        background: linear-gradient(90deg, transparent, #d4af37 20%, #f4d03f 50%, #d4af37 80%, transparent);
-        transform: rotate(-5deg);
-        opacity: 0.7;
-    }
+    conn.commit()
+    conn.close()
+    print("Tabela 'verification_tokens' verificada/criada.")
+
+
+# ============================================================
+# PASSO 2: Funções auxiliares para tokens
+# ============================================================
+
+def parse_datetime(dt_value):
+    """Converte string para datetime se necessário"""
+    if dt_value is None:
+        return None
+    if isinstance(dt_value, datetime):
+        return dt_value
+    if isinstance(dt_value, str):
+        # Tentar diferentes formatos
+        for fmt in ['%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S']:
+            try:
+                return datetime.strptime(dt_value, fmt)
+            except ValueError:
+                continue
+    return None
+
+
+def generate_verification_token(player_id, validity_minutes=10):
+    """
+    Gera um token de verificação temporário para a carteirinha.
     
-    /* Logo no canto superior esquerdo */
-    .logo-area {
-        position: absolute;
-        top: 15px;
-        left: 20px;
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-    }
+    Args:
+        player_id: ID do jogador
+        validity_minutes: Minutos de validade do token (padrão: 10)
     
-    .logo-icon {
-        flex-shrink: 0;
-    }
+    Returns:
+        dict com token e data de expiração (datetime)
+    """
+    conn = get_db_connection()
     
-    .logo-text {
-        display: flex;
-        flex-direction: column;
-        color: #d4af37;
-    }
+    # Limpar tokens expirados do jogador
+    conn.execute('''
+        DELETE FROM verification_tokens 
+        WHERE player_id = ? AND expires_at < ?
+    ''', (player_id, datetime.now()))
     
-    .liga-nome {
-        font-size: 1.1rem;
-        font-weight: 600;
-        line-height: 1.2;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-        white-space: nowrap;
-    }
+    # Verificar se já existe um token válido
+    existing = conn.execute('''
+        SELECT token, expires_at FROM verification_tokens 
+        WHERE player_id = ? AND expires_at > ? AND used_at IS NULL
+        ORDER BY expires_at DESC LIMIT 1
+    ''', (player_id, datetime.now())).fetchone()
     
-    .liga-subtitulo {
-        font-size: 0.7rem;
-        letter-spacing: 2px;
-        margin-top: 2px;
-        opacity: 0.9;
-    }
-    
-    /* Foto do jogador no canto superior direito */
-    .foto-area {
-        position: absolute;
-        top: 10px;
-        right: 15px;
-        width: 150px;
-        height: 180px;
-        border: 3px solid white;
-        border-radius: 5px;
-        overflow: hidden;
-        background: white;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-    
-    .foto-jogador {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-    
-    .foto-placeholder {
-        width: 100%;
-        height: 100%;
-        background: #e9ecef;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #6c757d;
-        font-size: 2.5rem;
-    }
-    
-    /* Nome do jogador centralizado */
-    .nome-area {
-        position: absolute;
-        top: 42%;
-        left: 20px;
-        right: 180px;
-        text-align: center;
-    }
-    
-    .nome-jogador {
-        font-size: clamp(1.2rem, 4vw, 1.8rem);
-        font-weight: 700;
-        color: #ffffff;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-        letter-spacing: 1px;
-        margin: 0;
-        word-wrap: break-word;
-    }
-    
-    /* Código centralizado */
-    .codigo-area {
-        position: absolute;
-        top: 58%;
-        left: 20px;
-        right: 180px;
-        text-align: center;
-    }
-    
-    .codigo-label {
-        font-size: 0.9rem;
-        color: #7cb87c;
-        font-weight: 500;
-    }
-    
-    .codigo-numero {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #d4af37;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-        letter-spacing: 3px;
-        display: block;
-        margin-top: 5px;
-    }
-    
-    /* Bola de golfe */
-    .bola-golfe {
-        position: absolute;
-        bottom: 5%;
-        left: 5%;
-        opacity: 0.9;
-    }
-    
-    /* Campo com buraco */
-    .campo-area {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 30%;
-        overflow: hidden;
-    }
-    
-    .campo-verde {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 100%;
-        background: linear-gradient(180deg, transparent 0%, rgba(34, 139, 34, 0.3) 30%, rgba(34, 139, 34, 0.6) 100%);
-        border-radius: 50% 50% 0 0 / 30% 30% 0 0;
-    }
-    
-    .buraco-bandeira {
-        position: absolute;
-        bottom: 10px;
-        right: 60px;
-    }
-    
-    .mastro {
-        position: absolute;
-        bottom: 0;
-        left: 50%;
-        width: 3px;
-        height: 60px;
-        background: #333;
-        transform: translateX(-50%);
-    }
-    
-    .bandeira {
-        position: absolute;
-        bottom: 45px;
-        left: 3px;
-        width: 0;
-        height: 0;
-        border-top: 12px solid transparent;
-        border-bottom: 12px solid transparent;
-        border-left: 25px solid #dc3545;
-    }
-    
-    .buraco {
-        position: absolute;
-        bottom: -3px;
-        left: 50%;
-        width: 20px;
-        height: 8px;
-        background: #1a1a1a;
-        border-radius: 50%;
-        transform: translateX(-50%);
-    }
-    
-    /* Responsividade */
-    @media (max-width: 576px) {
-        .foto-area {
-            width: 105px;
-            height: 128px;
-            top: 55px;
+    if existing:
+        conn.close()
+        expires = parse_datetime(existing['expires_at'])
+        if expires is None:
+            expires = datetime.now() + timedelta(minutes=validity_minutes)
+        return {
+            'token': existing['token'],
+            'expires_at': expires
         }
-        
-        .nome-area {
-            right: 120px;
-            top: 38%;
-        }
-        
-        .codigo-area {
-            right: 120px;
-            top: 52%;
-        }
-        
-        .logo-icon svg {
-            width: 35px;
-            height: 35px;
-        }
-        
-        .liga-nome {
-            font-size: 0.9rem;
-        }
-        
-        .liga-subtitulo {
-            font-size: 0.6rem;
-        }
-        
-        .codigo-numero {
-            font-size: 1.4rem;
-        }
-        
-        .bola-golfe svg {
-            width: 50px;
-            height: 50px;
-        }
-    }
     
-    @media print {
-        .btn, .alert, .card:last-child {
-            display: none !important;
-        }
-        
-        .carteirinha-card {
-            box-shadow: none;
-            border: 1px solid #ccc;
+    # Gerar novo token
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now() + timedelta(minutes=validity_minutes)
+    
+    conn.execute('''
+        INSERT INTO verification_tokens (player_id, token, expires_at)
+        VALUES (?, ?, ?)
+    ''', (player_id, token, expires_at))
+    
+    conn.commit()
+    conn.close()
+    
+    return {
+        'token': token,
+        'expires_at': expires_at
+    }
+
+
+def validate_verification_token(token):
+    """
+    Valida um token de verificação.
+    
+    Args:
+        token: Token a ser validado
+    
+    Returns:
+        dict com dados do jogador se válido, None se inválido
+    """
+    conn = get_db_connection()
+    
+    result = conn.execute('''
+        SELECT vt.*, 
+               p.id as player_id, 
+               p.name, 
+               p.player_code,
+               p.position, 
+               p.tier, 
+               p.handicap, 
+               p.country, 
+               p.profile_photo, 
+               p.active, 
+               p.created_at as member_since
+        FROM verification_tokens vt
+        JOIN players p ON vt.player_id = p.id
+        WHERE vt.token = ? AND vt.expires_at > ?
+    ''', (token, datetime.now())).fetchone()
+    
+    conn.close()
+    
+    if result:
+        return dict(result)
+    return None
+
+
+def invalidate_token(token):
+    """Marca um token como usado"""
+    conn = get_db_connection()
+    conn.execute('''
+        UPDATE verification_tokens 
+        SET used_at = ? 
+        WHERE token = ?
+    ''', (datetime.now(), token))
+    conn.commit()
+    conn.close()
+
+
+# ============================================================
+# PASSO 3: Rota da Carteirinha (para o jogador)
+# ============================================================
+
+@app.route('/carteirinha')
+@login_required
+def carteirinha():
+    """Exibe a carteirinha digital do jogador logado"""
+    user_id = session.get('user_id')
+    
+    if not user_id:
+        flash('Você precisa estar logado para acessar sua carteirinha.', 'error')
+        return redirect(url_for('login'))
+    
+    conn = get_db_connection()
+    
+    # Buscar dados do jogador
+    player = conn.execute('''
+        SELECT * FROM players WHERE id = ?
+    ''', (user_id,)).fetchone()
+    
+    conn.close()
+    
+    if not player:
+        flash('Jogador não encontrado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if not player['active']:
+        flash('Sua carteirinha está inativa. Entre em contato com a administração.', 'warning')
+        return redirect(url_for('dashboard'))
+    
+    # Gerar token de verificação (válido por 10 minutos)
+    token_data = generate_verification_token(user_id, validity_minutes=10)
+    
+    # URL de verificação
+    verification_url = url_for('verificar_carteirinha', token=token_data['token'], _external=True)
+    
+    # Garantir que expires_at é um datetime
+    expires_at = token_data['expires_at']
+    if not isinstance(expires_at, datetime):
+        expires_at = parse_datetime(expires_at)
+    if expires_at is None:
+        expires_at = datetime.now() + timedelta(minutes=10)
+    
+    return render_template('carteirinha.html', 
+                          player=player,
+                          token=token_data['token'],
+                          expires_at=expires_at,
+                          verification_url=verification_url)
+
+
+@app.route('/carteirinha/renovar', methods=['POST'])
+@login_required
+def renovar_carteirinha():
+    """Renova o token da carteirinha (gera um novo)"""
+    user_id = session.get('user_id')
+    
+    if not user_id:
+        return {'error': 'Não autorizado'}, 401
+    
+    conn = get_db_connection()
+    
+    # Invalidar tokens anteriores
+    conn.execute('''
+        DELETE FROM verification_tokens 
+        WHERE player_id = ?
+    ''', (user_id,))
+    conn.commit()
+    conn.close()
+    
+    # Gerar novo token
+    token_data = generate_verification_token(user_id, validity_minutes=10)
+    verification_url = url_for('verificar_carteirinha', token=token_data['token'], _external=True)
+    
+    # Garantir formato ISO para JSON
+    expires_at = token_data['expires_at']
+    if isinstance(expires_at, datetime):
+        expires_at_str = expires_at.isoformat()
+    else:
+        expires_at_str = str(expires_at)
+    
+    return {
+        'token': token_data['token'],
+        'expires_at': expires_at_str,
+        'verification_url': verification_url
+    }
+
+
+# ============================================================
+# PASSO 4: Rota de Verificação (para o estabelecimento)
+# ============================================================
+
+@app.route('/verificar/<token>')
+def verificar_carteirinha(token):
+    """
+    Página pública para verificação da carteirinha.
+    O estabelecimento escaneia o QR code e vê esta página.
+    """
+    verified_at = datetime.now()
+    
+    try:
+        result = validate_verification_token(token)
+    except Exception as e:
+        print(f"Erro ao validar token: {e}")
+        result = None
+    
+    if not result:
+        return render_template('verificar_carteirinha.html', 
+                              valid=False,
+                              error='Token inválido ou expirado',
+                              verified_at=verified_at)
+    
+    # Calcular tempo restante
+    try:
+        expires_at = parse_datetime(result.get('expires_at'))
+        if expires_at:
+            time_remaining = expires_at - datetime.now()
+            total_seconds = max(0, time_remaining.total_seconds())
+            minutes_remaining = int(total_seconds // 60)
+            seconds_remaining = int(total_seconds % 60)
+        else:
+            minutes_remaining = 0
+            seconds_remaining = 0
+    except Exception as e:
+        print(f"Erro ao calcular tempo: {e}")
+        minutes_remaining = 0
+        seconds_remaining = 0
+    
+    return render_template('verificar_carteirinha.html',
+                          valid=True,
+                          player=result,
+                          verified_at=verified_at,
+                          minutes_remaining=minutes_remaining,
+                          seconds_remaining=seconds_remaining)
+
+
+# ============================================================
+# PASSO 5: API para verificação (opcional - para apps)
+# ============================================================
+
+@app.route('/api/verificar/<token>')
+def api_verificar_carteirinha(token):
+    """API para verificação programática da carteirinha"""
+    result = validate_verification_token(token)
+    
+    if not result:
+        return {
+            'valid': False,
+            'error': 'Token inválido ou expirado'
+        }, 404
+    
+    try:
+        expires_at = parse_datetime(result.get('expires_at'))
+        if expires_at:
+            time_remaining = (expires_at - datetime.now()).total_seconds()
+        else:
+            time_remaining = 0
+    except:
+        time_remaining = 0
+    
+    return {
+        'valid': True,
+        'player': {
+            'id': result.get('player_id'),
+            'name': result.get('name'),
+            'player_code': result.get('player_code'),
+            'country': result.get('country'),
+            'active': bool(result.get('active')),
+            'profile_photo': result.get('profile_photo')
+        },
+        'verification': {
+            'verified_at': datetime.now().isoformat(),
+            'expires_at': expires_at.isoformat() if expires_at else None,
+            'seconds_remaining': int(max(0, time_remaining))
         }
     }
-</style>
-{% endblock %}
+
+
+# ============================================================
+# PASSO 6: Limpeza de tokens expirados (opcional)
+# ============================================================
+
+def cleanup_expired_tokens():
+    """Remove tokens expirados do banco de dados"""
+    conn = get_db_connection()
+    
+    result = conn.execute('''
+        DELETE FROM verification_tokens 
+        WHERE expires_at < ?
+    ''', (datetime.now(),))
+    
+    deleted_count = result.rowcount
+    conn.commit()
+    conn.close()
+    
+    if deleted_count > 0:
+        print(f"🧹 {deleted_count} tokens expirados removidos.")
+    
+    return deleted_count
+
+
+# ============================================================
+# LEMBRETE: Adicionar no bloco if __name__ == '__main__':
+# ============================================================
+# 
+# create_verification_tokens_table()
+#
