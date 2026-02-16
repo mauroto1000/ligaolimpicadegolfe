@@ -345,7 +345,7 @@
                     Verificação válida por mais:
                 </div>
                 <div class="timer-value" id="countdown">
-                    {{ '%02d:%02d'|format(minutes_remaining|default(0), seconds_remaining|default(0)) }}
+                    {{ '%02d:%02d' | format(minutes_remaining, seconds_remaining) }}
                 </div>
                 <div class="countdown-bar">
                     <div class="countdown-progress" id="progressBar" style="width: 100%;"></div>
@@ -395,7 +395,7 @@
     {% if valid %}
     <script>
         // Countdown
-        let totalSeconds = {{ (minutes_remaining|default(0)) * 60 + (seconds_remaining|default(0)) }};
+        let totalSeconds = {{ minutes_remaining * 60 + seconds_remaining }};
         const initialSeconds = totalSeconds > 0 ? totalSeconds : 600;
         
         function updateCountdown() {
