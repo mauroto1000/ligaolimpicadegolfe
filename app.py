@@ -5119,7 +5119,13 @@ def country_code_filter(country_name):
 
 @app.route('/regulamento')
 def regulamento():
-    return render_template('regulamento.html')
+    conn = get_db_connection()
+    regulamento = conn.execute('''
+        SELECT * FROM regulamento ORDER BY data_upload DESC LIMIT 1
+    ''').fetchone()
+    conn.close()
+    
+    return render_template('regulamento.html', regulamento=regulamento)
 
 
 @app.route('/relatorio')
@@ -7115,6 +7121,144 @@ def auto_fix_female_ranking(conn=None):
     finally:
         if not connection_provided:
             conn.close()
+
+# ============================================================
+# ROTAS DO REGULAMENTO - COPIE TUDO ABAIXO PARA O app.py
+# ============================================================
+
+@app.route('/admin/regulamento/upload', methods=['POST'])
+@login_required
+def upload_regulamento():
+    if not session.get('is_admin', False):
+        flash('Apenas administradores podem enviar o regulamento.', 'error')
+        return redirect(url_for('regulamento'))
+    
+    if 'regulamento_pdf' not in request.files:
+        flash('Nenhum arquivo selecionado.', 'error')
+        return redirect(url_for('regulamento'))
+    
+    file = request.files['regulamento_pdf']
+    
+    if file.filename == '':
+        flash('Nenhum arquivo selecionado.', 'error')
+        return redirect(url_for('regulamento'))
+    
+    if not file.filename.lower().endswith('.pdf'):
+        flash('Apenas arquivos PDF são permitidos.', 'error')
+        return redirect(url_for('regulamento'))
+    
+    try:
+        regulamento_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'regulamento')
+        os.makedirs(regulamento_folder, exist_ok=True)
+        
+        timestamp = int(datetime.now().timestamp())
+        nome_arquivo = f"regulamento_{timestamp}.pdf"
+        file_path = os.path.join(regulamento_folder, nome_arquivo)
+        
+        file.save(file_path)
+        
+        conn = get_db_connection()
+        
+        old_regulamento = conn.execute('SELECT nome_arquivo FROM regulamento ORDER BY data_upload DESC LIMIT 1').fetchone()
+        
+        if old_regulamento:
+            old_file_path = os.path.join(regulamento_folder, old_regulamento['nome_arquivo'])
+            if os.path.exists(old_file_path):
+                os.remove(old_file_path)
+            conn.execute('DELETE FROM regulamento')
+        
+        conn.execute('''
+            INSERT INTO regulamento (nome_arquivo, nome_original, data_upload)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+        ''', (nome_arquivo, file.filename))
+        
+        conn.commit()
+        conn.close()
+        
+        flash('Regulamento atualizado com sucesso!', 'success')
+        
+    except Exception as e:
+        flash(f'Erro ao enviar regulamento: {str(e)}', 'error')
+    
+    return redirect(url_for('regulamento'))
+
+
+@app.route('/regulamento/download')
+def download_regulamento():
+    conn = get_db_connection()
+    regulamento = conn.execute('''
+        SELECT * FROM regulamento ORDER BY data_upload DESC LIMIT 1
+    ''').fetchone()
+    conn.close()
+    
+    if not regulamento:
+        flash('Regulamento não disponível.', 'error')
+        return redirect(url_for('regulamento'))
+    
+    regulamento_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'regulamento')
+    file_path = os.path.join(regulamento_folder, regulamento['nome_arquivo'])
+    
+    if not os.path.exists(file_path):
+        flash('Arquivo não encontrado.', 'error')
+        return redirect(url_for('regulamento'))
+    
+    return send_file(
+        file_path,
+        as_attachment=True,
+        download_name=regulamento['nome_original'],
+        mimetype='application/pdf'
+    )
+
+
+@app.route('/admin/regulamento/delete', methods=['POST'])
+@login_required
+def delete_regulamento():
+    if not session.get('is_admin', False):
+        flash('Apenas administradores podem excluir o regulamento.', 'error')
+        return redirect(url_for('regulamento'))
+    
+    try:
+        conn = get_db_connection()
+        
+        regulamento = conn.execute('SELECT nome_arquivo FROM regulamento ORDER BY data_upload DESC LIMIT 1').fetchone()
+        
+        if regulamento:
+            regulamento_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'regulamento')
+            file_path = os.path.join(regulamento_folder, regulamento['nome_arquivo'])
+            
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            
+            conn.execute('DELETE FROM regulamento')
+            conn.commit()
+            
+            flash('Regulamento excluído com sucesso!', 'success')
+        else:
+            flash('Nenhum regulamento para excluir.', 'warning')
+        
+        conn.close()
+        
+    except Exception as e:
+        flash(f'Erro ao excluir regulamento: {str(e)}', 'error')
+    
+    return redirect(url_for('regulamento'))
+
+
+
+@app.route('/criar-tabela-regulamento')
+def criar_tabela_regulamento():
+    conn = get_db_connection()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS regulamento (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome_arquivo TEXT NOT NULL,
+            nome_original TEXT NOT NULL,
+            data_upload TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+    return "Tabela 'regulamento' criada com sucesso!"
 
 
 if __name__ == '__main__':
