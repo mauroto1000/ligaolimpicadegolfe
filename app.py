@@ -6718,7 +6718,6 @@ def validate_verification_token(token):
                p.player_code,
                p.position, 
                p.tier, 
-               p.handicap, 
                p.country, 
                p.profile_photo, 
                p.active, 
