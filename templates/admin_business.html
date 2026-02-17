@@ -23,19 +23,41 @@
         display: none;
     }
     
-    /* Estilo adicional para o textarea de descrição maior */
     #business_description {
         min-height: 150px;
     }
     
-    /* Preservar quebras de linha em descrições */
     .business-desc {
         white-space: pre-line;
     }
     
-    /* Estilo para texto de ajuda */
     .url-help {
         color: #0066cc;
+    }
+    
+    /* Badge especial para Affinity Club */
+    .badge-affinity {
+        background: linear-gradient(135deg, #1a5f2a 0%, #d4af37 100%);
+        color: white;
+    }
+    
+    /* Estilo para campo desabilitado */
+    .player-field-disabled {
+        background-color: #e9ecef;
+        color: #6c757d;
+    }
+    
+    .affinity-info {
+        background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 100%);
+        color: white;
+        padding: 10px 15px;
+        border-radius: 8px;
+        margin-top: 10px;
+        display: none;
+    }
+    
+    .affinity-info.show {
+        display: block;
     }
 </style>
 {% endblock %}
@@ -51,7 +73,7 @@
             <div class="card">
                 <div class="card-header bg-primary text-white">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-plus-circle me-2"></i> Adicionar Novo Negócio
+                        <i class="fas fa-plus-circle me-2"></i> Adicionar Novo Negócio / Parceiro
                     </h5>
                 </div>
                 <div class="card-body">
@@ -59,36 +81,53 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="player_id" class="form-label">Jogador</label>
-                                    <select class="form-select" id="player_id" name="player_id" required>
+                                    <label for="business_category" class="form-label">Categoria</label>
+                                    <select class="form-select" id="business_category" name="business_category" required>
+                                        <option value="">Selecione uma categoria</option>
+                                        <optgroup label="🏆 Liga Affinity Club">
+                                            <option value="affinity">⭐ Parceiro Affinity Club (Descontos)</option>
+                                        </optgroup>
+                                        <optgroup label="📋 Golf Business">
+                                            <option value="golf">Golfe</option>
+                                            <option value="service">Serviços</option>
+                                            <option value="product">Produtos</option>
+                                            <option value="other">Outros</option>
+                                        </optgroup>
+                                    </select>
+                                    <div class="form-text">
+                                        <i class="fas fa-info-circle text-warning"></i> 
+                                        <strong>Parceiro Affinity Club:</strong> Empresas com descontos para membros (divulgado pela Liga)
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3" id="playerFieldContainer">
+                                    <label for="player_id" class="form-label">Jogador Divulgador</label>
+                                    <select class="form-select" id="player_id" name="player_id">
                                         <option value="">Selecione um jogador</option>
                                         {% for player in players %}
                                             <option value="{{ player.id }}">{{ player.name }}</option>
                                         {% endfor %}
                                     </select>
                                 </div>
-                                <div class="mb-3">
-                                    <label for="business_name" class="form-label">Nome do Negócio</label>
-                                    <input type="text" class="form-control" id="business_name" name="business_name" required>
+                                
+                                <div class="affinity-info" id="affinityInfo">
+                                    <i class="fas fa-crown me-2"></i>
+                                    <strong>Parceiro Affinity Club</strong><br>
+                                    <small>Divulgado por: LIGA OLÍMPICA DE GOLFE</small>
                                 </div>
+                                
                                 <div class="mb-3">
-                                    <label for="business_category" class="form-label">Categoria</label>
-                                    <select class="form-select" id="business_category" name="business_category" required>
-                                        <option value="">Selecione uma categoria</option>
-                                        <option value="golf">Golfe</option>
-                                        <option value="service">Serviços</option>
-                                        <option value="product">Produtos</option>
-                                        <option value="other">Outros</option>
-                                    </select>
+                                    <label for="business_name" class="form-label">Nome do Negócio/Parceiro</label>
+                                    <input type="text" class="form-control" id="business_name" name="business_name" required>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="business_description" class="form-label">Descrição (máximo 1200 caracteres)</label>
-                                    <textarea class="form-control" id="business_description" name="business_description" rows="6" maxlength="1200" required></textarea>
+                                    <textarea class="form-control" id="business_description" name="business_description" rows="6" maxlength="1200" required placeholder="Para Affinity Club, descreva os benefícios oferecidos. Ex:&#10;➡️ Rodízio:&#10;* Dias de Semana: R$ 100&#10;* Fim de semana: R$ 120&#10;* Rolha de vinho gratuita 🍷"></textarea>
                                     <div class="form-text">
                                         <span id="charCount">0</span>/1200 caracteres. 
-                                        <small class="ms-2 text-info"><i class="fas fa-info-circle"></i> URLs como https://exemplo.com serão automaticamente convertidas em links clicáveis.</small>
+                                        <small class="ms-2 text-info"><i class="fas fa-info-circle"></i> URLs serão convertidas em links.</small>
                                     </div>
                                 </div>
                                 <div class="mb-3">
@@ -96,7 +135,7 @@
                                     <input type="text" class="form-control" id="business_contact" name="business_contact" placeholder="Telefone, email ou site">
                                 </div>
                                 <div class="mb-3">
-                                    <label for="business_image" class="form-label">Imagem do Negócio</label>
+                                    <label for="business_image" class="form-label">Imagem do Negócio/Parceiro</label>
                                     <input type="file" class="form-control" id="business_image" name="business_image" accept="image/*" required>
                                     <div class="form-text">Recomendado: 600x400px</div>
                                     <img id="imagePreview" class="preview-image" src="#" alt="Preview">
@@ -105,7 +144,7 @@
                         </div>
                         <div class="text-end">
                             <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-2"></i> Cadastrar Negócio
+                                <i class="fas fa-save me-2"></i> Cadastrar
                             </button>
                         </div>
                     </form>
@@ -117,7 +156,7 @@
     <div class="card">
         <div class="card-header bg-primary text-white">
             <h5 class="card-title mb-0">
-                <i class="fas fa-list me-2"></i> Negócios Cadastrados
+                <i class="fas fa-list me-2"></i> Negócios e Parceiros Cadastrados
             </h5>
         </div>
         <div class="card-body">
@@ -130,7 +169,7 @@
                                 <th>Imagem</th>
                                 <th>Nome</th>
                                 <th>Categoria</th>
-                                <th>Proprietário</th>
+                                <th>Divulgador</th>
                                 <th>Data</th>
                                 <th>Ações</th>
                             </tr>
@@ -151,7 +190,11 @@
                                     </td>
                                     <td>{{ business.name }}</td>
                                     <td>
-                                        {% if business.category == 'golf' %}
+                                        {% if business.category == 'affinity' %}
+                                            <span class="badge badge-affinity">
+                                                <i class="fas fa-crown me-1"></i> Affinity Club
+                                            </span>
+                                        {% elif business.category == 'golf' %}
                                             <span class="badge bg-success">Golfe</span>
                                         {% elif business.category == 'service' %}
                                             <span class="badge bg-primary">Serviço</span>
@@ -161,7 +204,15 @@
                                             <span class="badge bg-secondary">Outros</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ business.owner_name }}</td>
+                                    <td>
+                                        {% if business.category == 'affinity' %}
+                                            <span class="text-success fw-bold">
+                                                <i class="fas fa-trophy me-1"></i> LIGA OLÍMPICA
+                                            </span>
+                                        {% else %}
+                                            {{ business.owner_name }}
+                                        {% endif %}
+                                    </td>
                                     <td>{{ business.created_at|datetime('%d/%m/%Y') }}</td>
                                     <td>
                                         <!-- Botão de Editar -->
@@ -183,7 +234,7 @@
                                             <div class="modal-dialog modal-lg">
                                                 <div class="modal-content">
                                                     <div class="modal-header bg-primary text-white">
-                                                        <h5 class="modal-title">Editar Negócio</h5>
+                                                        <h5 class="modal-title">Editar Negócio/Parceiro</h5>
                                                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                                     </div>
                                                     <div class="modal-body">
@@ -191,52 +242,60 @@
                                                             <div class="row">
                                                                 <div class="col-md-6">
                                                                     <div class="mb-3">
-                                                                        <label for="player_id_{{ business.id }}" class="form-label">Jogador</label>
-                                                                        <select class="form-select" id="player_id_{{ business.id }}" name="player_id" required>
+                                                                        <label for="business_category_{{ business.id }}" class="form-label">Categoria</label>
+                                                                        <select class="form-select category-select-edit" id="business_category_{{ business.id }}" name="business_category" required data-business-id="{{ business.id }}">
+                                                                            <optgroup label="🏆 Liga Affinity Club">
+                                                                                <option value="affinity" {% if business.category == 'affinity' %}selected{% endif %}>⭐ Parceiro Affinity Club</option>
+                                                                            </optgroup>
+                                                                            <optgroup label="📋 Golf Business">
+                                                                                <option value="golf" {% if business.category == 'golf' %}selected{% endif %}>Golfe</option>
+                                                                                <option value="service" {% if business.category == 'service' %}selected{% endif %}>Serviços</option>
+                                                                                <option value="product" {% if business.category == 'product' %}selected{% endif %}>Produtos</option>
+                                                                                <option value="other" {% if business.category == 'other' %}selected{% endif %}>Outros</option>
+                                                                            </optgroup>
+                                                                        </select>
+                                                                    </div>
+                                                                    
+                                                                    <div class="mb-3 player-field-edit" id="playerFieldEdit_{{ business.id }}" {% if business.category == 'affinity' %}style="display:none;"{% endif %}>
+                                                                        <label for="player_id_{{ business.id }}" class="form-label">Jogador Divulgador</label>
+                                                                        <select class="form-select" id="player_id_{{ business.id }}" name="player_id">
+                                                                            <option value="">Selecione um jogador</option>
                                                                             {% for player in players %}
                                                                                 <option value="{{ player.id }}" {% if player.id == business.player_id %}selected{% endif %}>{{ player.name }}</option>
                                                                             {% endfor %}
                                                                         </select>
                                                                     </div>
-                                                                    <div class="mb-3">
-                                                                        <label for="business_name_{{ business.id }}" class="form-label">Nome do Negócio</label>
-                                                                        <input type="text" class="form-control" id="business_name_{{ business.id }}" name="business_name" value="{{ business.name }}" required>
+                                                                    
+                                                                    <div class="affinity-info {% if business.category == 'affinity' %}show{% endif %}" id="affinityInfoEdit_{{ business.id }}">
+                                                                        <i class="fas fa-crown me-2"></i>
+                                                                        <strong>Parceiro Affinity Club</strong><br>
+                                                                        <small>Divulgado por: LIGA OLÍMPICA DE GOLFE</small>
                                                                     </div>
+                                                                    
                                                                     <div class="mb-3">
-                                                                        <label for="business_category_{{ business.id }}" class="form-label">Categoria</label>
-                                                                        <select class="form-select" id="business_category_{{ business.id }}" name="business_category" required>
-                                                                            <option value="golf" {% if business.category == 'golf' %}selected{% endif %}>Golfe</option>
-                                                                            <option value="service" {% if business.category == 'service' %}selected{% endif %}>Serviços</option>
-                                                                            <option value="product" {% if business.category == 'product' %}selected{% endif %}>Produtos</option>
-                                                                            <option value="other" {% if business.category == 'other' %}selected{% endif %}>Outros</option>
-                                                                        </select>
+                                                                        <label for="business_name_{{ business.id }}" class="form-label">Nome</label>
+                                                                        <input type="text" class="form-control" id="business_name_{{ business.id }}" name="business_name" value="{{ business.name }}" required>
                                                                     </div>
                                                                 </div>
                                                                 <div class="col-md-6">
                                                                     <div class="mb-3">
-                                                                        <label for="business_description_{{ business.id }}" class="form-label">Descrição (máximo 1200 caracteres)</label>
+                                                                        <label for="business_description_{{ business.id }}" class="form-label">Descrição (máx 1200)</label>
                                                                         <textarea class="form-control" id="business_description_{{ business.id }}" name="business_description" rows="6" maxlength="1200" required>{{ business.description }}</textarea>
                                                                         <div class="form-text">
-                                                                            <span id="charCount_{{ business.id }}">{{ business.description|length }}</span>/1200 caracteres.
-                                                                            <small class="ms-2 text-info"><i class="fas fa-info-circle"></i> URLs como https://exemplo.com serão automaticamente convertidas em links clicáveis.</small>
+                                                                            <span id="charCount_{{ business.id }}">{{ business.description|length }}</span>/1200
                                                                         </div>
                                                                     </div>
                                                                     <div class="mb-3">
-                                                                        <label for="business_contact_{{ business.id }}" class="form-label">Informações de Contato</label>
-                                                                        <input type="text" class="form-control" id="business_contact_{{ business.id }}" name="business_contact" value="{{ business.contact_info or '' }}" placeholder="Telefone, email ou site">
+                                                                        <label for="business_contact_{{ business.id }}" class="form-label">Contato</label>
+                                                                        <input type="text" class="form-control" id="business_contact_{{ business.id }}" name="business_contact" value="{{ business.contact_info or '' }}">
                                                                     </div>
                                                                     <div class="mb-3">
-                                                                        <label for="business_image_{{ business.id }}" class="form-label">Imagem do Negócio</label>
+                                                                        <label for="business_image_{{ business.id }}" class="form-label">Imagem</label>
                                                                         <input type="file" class="form-control" id="business_image_{{ business.id }}" name="business_image" accept="image/*">
-                                                                        <div class="form-text">
-                                                                            Deixe em branco para manter a imagem atual. Recomendado: 600x400px
-                                                                        </div>
+                                                                        <div class="form-text">Deixe em branco para manter a atual.</div>
                                                                         {% if business.image_path %}
-                                                                            <div class="mt-2">
-                                                                                <label>Imagem atual:</label>
-                                                                                <img src="{{ url_for('static', filename='profile_photos/business_images/' + business.image_path) }}" 
-                                                                                    alt="{{ business.name }}" class="img-fluid mt-1" style="max-height: 150px; border-radius: 5px;">
-                                                                            </div>
+                                                                            <img src="{{ url_for('static', filename='profile_photos/business_images/' + business.image_path) }}" 
+                                                                                alt="{{ business.name }}" class="img-fluid mt-2" style="max-height: 100px; border-radius: 5px;">
                                                                         {% endif %}
                                                                     </div>
                                                                 </div>
@@ -248,7 +307,7 @@
                                                             <div class="text-end">
                                                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                                                                 <button type="submit" class="btn btn-primary">
-                                                                    <i class="fas fa-save me-2"></i> Salvar Alterações
+                                                                    <i class="fas fa-save me-2"></i> Salvar
                                                                 </button>
                                                             </div>
                                                         </form>
@@ -257,7 +316,7 @@
                                             </div>
                                         </div>
                                         
-                                        <!-- Modal de confirmação para excluir -->
+                                        <!-- Modal de exclusão -->
                                         <div class="modal fade" id="deleteModal{{ business.id }}" tabindex="-1" aria-hidden="true">
                                             <div class="modal-dialog">
                                                 <div class="modal-content">
@@ -266,12 +325,12 @@
                                                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                                     </div>
                                                     <div class="modal-body">
-                                                        <p>Tem certeza que deseja excluir o negócio <strong>"{{ business.name }}"</strong>?</p>
+                                                        <p>Tem certeza que deseja excluir <strong>"{{ business.name }}"</strong>?</p>
                                                         <p class="text-danger"><small>Esta ação não pode ser desfeita.</small></p>
                                                         
                                                         <form action="{{ url_for('delete_business', business_id=business.id) }}" method="post">
                                                             <div class="mb-3">
-                                                                <label for="senha{{ business.id }}" class="form-label">Confirme com a senha de administrador:</label>
+                                                                <label for="senha{{ business.id }}" class="form-label">Senha de administrador:</label>
                                                                 <input type="password" class="form-control" id="senha{{ business.id }}" name="senha" required>
                                                             </div>
                                                             <div class="text-end">
@@ -308,7 +367,36 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Contador de caracteres para a descrição
+        // ==========================================
+        // FORMULÁRIO DE ADICIONAR
+        // ==========================================
+        const categorySelect = document.getElementById('business_category');
+        const playerFieldContainer = document.getElementById('playerFieldContainer');
+        const playerSelect = document.getElementById('player_id');
+        const affinityInfo = document.getElementById('affinityInfo');
+        
+        function togglePlayerField() {
+            if (categorySelect.value === 'affinity') {
+                // Affinity: esconder campo de jogador
+                playerFieldContainer.style.display = 'none';
+                playerSelect.removeAttribute('required');
+                playerSelect.value = '';
+                affinityInfo.classList.add('show');
+            } else {
+                // Outros: mostrar campo de jogador
+                playerFieldContainer.style.display = 'block';
+                playerSelect.setAttribute('required', 'required');
+                affinityInfo.classList.remove('show');
+            }
+        }
+        
+        if (categorySelect) {
+            categorySelect.addEventListener('change', togglePlayerField);
+            // Verificar estado inicial
+            togglePlayerField();
+        }
+        
+        // Contador de caracteres
         const textarea = document.getElementById('business_description');
         const charCount = document.getElementById('charCount');
         
@@ -331,12 +419,10 @@
             imageInput.addEventListener('change', function() {
                 if (this.files && this.files[0]) {
                     const reader = new FileReader();
-                    
                     reader.onload = function(e) {
                         imagePreview.src = e.target.result;
                         imagePreview.style.display = 'block';
                     }
-                    
                     reader.readAsDataURL(this.files[0]);
                 } else {
                     imagePreview.style.display = 'none';
@@ -344,7 +430,29 @@
             });
         }
         
-        // Contador de caracteres para os campos de descrição nos modais de edição
+        // ==========================================
+        // MODAIS DE EDIÇÃO
+        // ==========================================
+        document.querySelectorAll('.category-select-edit').forEach(select => {
+            select.addEventListener('change', function() {
+                const businessId = this.getAttribute('data-business-id');
+                const playerField = document.getElementById(`playerFieldEdit_${businessId}`);
+                const affinityInfoEdit = document.getElementById(`affinityInfoEdit_${businessId}`);
+                const playerSelectEdit = document.getElementById(`player_id_${businessId}`);
+                
+                if (this.value === 'affinity') {
+                    playerField.style.display = 'none';
+                    playerSelectEdit.removeAttribute('required');
+                    affinityInfoEdit.classList.add('show');
+                } else {
+                    playerField.style.display = 'block';
+                    playerSelectEdit.setAttribute('required', 'required');
+                    affinityInfoEdit.classList.remove('show');
+                }
+            });
+        });
+        
+        // Contador de caracteres para modais de edição
         document.querySelectorAll('[id^="business_description_"]').forEach(textarea => {
             const id = textarea.id.split('_').pop();
             const countElement = document.getElementById(`charCount_${id}`);

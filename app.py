@@ -5405,19 +5405,37 @@ def add_profile_photo_column():
 
 
 # Rota para a página Golf Business
+# ============================================================
+# ROTAS ATUALIZADAS PARA SUPORTAR AFFINITY CLUB
+# Substitua as rotas correspondentes no seu app.py
+# ============================================================
+
+
+# Rota para a página Golf Business
+# ============================================================
+# ROTAS ATUALIZADAS PARA SUPORTAR AFFINITY CLUB
+# Substitua as rotas correspondentes no seu app.py
+# ============================================================
+
+
+# Rota para a página Golf Business
 @app.route('/golf-business')
 def golf_business():
     conn = get_db_connection()
+    # ALTERADO: LEFT JOIN para permitir player_id NULL (Affinity)
     businesses = conn.execute('''
-        SELECT b.*, p.name as owner_name, p.profile_photo as owner_photo
+        SELECT b.*, 
+               COALESCE(p.name, 'LIGA OLÍMPICA DE GOLFE') as owner_name, 
+               COALESCE(p.profile_photo, 'logo-liga.png') as owner_photo
         FROM businesses b
-        JOIN players p ON b.player_id = p.id
+        LEFT JOIN players p ON b.player_id = p.id
         WHERE b.active = 1
         ORDER BY b.created_at DESC
     ''').fetchall()
     conn.close()
     
     return render_template('golf_business.html', businesses=businesses)
+
 
 # Rota para processamento do formulário de adição de negócio
 @app.route('/add-business', methods=['POST'])
@@ -5437,8 +5455,15 @@ def add_business():
             business_description = request.form.get('business_description')
             business_contact = request.form.get('business_contact')
             
-            # Validar campos obrigatórios
-            if not player_id or not business_name or not business_category or not business_description:
+            # NOVO: Para categoria 'affinity', player_id pode ser NULL
+            if business_category == 'affinity':
+                player_id = None  # Será divulgado pela LIGA OLÍMPICA
+            elif not player_id:
+                flash('Selecione um jogador para divulgar o negócio.', 'error')
+                return redirect(url_for('admin_business'))
+            
+            # Validar campos obrigatórios (removido player_id da validação para affinity)
+            if not business_name or not business_category or not business_description:
                 flash('Todos os campos obrigatórios devem ser preenchidos.', 'error')
                 return redirect(url_for('admin_business'))
                 
@@ -5447,7 +5472,9 @@ def add_business():
                 file = request.files['business_image']
                 if file and allowed_file(file.filename):
                     # Gerar nome de arquivo seguro
-                    filename = secure_filename(f"business_{player_id}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
+                    # ALTERADO: usar 'affinity' no nome se player_id for None
+                    file_prefix = f"business_{player_id}" if player_id else "business_affinity"
+                    filename = secure_filename(f"{file_prefix}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
                     
                     # Criar diretório se não existir
                     business_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'business_images')
@@ -5464,7 +5491,7 @@ def add_business():
                         (player_id, name, category, description, image_path, contact_info, created_at)
                         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                     ''', (
-                        player_id,
+                        player_id,  # Pode ser None para affinity
                         business_name,
                         business_category,
                         business_description,
@@ -5488,71 +5515,19 @@ def add_business():
         return redirect(url_for('admin_business'))
 
 
-@app.route('/admin/delete-business/<int:business_id>', methods=['POST'])
-@login_required
-def delete_business(business_id):
-    # Verificar permissão
-    if not session.get('is_admin', False):
-        flash('Acesso restrito a administradores.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    # Verificar senha
-    # Verificação de admin (senha hardcoded removida)
-
-    if not session.get('is_admin', False):
-
-        flash('Acesso negado. Apenas administradores podem executar esta ação.', 'error')
-
-        return redirect(url_for('dashboard'))
-    
-    conn = get_db_connection()
-    
-    try:
-        # Obter informações do negócio
-        business = conn.execute('SELECT * FROM businesses WHERE id = ?', (business_id,)).fetchone()
-        
-        if not business:
-            conn.close()
-            flash('Negócio não encontrado!', 'error')
-            return redirect(url_for('admin_business'))
-        
-        # Marcar como inativo (soft delete)
-        conn.execute('UPDATE businesses SET active = 0 WHERE id = ?', (business_id,))
-        
-        # Opcional: Remover fisicamente a imagem
-        if business['image_path']:
-            try:
-                image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'business_images', business['image_path'])
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-            except Exception as e:
-                print(f"Erro ao remover arquivo de imagem: {e}")
-        
-        conn.commit()
-        flash('Negócio excluído com sucesso!', 'success')
-    
-    except Exception as e:
-        conn.rollback()
-        flash(f'Erro ao excluir negócio: {str(e)}', 'error')
-    
-    finally:
-        conn.close()
-    
-    return redirect(url_for('admin_business'))
-
-
-
 @app.route('/api/businesses')
 def api_businesses():
     filter_category = request.args.get('filter', 'all')
     
     conn = get_db_connection()
     
-    # Consulta base
+    # ALTERADO: LEFT JOIN e COALESCE para suportar player_id NULL
     query = '''
-        SELECT b.*, p.name as owner_name, p.profile_photo as owner_photo
+        SELECT b.*, 
+               COALESCE(p.name, 'LIGA OLÍMPICA DE GOLFE') as owner_name, 
+               COALESCE(p.profile_photo, 'logo-liga.png') as owner_photo
         FROM businesses b
-        JOIN players p ON b.player_id = p.id
+        LEFT JOIN players p ON b.player_id = p.id
         WHERE b.active = 1
     '''
     
@@ -5568,6 +5543,15 @@ def api_businesses():
     # Converter para formato JSON
     business_list = []
     for b in businesses:
+        # ALTERADO: Tratar owner_photo para casos sem jogador
+        owner_photo = b['owner_photo']
+        if owner_photo == 'logo-liga.png':
+            owner_photo_url = "/static/images/logo-liga.png"
+        elif owner_photo:
+            owner_photo_url = f"/static/profile_photos/{owner_photo}"
+        else:
+            owner_photo_url = "/static/profile_photos/default.png"
+        
         business_dict = {
             'id': b['id'],
             'name': b['name'],
@@ -5576,15 +5560,13 @@ def api_businesses():
             'image_path': f"/static/profile_photos/business_images/{b['image_path']}" if b['image_path'] else None,
             'contact_info': b['contact_info'],
             'owner_name': b['owner_name'],
-            'owner_photo': f"/static/profile_photos/{b['owner_photo']}" if b['owner_photo'] else "/static/profile_photos/default.png"
+            'owner_photo': owner_photo_url
         }
         business_list.append(business_dict)
     
     conn.close()
     
-    # Definir o cabeçalho Content-Type para json
     return jsonify({'businesses': business_list})
-
 
 
 @app.route('/admin/business')
@@ -5597,11 +5579,12 @@ def admin_business():
     
     conn = get_db_connection()
     
-    # Buscar todos os negócios
+    # ALTERADO: LEFT JOIN e COALESCE para suportar player_id NULL
     businesses = conn.execute('''
-        SELECT b.*, p.name as owner_name
+        SELECT b.*, 
+               COALESCE(p.name, 'LIGA OLÍMPICA DE GOLFE') as owner_name
         FROM businesses b
-        JOIN players p ON b.player_id = p.id
+        LEFT JOIN players p ON b.player_id = p.id
         ORDER BY b.created_at DESC
     ''').fetchall()
     
@@ -5613,45 +5596,12 @@ def admin_business():
     return render_template('admin_business.html', businesses=businesses, players=players)
 
 
-
-def verify_business_table_structure():
-    conn = get_db_connection()
-    try:
-        # Verificar a definição atual da tabela
-        table_info = conn.execute("PRAGMA table_info(businesses)").fetchall()
-        
-        # Verificar se existe a tabela e os campos necessários
-        columns = [col[1] for col in table_info]
-        
-        # Se a tabela não existir ou estiver faltando o campo description
-        if not table_info or 'description' not in columns:
-            print("Recriando tabela businesses para suportar descrições maiores...")
-            # Se necessário, recriar a tabela preservando dados
-            create_business_table()
-            
-        print("Estrutura da tabela de negócios verificada com sucesso.")
-    except Exception as e:
-        print(f"Erro ao verificar tabela de negócios: {str(e)}")
-    finally:
-        conn.close()
-
-
-
 @app.route('/admin/edit-business/<int:business_id>', methods=['POST'])
 @login_required
 def edit_business(business_id):
     # Verificar permissão
     if not session.get('is_admin', False):
         flash('Acesso restrito a administradores.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    # Verificar senha
-    # Verificação de admin (senha hardcoded removida)
-
-    if not session.get('is_admin', False):
-
-        flash('Acesso negado. Apenas administradores podem executar esta ação.', 'error')
-
         return redirect(url_for('dashboard'))
     
     try:
@@ -5662,8 +5612,15 @@ def edit_business(business_id):
         business_description = request.form.get('business_description')
         business_contact = request.form.get('business_contact')
         
-        # Validar dados
-        if not player_id or not business_name or not business_category or not business_description:
+        # NOVO: Para categoria 'affinity', player_id pode ser NULL
+        if business_category == 'affinity':
+            player_id = None
+        elif not player_id:
+            flash('Selecione um jogador para divulgar o negócio.', 'error')
+            return redirect(url_for('admin_business'))
+        
+        # Validar dados (removido player_id da validação para affinity)
+        if not business_name or not business_category or not business_description:
             flash('Todos os campos obrigatórios devem ser preenchidos.', 'error')
             return redirect(url_for('admin_business'))
         
@@ -5683,7 +5640,8 @@ def edit_business(business_id):
             
             if file and allowed_file(file.filename):
                 # Gerar nome de arquivo seguro
-                filename = secure_filename(f"business_{player_id}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
+                file_prefix = f"business_{player_id}" if player_id else "business_affinity"
+                filename = secure_filename(f"{file_prefix}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
                 
                 # Criar diretório se não existir
                 business_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'business_images')
@@ -5739,126 +5697,48 @@ def edit_business(business_id):
     return redirect(url_for('admin_business'))
 
 
-@app.template_filter('nl2br')
-def nl2br_filter(text):
-    """Converte quebras de linha em tags <br>"""
-    if not text:
-        return ""
-    return text.replace('\n', '<br>')
-
-
-@app.route('/force_fix_positions', methods=['GET'])
-def force_fix_positions():
-    """
-    Correção forçada das posições com lacunas
-    """
+@app.route('/admin/delete-business/<int:business_id>', methods=['POST'])
+@login_required
+def delete_business(business_id):
+    # Verificar permissão
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+    
     conn = get_db_connection()
+    
     try:
-        # Buscar apenas jogadores masculinos ativos
-        male_players = conn.execute('''
-            SELECT id, name FROM players 
-            WHERE active = 1 AND (sexo != 'feminino' OR sexo IS NULL)
-            ORDER BY position, name
-        ''').fetchall()
+        # Obter informações do negócio
+        business = conn.execute('SELECT * FROM businesses WHERE id = ?', (business_id,)).fetchone()
         
-        # Reassignar posições sequenciais (1, 2, 3, 4...)
-        for i, player in enumerate(male_players, 1):
-            new_tier = get_tier_from_position(i)
-            
-            conn.execute('''
-                UPDATE players 
-                SET position = ?, tier = ? 
-                WHERE id = ?
-            ''', (i, new_tier, player['id']))
+        if not business:
+            conn.close()
+            flash('Negócio não encontrado!', 'error')
+            return redirect(url_for('admin_business'))
+        
+        # Marcar como inativo (soft delete)
+        conn.execute('UPDATE businesses SET active = 0 WHERE id = ?', (business_id,))
+        
+        # Opcional: Remover fisicamente a imagem
+        if business['image_path']:
+            try:
+                image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'business_images', business['image_path'])
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+            except Exception as e:
+                print(f"Erro ao remover arquivo de imagem: {e}")
         
         conn.commit()
-        flash(f'Posições corrigidas! {len(male_players)} jogadores reorganizados sequencialmente.', 'success')
-        
+        flash('Negócio excluído com sucesso!', 'success')
+    
     except Exception as e:
         conn.rollback()
-        flash(f'Erro: {str(e)}', 'error')
+        flash(f'Erro ao excluir negócio: {str(e)}', 'error')
+    
     finally:
         conn.close()
     
-    return redirect(url_for('pyramid_dynamic'))
-
-
-def auto_fix_female_ranking(conn=None):
-    """
-    Detecta e corrige automaticamente o ranking feminino se estiver incorreto.
-    Executa sempre que há mudanças que possam afetar posições.
-    """
-    # Determinar se precisamos criar e fechar a conexão
-    connection_provided = conn is not None
-    if not connection_provided:
-        conn = get_db_connection()
-    
-    try:
-        # Buscar jogadoras femininas ativas ordenadas por posição atual
-        female_players = conn.execute('''
-            SELECT id, name, position FROM players 
-            WHERE active = 1 AND sexo = 'feminino'
-            ORDER BY position
-        ''').fetchall()
-        
-        if not female_players:
-            return  # Nenhuma jogadora feminina, nada a fazer
-        
-        # Verificar se as posições estão sequenciais (1, 2, 3, 4...)
-        needs_fix = False
-        expected_positions = list(range(1, len(female_players) + 1))
-        current_positions = [player['position'] for player in female_players]
-        
-        if current_positions != expected_positions:
-            needs_fix = True
-            print(f"🔧 Auto-correção detectada: Ranking feminino incorreto")
-            print(f"   Posições atuais: {current_positions}")
-            print(f"   Posições esperadas: {expected_positions}")
-        
-        # Corrigir automaticamente se necessário
-        if needs_fix:
-            for i, player in enumerate(female_players, 1):
-                new_position = i
-                new_tier = get_tier_from_position(new_position)
-                
-                conn.execute('''
-                    UPDATE players 
-                    SET position = ?, tier = ? 
-                    WHERE id = ? AND sexo = 'feminino'
-                ''', (new_position, new_tier, player['id']))
-            
-            if not connection_provided:
-                conn.commit()
-            
-            print(f"✅ Auto-correção concluída: {len(female_players)} jogadoras reorganizadas")
-            
-            # Registrar no histórico se necessário
-            for i, player in enumerate(female_players, 1):
-                if current_positions[i-1] != i:  # Só registra se houve mudança
-                    conn.execute('''
-                        INSERT INTO ranking_history 
-                        (player_id, old_position, new_position, old_tier, new_tier, reason)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (
-                        player['id'], 
-                        current_positions[i-1], 
-                        i, 
-                        get_tier_from_position(current_positions[i-1]), 
-                        get_tier_from_position(i), 
-                        'auto_fix_female_ranking'
-                    ))
-            
-            if not connection_provided:
-                conn.commit()
-        
-    except Exception as e:
-        print(f"Erro na auto-correção do ranking feminino: {str(e)}")
-        if not connection_provided:
-            conn.rollback()
-    finally:
-        if not connection_provided:
-            conn.close()
-
+    return redirect(url_for('admin_business'))
 
 
 
@@ -7158,6 +7038,83 @@ def recalcular_posicoes():
     
     flash(f'✅ Posições recalculadas: {len(male_players)} masculinos e {len(female_players)} femininas.', 'success')
     return redirect(url_for('index'))
+
+
+def auto_fix_female_ranking(conn=None):
+    """
+    Detecta e corrige automaticamente o ranking feminino se estiver incorreto.
+    Executa sempre que há mudanças que possam afetar posições.
+    """
+    # Determinar se precisamos criar e fechar a conexão
+    connection_provided = conn is not None
+    if not connection_provided:
+        conn = get_db_connection()
+    
+    try:
+        # Buscar jogadoras femininas ativas ordenadas por posição atual
+        female_players = conn.execute('''
+            SELECT id, name, position FROM players 
+            WHERE active = 1 AND sexo = 'feminino'
+            ORDER BY position
+        ''').fetchall()
+        
+        if not female_players:
+            return  # Nenhuma jogadora feminina, nada a fazer
+        
+        # Verificar se as posições estão sequenciais (1, 2, 3, 4...)
+        needs_fix = False
+        expected_positions = list(range(1, len(female_players) + 1))
+        current_positions = [player['position'] for player in female_players]
+        
+        if current_positions != expected_positions:
+            needs_fix = True
+            print(f"🔧 Auto-correção detectada: Ranking feminino incorreto")
+            print(f"   Posições atuais: {current_positions}")
+            print(f"   Posições esperadas: {expected_positions}")
+        
+        # Corrigir automaticamente se necessário
+        if needs_fix:
+            for i, player in enumerate(female_players, 1):
+                new_position = i
+                new_tier = get_tier_from_position(new_position)
+                
+                conn.execute('''
+                    UPDATE players 
+                    SET position = ?, tier = ? 
+                    WHERE id = ? AND sexo = 'feminino'
+                ''', (new_position, new_tier, player['id']))
+            
+            if not connection_provided:
+                conn.commit()
+            
+            print(f"✅ Auto-correção concluída: {len(female_players)} jogadoras reorganizadas")
+            
+            # Registrar no histórico se necessário
+            for i, player in enumerate(female_players, 1):
+                if current_positions[i-1] != i:  # Só registra se houve mudança
+                    conn.execute('''
+                        INSERT INTO ranking_history 
+                        (player_id, old_position, new_position, old_tier, new_tier, reason)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (
+                        player['id'], 
+                        current_positions[i-1], 
+                        i, 
+                        get_tier_from_position(current_positions[i-1]), 
+                        get_tier_from_position(i), 
+                        'auto_fix_female_ranking'
+                    ))
+            
+            if not connection_provided:
+                conn.commit()
+        
+    except Exception as e:
+        print(f"Erro na auto-correção do ranking feminino: {str(e)}")
+        if not connection_provided:
+            conn.rollback()
+    finally:
+        if not connection_provided:
+            conn.close()
 
 
 if __name__ == '__main__':
