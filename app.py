@@ -6606,13 +6606,23 @@ def reset_challenges():
 
 
 
-# ADICIONE ESTA ROTA NO app.py (área de rotas admin)
+# ============================================================
+# FUNÇÃO CORRIGIDA - adjust_player_position
+# 
+# PROBLEMA: Quando sexo = NULL ou '', a query "sexo = ?" não 
+# funciona corretamente, limitando a posição máxima incorretamente.
+#
+# SOLUÇÃO: Tratar masculino como (sexo = 'masculino' OR sexo IS NULL OR sexo = '')
+#
+# Substitua a função existente no app.py (aproximadamente linha 5765)
+# ============================================================
 
 @app.route('/admin/adjust_position/<int:player_id>', methods=['GET', 'POST'])
 @login_required
 def adjust_player_position(player_id):
     """
     Permite ao admin ajustar manualmente a posição de um jogador no ranking.
+    CORRIGIDO: Trata corretamente jogadores com sexo NULL ou vazio.
     """
     if not session.get('is_admin', False):
         flash('Acesso restrito a administradores.', 'error')
@@ -6644,33 +6654,58 @@ def adjust_player_position(player_id):
                 flash('ℹ️ A nova posição é igual à posição atual. Nenhuma alteração feita.', 'info')
                 return redirect(url_for('player_detail', player_id=player_id))
             
-            # Buscar jogadores do mesmo sexo ordenados por posição
-            players_same_gender = conn.execute('''
-                SELECT id, position FROM players 
-                WHERE active = 1 AND sexo = ? AND id != ?
-                ORDER BY position
-            ''', (player_sexo, player_id)).fetchall()
+            # ============================================================
+            # CORREÇÃO PRINCIPAL: Query que trata corretamente sexo NULL/vazio
+            # ============================================================
+            if player_sexo == 'feminino':
+                # Jogadoras femininas
+                players_same_gender = conn.execute('''
+                    SELECT id, position FROM players 
+                    WHERE active = 1 AND sexo = 'feminino' AND id != ?
+                    ORDER BY position
+                ''', (player_id,)).fetchall()
+                gender_condition = "sexo = 'feminino'"
+            else:
+                # Jogadores masculinos (inclui NULL e string vazia)
+                players_same_gender = conn.execute('''
+                    SELECT id, position FROM players 
+                    WHERE active = 1 
+                    AND (sexo = 'masculino' OR sexo IS NULL OR sexo = '')
+                    AND id != ?
+                    ORDER BY position
+                ''', (player_id,)).fetchall()
+                gender_condition = "(sexo = 'masculino' OR sexo IS NULL OR sexo = '')"
             
             # Verificar posição máxima
             max_position = len(players_same_gender) + 1
+            
+            # DEBUG: Mostrar informações (remover após confirmar que funciona)
+            print(f"DEBUG: Jogador {player['name']}, sexo='{player_sexo}'")
+            print(f"DEBUG: Total de jogadores do mesmo gênero: {len(players_same_gender)}")
+            print(f"DEBUG: Posição máxima permitida: {max_position}")
+            print(f"DEBUG: Nova posição solicitada: {new_position}")
+            
             if new_position > max_position:
+                flash(f'⚠️ Posição {new_position} excede o máximo ({max_position}). Ajustando para {max_position}.', 'warning')
                 new_position = max_position
             
-            # Reorganizar posições
+            # Reorganizar posições usando a condição correta
             if new_position < old_position:
                 # Jogador subiu no ranking - empurrar outros para baixo
-                conn.execute('''
+                conn.execute(f'''
                     UPDATE players 
                     SET position = position + 1 
-                    WHERE active = 1 AND sexo = ? AND position >= ? AND position < ? AND id != ?
-                ''', (player_sexo, new_position, old_position, player_id))
+                    WHERE active = 1 AND {gender_condition} 
+                    AND position >= ? AND position < ? AND id != ?
+                ''', (new_position, old_position, player_id))
             else:
                 # Jogador desceu no ranking - puxar outros para cima
-                conn.execute('''
+                conn.execute(f'''
                     UPDATE players 
                     SET position = position - 1 
-                    WHERE active = 1 AND sexo = ? AND position > ? AND position <= ? AND id != ?
-                ''', (player_sexo, old_position, new_position, player_id))
+                    WHERE active = 1 AND {gender_condition}
+                    AND position > ? AND position <= ? AND id != ?
+                ''', (old_position, new_position, player_id))
             
             # Atualizar posição do jogador
             new_tier = get_tier_from_position(new_position)
@@ -6678,12 +6713,19 @@ def adjust_player_position(player_id):
                 UPDATE players SET position = ?, tier = ? WHERE id = ?
             ''', (new_position, new_tier, player_id))
             
-            # CORREÇÃO: Atualizar tiers de TODOS os jogadores afetados
-            affected_players = conn.execute('''
-                SELECT id, position FROM players 
-                WHERE active = 1 AND sexo = ?
-                ORDER BY position
-            ''', (player_sexo,)).fetchall()
+            # Atualizar tiers de TODOS os jogadores afetados (usando condição correta)
+            if player_sexo == 'feminino':
+                affected_players = conn.execute('''
+                    SELECT id, position FROM players 
+                    WHERE active = 1 AND sexo = 'feminino'
+                    ORDER BY position
+                ''').fetchall()
+            else:
+                affected_players = conn.execute('''
+                    SELECT id, position FROM players 
+                    WHERE active = 1 AND (sexo = 'masculino' OR sexo IS NULL OR sexo = '')
+                    ORDER BY position
+                ''').fetchall()
             
             for p in affected_players:
                 correct_tier = get_tier_from_position(p['position'])
@@ -6691,18 +6733,17 @@ def adjust_player_position(player_id):
                     UPDATE players SET tier = ? WHERE id = ?
                 ''', (correct_tier, p['id']))
             
-            # Registrar log da alteração
-            log_note = f"Ajuste manual de posição pelo admin: {old_position} → {new_position}"
-            if reason:
-                log_note += f". Motivo: {reason}"
-            
+            # Registrar no histórico
             try:
                 conn.execute('''
-                    INSERT INTO challenge_logs (challenge_id, action, old_value, new_value, changed_by, notes)
-                    VALUES (NULL, 'admin_position_adjust', ?, ?, ?, ?)
-                ''', (str(old_position), str(new_position), session.get('username', 'admin'), log_note))
-            except:
-                pass  # Tabela de logs pode não existir
+                    INSERT INTO ranking_history 
+                    (player_id, old_position, new_position, old_tier, new_tier, reason)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (player_id, old_position, new_position, 
+                      get_tier_from_position(old_position), new_tier, 
+                      f'admin_manual_adjust: {reason}' if reason else 'admin_manual_adjust'))
+            except Exception as e:
+                print(f"Aviso: Não foi possível registrar no histórico: {e}")
             
             conn.commit()
             
@@ -6721,12 +6762,19 @@ def adjust_player_position(player_id):
         return redirect(url_for('adjust_player_position', player_id=player_id))
     
     # GET - Mostrar formulário
-    # Buscar jogadores do mesmo sexo para mostrar contexto
-    players_same_gender = conn.execute('''
-        SELECT id, name, position, tier FROM players 
-        WHERE active = 1 AND sexo = ?
-        ORDER BY position
-    ''', (player['sexo'],)).fetchall()
+    # Buscar jogadores do mesmo sexo para mostrar contexto (usando query correta)
+    if player['sexo'] == 'feminino':
+        players_same_gender = conn.execute('''
+            SELECT id, name, position, tier FROM players 
+            WHERE active = 1 AND sexo = 'feminino'
+            ORDER BY position
+        ''').fetchall()
+    else:
+        players_same_gender = conn.execute('''
+            SELECT id, name, position, tier FROM players 
+            WHERE active = 1 AND (sexo = 'masculino' OR sexo IS NULL OR sexo = '')
+            ORDER BY position
+        ''').fetchall()
     
     conn.close()
     
