@@ -753,22 +753,25 @@ def dashboard():
         tier = player['tier']
         prev_tier = chr(ord(tier) - 1) if ord(tier) > ord('A') else tier
         
+        # Calcular posição mínima (limite de 8 posições acima)
+        min_position = max(1, player['position'] - 8)
+
         potential_challenges = conn.execute('''
             SELECT p.*
             FROM players p
             WHERE p.position < ? 
-              AND (p.tier = ? OR p.tier = ?)
-              AND p.active = 1
-              AND p.id NOT IN (
+            AND p.position >= ?
+            AND p.active = 1
+            AND p.id NOT IN (
                 SELECT challenged_id FROM challenges 
                 WHERE challenger_id = ? AND status IN ('pending', 'accepted')
-              )
-              AND p.id NOT IN (
+            )
+            AND p.id NOT IN (
                 SELECT challenger_id FROM challenges 
                 WHERE challenged_id = ? AND status IN ('pending', 'accepted')
-              )
+            )
             ORDER BY p.position DESC
-        ''', (player['position'], tier, prev_tier, player['id'], player['id'])).fetchall()
+        ''', (player['position'], min_position, player['id'], player['id'])).fetchall()
     
     conn.close()
     
