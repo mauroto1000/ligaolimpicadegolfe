@@ -6872,7 +6872,6 @@ def verificar_carteirinha(token):
 # create_verification_tokens_table()
 #
 
-
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
     if not os.path.exists(DATABASE):
