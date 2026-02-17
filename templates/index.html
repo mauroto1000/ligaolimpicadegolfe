@@ -308,9 +308,7 @@
         <h2 class="mb-2 fs-4">Rankings da Liga Olímpica de Golfe</h2>
     </div>
     
-    <!-- Separar jogadores por sexo -->
-    {% set female_players = players|selectattr('sexo', 'equalto', 'feminino')|list %}
-    {% set male_players = players|rejectattr('sexo', 'equalto', 'feminino')|list %}
+    <!-- Listas separadas pelo Python: male_players e female_players -->
     
     <!-- SWITCH -->
     <div class="col-12">
@@ -380,11 +378,9 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% set position_counter = [0] %}
                             {% for player in male_players %}
-                            {% if position_counter.append(position_counter.pop() + 1) %}{% endif %}
                             <tr data-player-name="{{ player['name']|lower }}">
-                                <td class="text-center"><strong>{{ position_counter[0] }}</strong></td>
+                                <td class="text-center"><strong>{{ loop.index }}</strong></td>
                                 <td class="text-center">{{ player['player_code'] }}</td>
                                 <td>
                                     <i class="fas fa-mars mens-icon gender-icon"></i>
@@ -453,11 +449,9 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% set ladies_position = [0] %}
                             {% for player in female_players %}
-                            {% if ladies_position.append(ladies_position.pop() + 1) %}{% endif %}
                             <tr data-player-name="{{ player['name']|lower }}">
-                                <td class="text-center"><strong>{{ ladies_position[0] }}</strong></td>
+                                <td class="text-center"><strong>{{ loop.index }}</strong></td>
                                 <td class="text-center">{{ player['player_code'] }}</td>
                                 <td>
                                     <i class="fas fa-venus ladies-icon gender-icon"></i>

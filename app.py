@@ -2440,18 +2440,34 @@ def update_player_sexo(player_id):
     return redirect(url_for('player_detail', player_id=player_id))
 
 
-
 @app.route('/')
 def index():
     conn = get_db_connection()
-    # Modificado para mostrar apenas jogadores ativos
-    players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
     
-    # Buscar jogadores inativos para mostrar em seção separada
+    # Buscar jogadores ativos MASCULINOS ordenados por posição
+    male_players = conn.execute('''
+        SELECT * FROM players 
+        WHERE active = 1 AND (sexo = 'masculino' OR sexo IS NULL OR sexo = '')
+        ORDER BY position
+    ''').fetchall()
+    
+    # Buscar jogadores ativos FEMININOS ordenados por posição
+    female_players = conn.execute('''
+        SELECT * FROM players 
+        WHERE active = 1 AND sexo = 'feminino'
+        ORDER BY position
+    ''').fetchall()
+    
+    # Buscar jogadores inativos
     inactive_players = conn.execute('SELECT * FROM players WHERE active = 0 ORDER BY name').fetchall()
     
     conn.close()
-    return render_template('index.html', players=players, inactive_players=inactive_players)
+    
+    return render_template('index.html', 
+                          male_players=male_players,
+                          female_players=female_players,
+                          inactive_players=inactive_players)
+
 
 @app.route('/pyramid')
 def pyramid_redirect():
@@ -3368,7 +3384,7 @@ def history():
     conn.close()
     return render_template('history.html', history=history)
 
-    
+
 
 @app.route('/player/<int:player_id>')
 def player_detail(player_id):
@@ -6576,6 +6592,19 @@ def adjust_player_position(player_id):
                 UPDATE players SET position = ?, tier = ? WHERE id = ?
             ''', (new_position, new_tier, player_id))
             
+            # CORREÇÃO: Atualizar tiers de TODOS os jogadores afetados
+            affected_players = conn.execute('''
+                SELECT id, position FROM players 
+                WHERE active = 1 AND sexo = ?
+                ORDER BY position
+            ''', (player_sexo,)).fetchall()
+            
+            for p in affected_players:
+                correct_tier = get_tier_from_position(p['position'])
+                conn.execute('''
+                    UPDATE players SET tier = ? WHERE id = ?
+                ''', (correct_tier, p['id']))
+            
             # Registrar log da alteração
             log_note = f"Ajuste manual de posição pelo admin: {old_position} → {new_position}"
             if reason:
@@ -6591,7 +6620,7 @@ def adjust_player_position(player_id):
             
             conn.commit()
             
-            flash(f'✅ Posição de {player["name"]} alterada de #{old_position} para #{new_position}.', 'success')
+            flash(f'✅ Posição de {player["name"]} alterada de #{old_position} para #{new_position}. Tiers atualizados.', 'success')
             
             return redirect(url_for('player_detail', player_id=player_id))
             
@@ -6888,6 +6917,47 @@ def verificar_carteirinha(token):
 # 
 # create_verification_tokens_table()
 #
+
+
+@app.route('/admin/recalcular-posicoes')
+@login_required
+def recalcular_posicoes():
+    """Recalcula as posições de todos os jogadores, separadamente por sexo"""
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    
+    # Recalcular posições MASCULINAS
+    male_players = conn.execute('''
+        SELECT id FROM players 
+        WHERE active = 1 AND (sexo = 'masculino' OR sexo IS NULL OR sexo = '')
+        ORDER BY position
+    ''').fetchall()
+    
+    for i, player in enumerate(male_players, start=1):
+        new_tier = get_tier_from_position(i)
+        conn.execute('UPDATE players SET position = ?, tier = ? WHERE id = ?', 
+                    (i, new_tier, player['id']))
+    
+    # Recalcular posições FEMININAS
+    female_players = conn.execute('''
+        SELECT id FROM players 
+        WHERE active = 1 AND sexo = 'feminino'
+        ORDER BY position
+    ''').fetchall()
+    
+    for i, player in enumerate(female_players, start=1):
+        new_tier = get_tier_from_position(i)
+        conn.execute('UPDATE players SET position = ?, tier = ? WHERE id = ?', 
+                    (i, new_tier, player['id']))
+    
+    conn.commit()
+    conn.close()
+    
+    flash(f'✅ Posições recalculadas: {len(male_players)} masculinos e {len(female_players)} femininas.', 'success')
+    return redirect(url_for('index'))
 
 
 if __name__ == '__main__':
