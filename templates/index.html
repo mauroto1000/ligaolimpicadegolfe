@@ -382,12 +382,6 @@
                                 <td class="text-center"><strong>{{ loop.index }}</strong></td>
                                 <td class="text-center">{{ player['player_code'] }}</td>
                                 <td>
-                                    <i class="fas fa-mars mens-icon gender-icon"></i>
-                                    {% if player['country'] %}
-                                        <img src="https://flagcdn.com/16x12/{{ player['country']|country_code }}.png" 
-                                             alt="{{ player['country'] }}" class="me-1" width="16" height="12" 
-                                             title="{{ player['country'] }}">
-                                    {% endif %}
                                     {{ player['name'] }}
                                 </td>
                                 <td class="text-center actions-cell">
@@ -449,12 +443,6 @@
                                 <td class="text-center"><strong>{{ loop.index }}</strong></td>
                                 <td class="text-center">{{ player['player_code'] }}</td>
                                 <td>
-                                    <i class="fas fa-venus ladies-icon gender-icon"></i>
-                                    {% if player['country'] %}
-                                        <img src="https://flagcdn.com/16x12/{{ player['country']|country_code }}.png" 
-                                             alt="{{ player['country'] }}" class="me-1" width="16" height="12" 
-                                             title="{{ player['country'] }}">
-                                    {% endif %}
                                     {{ player['name'] }}
                                 </td>
                                 <td class="text-center actions-cell">
