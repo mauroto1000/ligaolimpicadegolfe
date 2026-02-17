@@ -34,6 +34,54 @@
             font-size: 0.8rem;
         }
         
+        /* Estilo do logotipo no navbar */
+        .navbar-brand-logo {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            color: white;
+        }
+        
+        .navbar-brand-logo:hover {
+            color: #d4af37;
+        }
+        
+        .logo-icon-nav {
+            margin-right: 10px;
+        }
+        
+        .logo-text-nav {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.1;
+        }
+        
+        .liga-nome-nav {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #d4af37;
+        }
+        
+        .liga-subtitulo-nav {
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        @media (max-width: 576px) {
+            .liga-nome-nav {
+                font-size: 0.9rem;
+            }
+            .liga-subtitulo-nav {
+                font-size: 0.55rem;
+                letter-spacing: 1px;
+            }
+            .logo-icon-nav svg {
+                width: 35px;
+                height: 35px;
+            }
+        }
+        
         /* Ajuste para o cabeçalho em dispositivos muito pequenos */
         @media (max-width: 380px) {
             .navbar-brand {
@@ -57,12 +105,12 @@
         
         /* Estilo para o atalho da carteirinha */
         .carteirinha-shortcut {
-            background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 100%);
+            background: linear-gradient(135deg, #28a745 0%, #5cb85c 100%);
             transition: all 0.3s ease;
         }
         
         .carteirinha-shortcut:hover {
-            background: linear-gradient(135deg, #2d8a3e 0%, #3da64e 100%);
+            background: linear-gradient(135deg, #34c759 0%, #6fcf7f 100%);
         }
         
         .carteirinha-shortcut a {
@@ -85,10 +133,25 @@
 <body>
     <!-- Cabeçalho / Navegação -->
     <header>
-        <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 100%);">
             <div class="container-fluid">
-                <!-- Logo/Nome da aplicação - agora exibe nome completo em todas as versões -->
-                <a class="navbar-brand" href="{{ url_for('index') }}">LIGA OLÍMPICA DE GOLFE</a>
+                <!-- Logo/Nome da aplicação com formato da carteirinha -->
+                <a class="navbar-brand navbar-brand-logo" href="{{ url_for('index') }}">
+                    <div class="logo-icon-nav">
+                        <svg viewBox="0 0 60 60" width="45" height="45">
+                            <circle cx="30" cy="15" r="6" fill="none" stroke="#d4af37" stroke-width="2"/>
+                            <circle cx="18" cy="35" r="6" fill="none" stroke="#d4af37" stroke-width="2"/>
+                            <circle cx="42" cy="35" r="6" fill="none" stroke="#d4af37" stroke-width="2"/>
+                            <line x1="30" y1="21" x2="24" y2="29" stroke="#d4af37" stroke-width="2"/>
+                            <line x1="30" y1="21" x2="36" y2="29" stroke="#d4af37" stroke-width="2"/>
+                            <line x1="24" y1="35" x2="36" y2="35" stroke="#d4af37" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <div class="logo-text-nav">
+                        <span class="liga-nome-nav">Liga Olímpica de Golfe</span>
+                        <span class="liga-subtitulo-nav">GOLFE & AMIGOS</span>
+                    </div>
+                </a>
                 
                 <!-- Botão de toggle para menu mobile -->
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" 
@@ -477,4 +540,5 @@
     <!-- Scripts adicionais -->
     {% block scripts %}{% endblock %}
 </body>
+</html>
 </html>
