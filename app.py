@@ -1537,14 +1537,42 @@ def rebalance_positions_after_challenge(conn, winner_id, loser_id, winner_new_po
 # Função aprimorada para processar o resultado de um desafio
 # Adição de código para função existente process_challenge_result
 
+# ============================================================
+# FUNÇÃO ATUALIZADA - process_challenge_result
+# 
+# INSTRUÇÕES: Substitua a função existente no app.py por esta versão
+#
+# REGRAS DE W.O. IMPLEMENTADAS:
+# 1. W.O para o desafiado (wo_challenger - desafiado não compareceu):
+#    - Desafiante ganha 1 posição (permuta com quem está acima dele)
+#    - Desafiado assume a posição antiga do desafiante
+#
+# 2. W.O para o desafiante (wo_challenged - desafiante não compareceu):
+#    - Desafiante perde 4 posições no ranking
+#    - Desafiado não muda de posição
+# ============================================================
+
 def process_challenge_result(conn, challenge_id, status, result):
     """
-    Processa o resultado de um desafio, atualizando posições conforme as novas regras:
+    Processa o resultado de um desafio, atualizando posições conforme as regras:
     
-    NOVAS REGRAS:
+    REGRAS NORMAIS:
     - Desafiante vence: assume posição do desafiado, desafiado desce 1 posição
     - Desafiado vence: desafiado sobe 1 posição (permuta com quem está acima), desafiante NÃO muda
+    
+    REGRAS DE W.O.:
+    - wo_challenger (desafiado não compareceu - desafiante vence por WO):
+      * Desafiante ganha 1 posição (permuta com quem está acima dele)
+      * Desafiado assume a posição antiga do desafiante
+    
+    - wo_challenged (desafiante não compareceu - desafiado vence por WO):
+      * Desafiante perde 4 posições no ranking
+      * Desafiado não muda de posição
     """
+    # Buscar o result_type do desafio
+    challenge_data = conn.execute('SELECT result_type FROM challenges WHERE id = ?', (challenge_id,)).fetchone()
+    result_type = challenge_data['result_type'] if challenge_data and challenge_data['result_type'] else 'normal'
+    
     # Atualizar o status e resultado do desafio
     conn.execute('UPDATE challenges SET status = ?, result = ? WHERE id = ?', 
                 (status, result, challenge_id))
@@ -1581,14 +1609,186 @@ def process_challenge_result(conn, challenge_id, status, result):
         player_sexo = challenge['challenger_sexo'] or 'masculino'
         
         try:
-            if result == 'challenger_win':
-                # =====================================================
-                # DESAFIANTE VENCE:
-                # - Desafiante assume a posição do desafiado
-                # - Desafiado desce 1 posição
-                # - Todos entre eles descem 1 posição
-                # =====================================================
+            # =====================================================
+            # W.O. - DESAFIADO NÃO COMPARECEU (wo_challenger)
+            # Desafiante vence por WO
+            # Desafiante ganha 1 posição, desafiado vai para posição do desafiante
+            # =====================================================
+            if result_type == 'wo_challenger' and result == 'challenger_win':
+                print(f"🔴 Processando W.O. - DESAFIADO não compareceu")
+                print(f"   Posições antes: Desafiante={challenger_old_pos}, Desafiado={challenged_old_pos}")
                 
+                # O desafiante sobe 1 posição (permuta com quem está imediatamente acima dele)
+                if challenger_old_pos > 1:
+                    # Buscar o jogador que está 1 posição acima do desafiante
+                    player_above = conn.execute('''
+                        SELECT id, position, tier FROM players 
+                        WHERE position = ? AND active = 1
+                        AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+                    ''', (challenger_old_pos - 1, player_sexo, player_sexo)).fetchone()
+                    
+                    if player_above:
+                        player_above_id = player_above['id']
+                        player_above_old_pos = player_above['position']
+                        player_above_old_tier = player_above['tier']
+                        
+                        new_challenger_pos = challenger_old_pos - 1  # Desafiante sobe 1
+                        new_challenged_pos = challenger_old_pos  # Desafiado vai para posição antiga do desafiante
+                        
+                        # Se o jogador acima for o próprio desafiado
+                        if player_above_id == challenged_id:
+                            # Permuta direta: desafiante sobe, desafiado desce
+                            conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                                       (new_challenger_pos, challenger_id))
+                            conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                                       (new_challenged_pos, challenged_id))
+                        else:
+                            # Há um jogador diferente acima do desafiante
+                            # Desafiante permuta com ele
+                            # Desafiado vai para a posição antiga do desafiante
+                            
+                            # Jogador que estava acima do desafiante desce para posição do desafiante
+                            conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                                       (challenger_old_pos, player_above_id))
+                            
+                            # Desafiante sobe 1
+                            conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                                       (new_challenger_pos, challenger_id))
+                            
+                            # Desafiado vai para posição após o jogador que desceu (se aplicável)
+                            # Precisamos recalcular a posição do desafiado
+                            if challenged_old_pos < challenger_old_pos:
+                                # Desafiado estava acima do desafiante, vai para posição do desafiante
+                                new_challenged_pos = challenger_old_pos
+                            else:
+                                # Desafiado estava abaixo ou na mesma posição (não deveria acontecer)
+                                new_challenged_pos = challenger_old_pos
+                            
+                            conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                                       (new_challenged_pos, challenged_id))
+                            
+                            # Registrar no histórico - Jogador que foi deslocado
+                            conn.execute('''
+                                INSERT INTO ranking_history 
+                                (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                            ''', (player_above_id, player_above_old_pos, challenger_old_pos, 
+                                 player_above_old_tier, get_tier_from_position(challenger_old_pos), 
+                                 'displaced_by_wo', challenge_id))
+                        
+                        # Registrar no histórico - Desafiante
+                        conn.execute('''
+                            INSERT INTO ranking_history 
+                            (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ''', (challenger_id, challenger_old_pos, new_challenger_pos, 
+                             challenger_old_tier, get_tier_from_position(new_challenger_pos), 
+                             'wo_win_promoted', challenge_id))
+                        
+                        # Registrar no histórico - Desafiado
+                        conn.execute('''
+                            INSERT INTO ranking_history 
+                            (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ''', (challenged_id, challenged_old_pos, new_challenged_pos, 
+                             challenged_old_tier, get_tier_from_position(new_challenged_pos), 
+                             'wo_loss_demoted', challenge_id))
+                        
+                        print(f"✅ W.O. Desafiado não compareceu:")
+                        print(f"   Desafiante {challenger_id}: {challenger_old_pos} → {new_challenger_pos}")
+                        print(f"   Desafiado {challenged_id}: {challenged_old_pos} → {new_challenged_pos}")
+                    else:
+                        # Não há ninguém acima do desafiante
+                        # Apenas o desafiado vai para posição do desafiante + 1
+                        new_challenged_pos = challenger_old_pos + 1
+                        
+                        conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                                   (new_challenged_pos, challenged_id))
+                        
+                        conn.execute('''
+                            INSERT INTO ranking_history 
+                            (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ''', (challenged_id, challenged_old_pos, new_challenged_pos, 
+                             challenged_old_tier, get_tier_from_position(new_challenged_pos), 
+                             'wo_loss_demoted', challenge_id))
+                        
+                        print(f"✅ W.O. (sem jogador acima): Desafiado {challenged_id} ({challenged_old_pos} → {new_challenged_pos})")
+                else:
+                    # Desafiante já está na posição 1
+                    # Apenas o desafiado vai para posição do desafiante + 1
+                    new_challenged_pos = challenger_old_pos + 1
+                    
+                    conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                               (new_challenged_pos, challenged_id))
+                    
+                    conn.execute('''
+                        INSERT INTO ranking_history 
+                        (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ''', (challenged_id, challenged_old_pos, new_challenged_pos, 
+                         challenged_old_tier, get_tier_from_position(new_challenged_pos), 
+                         'wo_loss_demoted', challenge_id))
+                    
+                    print(f"✅ W.O. (desafiante já no topo): Desafiado {challenged_id} ({challenged_old_pos} → {new_challenged_pos})")
+            
+            # =====================================================
+            # W.O. - DESAFIANTE NÃO COMPARECEU (wo_challenged)
+            # Desafiado vence por WO
+            # Desafiante perde 4 posições
+            # =====================================================
+            elif result_type == 'wo_challenged' and result == 'challenged_win':
+                print(f"🔴 Processando W.O. - DESAFIANTE não compareceu")
+                print(f"   Posição do desafiante antes: {challenger_old_pos}")
+                
+                # Calcular nova posição do desafiante (desce 4 posições)
+                # Buscar quantos jogadores ativos existem do mesmo sexo
+                max_pos_result = conn.execute('''
+                    SELECT MAX(position) as max_pos FROM players 
+                    WHERE active = 1 AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+                ''', (player_sexo, player_sexo)).fetchone()
+                
+                max_position = max_pos_result['max_pos'] if max_pos_result and max_pos_result['max_pos'] else challenger_old_pos
+                
+                # Nova posição = atual + 4, limitado ao máximo
+                new_challenger_pos = min(challenger_old_pos + 4, max_position)
+                
+                if new_challenger_pos != challenger_old_pos:
+                    # Puxar jogadores entre as posições para cima (ocupar o espaço deixado)
+                    conn.execute('''
+                        UPDATE players 
+                        SET position = position - 1 
+                        WHERE position > ? AND position <= ?
+                        AND id != ?
+                        AND active = 1
+                        AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+                    ''', (challenger_old_pos, new_challenger_pos, challenger_id, player_sexo, player_sexo))
+                    
+                    # Atualizar posição do desafiante
+                    conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                               (new_challenger_pos, challenger_id))
+                    
+                    # Registrar no histórico - Desafiante (penalizado)
+                    conn.execute('''
+                        INSERT INTO ranking_history 
+                        (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ''', (challenger_id, challenger_old_pos, new_challenger_pos, 
+                         challenger_old_tier, get_tier_from_position(new_challenger_pos), 
+                         'wo_penalty_4_positions', challenge_id))
+                    
+                    print(f"✅ W.O. Desafiante não compareceu:")
+                    print(f"   Desafiante {challenger_id} PENALIZADO: {challenger_old_pos} → {new_challenger_pos}")
+                    print(f"   Desafiado {challenged_id} não muda (posição {challenged_old_pos})")
+                else:
+                    print(f"ℹ️ W.O. Desafiante: Desafiante já está na última posição, sem mudança.")
+                
+                # IMPORTANTE: Desafiado NÃO muda de posição
+            
+            # =====================================================
+            # RESULTADO NORMAL - DESAFIANTE VENCE
+            # =====================================================
+            elif result == 'challenger_win':
                 new_challenger_pos = challenged_old_pos  # Desafiante vai para posição do desafiado
                 new_challenged_pos = challenged_old_pos + 1  # Desafiado desce 1
                 
@@ -1631,13 +1831,10 @@ def process_challenge_result(conn, challenge_id, status, result):
                 print(f"✅ Desafiante venceu: {challenger_id} ({challenger_old_pos} → {new_challenger_pos}), "
                       f"Desafiado: {challenged_id} ({challenged_old_pos} → {new_challenged_pos})")
                 
+            # =====================================================
+            # RESULTADO NORMAL - DESAFIADO VENCE
+            # =====================================================
             elif result == 'challenged_win':
-                # =====================================================
-                # DESAFIADO VENCE:
-                # - Desafiado sobe 1 posição (permuta com quem está acima)
-                # - Desafiante NÃO muda de posição
-                # =====================================================
-                
                 # Verificar se existe alguém uma posição acima do desafiado
                 player_above = conn.execute('''
                     SELECT id, position, tier FROM players 
