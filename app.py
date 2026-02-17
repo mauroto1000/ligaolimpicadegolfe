@@ -3368,6 +3368,8 @@ def history():
     conn.close()
     return render_template('history.html', history=history)
 
+    
+
 @app.route('/player/<int:player_id>')
 def player_detail(player_id):
     conn = get_db_connection()
@@ -3410,24 +3412,43 @@ def player_detail(player_id):
     
     # Buscar possíveis jogadores para desafiar (apenas se o jogador estiver ativo)
     potential_challenges = []
-    if player['active'] == 1 and player_position > 0:  # Verificar se a posição é válida
+    if player['active'] == 1 and player_position > 0:
         try:
             # Calcular o tier anterior (um nível acima)
             prev_tier = chr(ord(player_tier) - 1) if ord(player_tier) > ord('A') else player_tier
             
+            # Limite de 8 posições acima
+            min_position = max(1, player_position - 8)
+            
+            # Buscar jogadores que podem ser desafiados:
+            # - Posição menor (melhor) que a do jogador
+            # - Até 8 posições acima
+            # - Mesmo tier ou tier anterior
+            # - Ativo
+            # - Sem desafio pendente/aceito entre eles
             potential_challenges = conn.execute('''
                 SELECT p.*
                 FROM players p
                 WHERE p.position < ? 
+                  AND p.position >= ?
                   AND (p.tier = ? OR p.tier = ?)
                   AND p.active = 1
+                  AND p.id NOT IN (
+                      SELECT c.challenged_id FROM challenges c 
+                      WHERE c.challenger_id = ? 
+                        AND c.status IN ('pending', 'accepted')
+                  )
+                  AND p.id NOT IN (
+                      SELECT c.challenger_id FROM challenges c 
+                      WHERE c.challenged_id = ? 
+                        AND c.status IN ('pending', 'accepted')
+                  )
                 ORDER BY p.position DESC
-            ''', (player_position, player_tier, prev_tier)).fetchall()
+            ''', (player_position, min_position, player_tier, prev_tier, player_id, player_id)).fetchall()
         except Exception as e:
             print(f"Erro ao buscar desafios potenciais: {str(e)}")
     
-    # Determinar explicitamente se o usuário está vendo seu próprio perfil
-    # Método muito mais robusto para verificar se é o próprio jogador
+    # Determinar se o usuário está vendo seu próprio perfil
     is_own_profile = False
     is_admin = session.get('is_admin', False)
     
@@ -3444,9 +3465,6 @@ def player_detail(player_id):
     except (ValueError, TypeError, AttributeError):
         is_own_profile = False
     
-    # Log para depuração - remova depois que o problema for resolvido
-    print(f"Acesso ao perfil - player_id: {player_id}, user_id: {session.get('user_id')}, is_own_profile: {is_own_profile}, is_admin: {is_admin}")
-    
     conn.close()
     
     return render_template('player_detail.html', 
@@ -3455,8 +3473,8 @@ def player_detail(player_id):
                          challenges_as_challenged=challenges_as_challenged,
                          history=history,
                          potential_challenges=potential_challenges,
-                         is_own_profile=is_own_profile,  # Passar explicitamente
-                         is_admin=is_admin)  # Passar explicitamente
+                         is_own_profile=is_own_profile,
+                         is_admin=is_admin)
 
 
 @app.route('/challenge_detail/<int:challenge_id>')
