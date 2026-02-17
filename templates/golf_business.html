@@ -4,7 +4,276 @@
 
 {% block head %}
 <style>
-    /* Estilos específicos para o mosaico Golf Business */
+    /* ========================================
+       ESTILOS LIGA AFFINITY CLUB (Recolhível)
+       ======================================== */
+    .affinity-section {
+        background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 50%, #d4af37 100%);
+        border-radius: 16px;
+        margin-bottom: 30px;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .affinity-section::before {
+        content: '⛳';
+        position: absolute;
+        top: -20px;
+        right: -20px;
+        font-size: 120px;
+        opacity: 0.1;
+        pointer-events: none;
+    }
+    
+    /* Header clicável */
+    .affinity-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px 25px;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+    
+    .affinity-header:hover {
+        background: rgba(255,255,255,0.1);
+    }
+    
+    .affinity-header-left {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    
+    .affinity-logo {
+        width: 60px;
+        height: 60px;
+        background: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        flex-shrink: 0;
+    }
+    
+    .affinity-logo i {
+        font-size: 28px;
+        color: #d4af37;
+    }
+    
+    .affinity-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin: 0;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .affinity-subtitle {
+        font-size: 0.85rem;
+        opacity: 0.9;
+        margin-top: 3px;
+    }
+    
+    .affinity-toggle {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(255,255,255,0.2);
+        padding: 8px 15px;
+        border-radius: 25px;
+        font-size: 0.9rem;
+        transition: all 0.3s;
+    }
+    
+    .affinity-toggle i {
+        transition: transform 0.3s;
+    }
+    
+    .affinity-section.expanded .affinity-toggle i {
+        transform: rotate(180deg);
+    }
+    
+    .affinity-partner-count {
+        background: white;
+        color: #1a5f2a;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 0.85rem;
+    }
+    
+    /* Conteúdo expansível */
+    .affinity-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.5s ease-out, padding 0.3s;
+        padding: 0 25px;
+    }
+    
+    .affinity-section.expanded .affinity-content {
+        max-height: 2000px;
+        padding: 0 25px 25px 25px;
+    }
+    
+    .affinity-description {
+        background: rgba(255,255,255,0.15);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        backdrop-filter: blur(5px);
+        line-height: 1.6;
+    }
+    
+    .affinity-description p {
+        margin-bottom: 8px;
+    }
+    
+    .affinity-description p:last-child {
+        margin-bottom: 0;
+    }
+    
+    .affinity-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+    }
+    
+    .affinity-card {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        transition: transform 0.3s, box-shadow 0.3s;
+        color: #333;
+    }
+    
+    .affinity-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    }
+    
+    .affinity-card-image {
+        height: 140px;
+        background-size: cover;
+        background-position: center;
+        position: relative;
+    }
+    
+    .affinity-card-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: #d4af37;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .affinity-card-body {
+        padding: 15px;
+    }
+    
+    .affinity-card-name {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #1a5f2a;
+        margin-bottom: 10px;
+    }
+    
+    .affinity-card-benefits {
+        font-size: 0.9rem;
+        color: #555;
+        white-space: pre-line;
+        max-height: 150px;
+        overflow-y: auto;
+    }
+    
+    .affinity-card-benefits a {
+        color: #1a5f2a;
+        text-decoration: underline;
+    }
+    
+    .affinity-card-contact {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px dashed #ddd;
+        font-size: 0.85rem;
+        color: #666;
+    }
+    
+    .affinity-cta {
+        text-align: center;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255,255,255,0.3);
+    }
+    
+    .affinity-cta p {
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+    }
+    
+    .affinity-cta .btn-affinity {
+        background: white;
+        color: #1a5f2a;
+        font-weight: 600;
+        padding: 10px 25px;
+        border-radius: 25px;
+        border: none;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        transition: all 0.3s;
+        text-decoration: none;
+        display: inline-block;
+        margin-top: 10px;
+    }
+    
+    .affinity-cta .btn-affinity:hover {
+        transform: scale(1.05);
+        box-shadow: 0 6px 15px rgba(0,0,0,0.3);
+        color: #1a5f2a;
+    }
+    
+    .affinity-empty {
+        text-align: center;
+        padding: 30px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 12px;
+        grid-column: 1 / -1;
+    }
+    
+    .affinity-empty i {
+        font-size: 3rem;
+        margin-bottom: 15px;
+        opacity: 0.7;
+    }
+    
+    /* ========================================
+       ESTILOS GOLF BUSINESS (mosaico)
+       ======================================== */
+    .business-section-title {
+        display: flex;
+        align-items: center;
+        margin: 30px 0 20px 0;
+        padding-bottom: 15px;
+        border-bottom: 3px solid #00539C;
+    }
+    
+    .business-section-title i {
+        font-size: 2rem;
+        color: #00539C;
+        margin-right: 15px;
+    }
+    
+    .business-section-title h2 {
+        margin: 0;
+        color: #00539C;
+    }
+    
     .business-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -50,7 +319,7 @@
         margin-bottom: 10px;
         max-height: 150px;
         overflow-y: auto;
-        white-space: pre-line; /* Esta linha preserva as quebras de linha */
+        white-space: pre-line;
     }
     
     .business-owner {
@@ -89,7 +358,6 @@
         border-top: 1px dashed #eee;
     }
     
-    /* Estilo para links na descrição */
     .business-desc a {
         color: #0066cc;
         text-decoration: underline;
@@ -98,20 +366,103 @@
     .business-desc a:hover {
         color: #004080;
     }
+    
+    /* Responsivo */
+    @media (max-width: 576px) {
+        .affinity-header {
+            flex-direction: column;
+            gap: 15px;
+            text-align: center;
+        }
+        .affinity-header-left {
+            justify-content: center;
+        }
+        .affinity-title {
+            font-size: 1.2rem;
+        }
+        .affinity-section {
+            margin-bottom: 20px;
+        }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container">
-    <h1 class="mb-4">
-        <i class="fas fa-briefcase text-primary me-2"></i> Golf Business
-    </h1>
+    
+    <!-- ========================================
+         SEÇÃO: LIGA AFFINITY CLUB (Recolhível)
+         ======================================== -->
+    <section class="affinity-section" id="affinitySection">
+        <!-- Header clicável -->
+        <div class="affinity-header" onclick="toggleAffinity()">
+            <div class="affinity-header-left">
+                <div class="affinity-logo">
+                    <i class="fas fa-crown"></i>
+                </div>
+                <div>
+                    <h1 class="affinity-title">LIGA AFFINITY CLUB</h1>
+                    <p class="affinity-subtitle">Clube de Afinidades da Liga Olímpica de Golfe ⛳</p>
+                </div>
+            </div>
+            <div class="affinity-toggle">
+                <span class="affinity-partner-count" id="partnerCount">0</span>
+                <span>parceiros</span>
+                <i class="fas fa-chevron-down"></i>
+            </div>
+        </div>
+        
+        <!-- Conteúdo expansível -->
+        <div class="affinity-content">
+            <div class="affinity-description">
+                <p>Pensando sempre em valorizar nossos atletas e parceiros, a Liga Olímpica de Golfe criou o seu <strong>Clube de Afinidades</strong>, reunindo empresas e serviços exclusivos com condições especiais para nossos participantes.</p>
+                <p>Os membros da Liga contam com <strong>descontos, benefícios e experiências diferenciadas</strong> em restaurantes, clínicas, comércio, serviços e muito mais.</p>
+                <p>🎯 <strong>Apresente sua carteirinha digital da Liga e desfrute desses benefícios exclusivos!</strong></p>
+            </div>
+            
+            <!-- Grid de parceiros Affinity -->
+            <div class="affinity-grid" id="affinityGrid">
+                <div class="affinity-empty">
+                    <div class="spinner-border text-light" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <p class="mt-2">Carregando parceiros...</p>
+                </div>
+            </div>
+            
+            <div class="affinity-cta">
+                <p>Caso tenha interesse em oferecer seu produto ou serviço com condições especiais para os membros da Liga, fale conosco.</p>
+                <p><strong>Liga Olímpica de Golfe: mais que um jogo, um estilo de vida. ⛳🏆</strong></p>
+                {% if session.get('user_id') and not session.get('is_admin') %}
+                <a href="{{ url_for('carteirinha') }}" class="btn-affinity">
+                    <i class="fas fa-id-card me-2"></i> Acessar Minha Carteirinha
+                </a>
+                {% endif %}
+                {% if session.get('is_admin') %}
+                <a href="{{ url_for('admin_business') }}" class="btn-affinity">
+                    <i class="fas fa-cog me-2"></i> Gerenciar Parceiros
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+    
+    <!-- ========================================
+         SEÇÃO: GOLF BUSINESS
+         ======================================== -->
+    <div class="business-section-title">
+        <i class="fas fa-briefcase"></i>
+        <div>
+            <h2>Golf Business</h2>
+            <small class="text-muted">Negócios e serviços dos membros da Liga</small>
+        </div>
+    </div>
     
     <div class="alert alert-info">
         <i class="fas fa-info-circle me-2"></i>
         Espaço dedicado aos jogadores para divulgação de seus negócios e serviços.
         {% if session.is_admin %}
-            <a href="{{ url_for('admin_business') }}" class="alert-link">
+            <a href="{{ url_for('admin_business') }}" class="alert-link ms-2">
                 <i class="fas fa-cog"></i> Administrar negócios
             </a>
         {% endif %}
@@ -119,7 +470,7 @@
     
     <!-- Filtros por categoria -->
     <div class="mb-4">
-        <div class="btn-group" role="group">
+        <div class="btn-group flex-wrap" role="group">
             <button type="button" class="btn btn-outline-primary active filter-btn" data-filter="all">Todos</button>
             <button type="button" class="btn btn-outline-primary filter-btn" data-filter="golf">Golfe</button>
             <button type="button" class="btn btn-outline-primary filter-btn" data-filter="service">Serviços</button>
@@ -140,30 +491,42 @@
 </div>
 
 <script>
+    // Toggle da seção Affinity Club
+    function toggleAffinity() {
+        const section = document.getElementById('affinitySection');
+        section.classList.toggle('expanded');
+        
+        // Salvar preferência no localStorage
+        const isExpanded = section.classList.contains('expanded');
+        localStorage.setItem('affinityExpanded', isExpanded);
+    }
+    
     document.addEventListener('DOMContentLoaded', function() {
-        // Função para obter o nome da categoria em português
+        // Restaurar estado do Affinity Club
+        const savedState = localStorage.getItem('affinityExpanded');
+        if (savedState === 'true') {
+            document.getElementById('affinitySection').classList.add('expanded');
+        }
+        
+        // Funções auxiliares
         function getCategoryName(category) {
             const categories = {
                 'golf': 'Golfe',
                 'service': 'Serviço',
                 'product': 'Produto',
-                'other': 'Outros'
+                'other': 'Outros',
+                'affinity': 'Parceiro Affinity'
             };
-            
             return categories[category] || 'Outros';
         }
         
-        // Função para gerar uma cor aleatória para placeholders
         function getRandomColor() {
             const colors = ['2c3e50', '3498db', 'e74c3c', '27ae60', '8e44ad', 'f39c12', '1abc9c', 'd35400'];
             return colors[Math.floor(Math.random() * colors.length)];
         }
         
-        // Função para embaralhar array (algoritmo Fisher-Yates)
         function shuffleArray(array) {
-            // Cria uma cópia do array para não modificar o original
             const shuffled = [...array];
-            // Embaralha os elementos
             for (let i = shuffled.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -171,28 +534,91 @@
             return shuffled;
         }
         
-        // Função para detectar e converter URLs em hyperlinks
         function linkifyText(text) {
             if (!text) return '';
-            
-            // Regex para detectar URLs (http, https, www)
             const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/g;
-            
-            // Substituir URLs por tags <a>
             return text.replace(urlRegex, function(url) {
-                // Adiciona http:// se começar com www.
                 const href = url.startsWith('www.') ? 'http://' + url : url;
-                // Cria o link com target="_blank" para abrir em nova aba
                 return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>`;
             });
         }
         
-        // Função para renderizar os cards de negócios
+        // ========================================
+        // CARREGAR PARCEIROS AFFINITY CLUB
+        // ========================================
+        function loadAffinityPartners() {
+            fetch('/api/businesses?filter=affinity')
+                .then(response => response.json())
+                .then(data => {
+                    const partners = data.businesses || [];
+                    document.getElementById('partnerCount').textContent = partners.length;
+                    renderAffinityCards(partners);
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar parceiros Affinity:', error);
+                    document.getElementById('partnerCount').textContent = '0';
+                    renderAffinityCards([]);
+                });
+        }
+        
+        function renderAffinityCards(partners) {
+            const grid = document.getElementById('affinityGrid');
+            if (!grid) return;
+            
+            grid.innerHTML = '';
+            
+            if (!partners || partners.length === 0) {
+                grid.innerHTML = `
+                    <div class="affinity-empty">
+                        <i class="fas fa-handshake"></i>
+                        <p>Em breve novos parceiros!</p>
+                        <p>Aguarde as novidades do Affinity Club.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const shuffledPartners = shuffleArray(partners);
+            
+            shuffledPartners.forEach(partner => {
+                const card = document.createElement('div');
+                card.className = 'affinity-card';
+                
+                const imagePath = partner.image_path || `https://via.placeholder.com/400x200/${getRandomColor()}/ffffff?text=${encodeURIComponent(partner.name)}`;
+                const linkedDescription = linkifyText(partner.description);
+                
+                card.innerHTML = `
+                    <div class="affinity-card-image" style="background-image: url('${imagePath}')">
+                        <span class="affinity-card-badge">
+                            <i class="fas fa-percent me-1"></i> Desconto
+                        </span>
+                    </div>
+                    <div class="affinity-card-body">
+                        <div class="affinity-card-name">
+                            <i class="fas fa-star text-warning me-1"></i>
+                            ${partner.name}
+                        </div>
+                        <div class="affinity-card-benefits">${linkedDescription}</div>
+                        ${partner.contact_info ? `
+                            <div class="affinity-card-contact">
+                                <i class="fas fa-phone-alt me-1"></i> ${partner.contact_info}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
+        }
+        
+        // ========================================
+        // CARREGAR NEGÓCIOS (GOLF BUSINESS)
+        // ========================================
         function renderBusinessCards(businesses) {
             const grid = document.getElementById('businessGrid');
             if (!grid) return;
             
-            grid.innerHTML = ''; // Limpar grid
+            grid.innerHTML = '';
             
             if (businesses.length === 0) {
                 grid.innerHTML = `
@@ -203,15 +629,12 @@
                 return;
             }
             
-            // Renderizar os cards
             businesses.forEach(business => {
                 const card = document.createElement('div');
                 card.className = 'business-card position-relative';
                 card.dataset.category = business.category;
                 
-                const imagePath = business.image_path || `https://via.placeholder.com/600x400/${getRandomColor()}?text=${encodeURIComponent(business.name)}`;
-                
-                // Usar a função linkifyText para converter URLs em links na descrição
+                const imagePath = business.image_path || `https://via.placeholder.com/600x400/${getRandomColor()}/ffffff?text=${encodeURIComponent(business.name)}`;
                 const linkedDescription = linkifyText(business.description);
                 
                 card.innerHTML = `
@@ -221,7 +644,7 @@
                         <div class="business-name">${business.name}</div>
                         <div class="business-desc">${linkedDescription}</div>
                         <div class="business-owner">
-                            <img src="${business.owner_photo}" alt="${business.owner_name}" class="owner-avatar">
+                            <img src="${business.owner_photo || '/static/profile_photos/default.png'}" alt="${business.owner_name}" class="owner-avatar" onerror="this.src='/static/profile_photos/default.png'">
                             <span>${business.owner_name}</span>
                         </div>
                         ${business.contact_info ? `<div class="business-contact"><i class="fas fa-phone-alt me-1"></i>${business.contact_info}</div>` : ''}
@@ -232,18 +655,16 @@
             });
         }
         
-        // Função para carregar os negócios do banco de dados
         function loadBusinesses(filter = 'all') {
             fetch('/api/businesses?filter=' + filter)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Erro ao carregar negócios');
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
-                    // Embaralha os negócios antes de renderizar
-                    const shuffledBusinesses = shuffleArray(data.businesses);
+                    let businesses = data.businesses || [];
+                    // Remover parceiros affinity da lista de negócios
+                    if (filter === 'all') {
+                        businesses = businesses.filter(b => b.category !== 'affinity');
+                    }
+                    const shuffledBusinesses = shuffleArray(businesses);
                     renderBusinessCards(shuffledBusinesses);
                 })
                 .catch(error => {
@@ -262,24 +683,20 @@
                 });
         }
         
-        // Funcionalidade de filtro por categoria
+        // Filtros
         document.querySelectorAll('.filter-btn').forEach(button => {
             button.addEventListener('click', function() {
-                // Remover classe ativa de todos os botões
                 document.querySelectorAll('.filter-btn').forEach(btn => {
                     btn.classList.remove('active');
                 });
-                
-                // Adicionar classe ativa ao botão clicado
                 this.classList.add('active');
-                
-                // Filtrar os negócios pela categoria selecionada
                 const filter = this.getAttribute('data-filter');
                 loadBusinesses(filter);
             });
         });
         
-        // Carregar todos os negócios ao iniciar
+        // Carregar tudo
+        loadAffinityPartners();
         loadBusinesses('all');
     });
 </script>
