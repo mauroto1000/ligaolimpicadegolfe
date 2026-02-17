@@ -3,332 +3,196 @@
 {% block title %}Regulamento - Liga Olímpica de Golfe{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+<div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-12 col-lg-10">
-            <h1 class="text-center mb-4">Regulamento da Liga Olímpica de Golfe - 2025</h1>
-            <h5 class="text-center mb-4">Última atualização: 07/07/2025</h5>
-
-          
-            <div class="card shadow mb-5">
-                <div class="card-body p-lg-5">
-                    <div class="text-center mb-5">
-                        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo Liga Olímpica de Golfe" style="max-width: 250px; margin-bottom: 20px;">
-                        <h2 class="mb-2">RANKING DE GOLFE - LIGA OLÍMPICA DE GOLFE</h2>
-                        <p class="text-muted font-italic">Regulamento do Ranking Liga Olímpica de Golfe - 2025 (Sistema de Pirâmide Única)</p>
-                        <p><strong>Modalidade: STROKE PLAY ou MATCHPLAY</strong></p>
+        <div class="col-12 col-md-8 col-lg-6">
+            
+            <!-- Card Principal -->
+            <div class="card shadow-lg border-0" style="border-radius: 20px; overflow: hidden;">
+                
+                <!-- Header com Logo -->
+                <div class="card-header text-center py-4" style="background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 100%);">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo Liga Olímpica de Golfe" style="max-width: 120px;" class="mb-3">
+                    <h4 class="text-white mb-1">REGULAMENTO</h4>
+                    <p class="text-white-50 mb-0">Liga Olímpica de Golfe</p>
+                </div>
+                
+                <div class="card-body text-center p-4">
+                    
+                    {% if regulamento %}
+                        <!-- Ícone do PDF -->
+                        <div class="mb-4">
+                            <div class="pdf-icon mx-auto">
+                                <i class="fas fa-file-pdf"></i>
+                            </div>
+                        </div>
+                        
+                        <!-- Informações do Arquivo -->
+                        <h5 class="mb-2">{{ regulamento.nome_original }}</h5>
+                        <p class="text-muted small mb-4">
+                            <i class="fas fa-calendar-alt me-1"></i>
+                            Atualizado em: <strong>{{ regulamento.data_upload|datetime('%d/%m/%Y às %H:%M') }}</strong>
+                        </p>
+                        
+                        <!-- Botão de Download -->
+                        <a href="{{ url_for('download_regulamento') }}" class="btn btn-success btn-lg px-5 mb-3">
+                            <i class="fas fa-download me-2"></i> Baixar Regulamento
+                        </a>
+                        
+                        <p class="text-muted small mb-0">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Formato PDF • Leia com atenção todas as regras
+                        </p>
+                        
+                    {% else %}
+                        <!-- Sem Regulamento -->
+                        <div class="py-4">
+                            <div class="empty-icon mx-auto mb-3">
+                                <i class="fas fa-file-excel"></i>
+                            </div>
+                            <h5 class="text-muted">Regulamento não disponível</h5>
+                            <p class="text-muted small">O regulamento ainda não foi publicado.</p>
+                        </div>
+                    {% endif %}
+                    
+                </div>
+                
+                <!-- Contato -->
+                <div class="card-footer bg-light text-center py-3">
+                    <small class="text-muted">
+                        <i class="fas fa-envelope me-1"></i>
+                        Dúvidas? Entre em contato: 
+                        <a href="mailto:ligaolimpicadegolfe@gmail.com">ligaolimpicadegolfe@gmail.com</a>
+                    </small>
+                </div>
+            </div>
+            
+            {% if session.get('is_admin') %}
+            <!-- Área de Upload (apenas para admin) -->
+            <div class="card shadow-sm border-0 mt-4" style="border-radius: 15px;">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="mb-0">
+                        <i class="fas fa-cog me-2"></i> Área do Administrador
+                    </h6>
+                </div>
+                <div class="card-body p-4">
+                    <form action="{{ url_for('upload_regulamento') }}" method="post" enctype="multipart/form-data" id="uploadForm">
+                        <div class="mb-3">
+                            <label for="regulamento_pdf" class="form-label">
+                                <i class="fas fa-upload me-1"></i> Enviar novo regulamento (PDF)
+                            </label>
+                            <input type="file" class="form-control" id="regulamento_pdf" name="regulamento_pdf" accept=".pdf" required>
+                            <div class="form-text">Apenas arquivos PDF são aceitos. Máximo 10MB.</div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-warning" id="btnUpload">
+                                <i class="fas fa-cloud-upload-alt me-2"></i> Atualizar Regulamento
+                            </button>
+                        </div>
+                    </form>
+                    
+                    {% if regulamento %}
+                    <hr class="my-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            Arquivo atual: <strong>{{ regulamento.nome_arquivo }}</strong>
+                        </small>
+                        <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                            <i class="fas fa-trash"></i> Remover
+                        </button>
                     </div>
-                    
-                    <div class="mb-5">
-                        <p>Este regulamento foi criado de acordo com as normas e regras da CONFEDERAÇÃO BRASILEIRA DE GOLFE, respeitando as particularidades definidas pelo campo onde acontecerá o jogo. Sendo assim, o modelo de ranking de simples da Liga Olímpica de Golfe será formado no sistema de Pirâmide Única. A organização será realizada pelo Comitê Diretor formado pelos seguintes golfistas: Marcelo Cruz, Marcelo Merlo e Mauro Saito, Roberto Fernandes, Marcelo Klujsza, Gregório Del Val gandullo e Rodrigo Mendes.</p>
-                    </div>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">1 – Ranking Inicial</h3>
-                        <p>O ranking inicial apontado neste documento foi constituído com base nas observações e análises dos confrontos entre os participantes do ranking. Cabe ressaltar que estes posicionamentos foram estimados, e possuem caráter apenas inicial, bem como poderão ser modificados e retificados ao longo da realização dos jogos entre os ranqueados para aperfeiçoamento do torneio.</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">2 – Período</h3>
-                        <p>As inscrições terão início no dia 20/02/2025 até 01/03/2025.</p>
-                        <p>Após o dia 01 de março 2025 será apresentada uma Pirâmide com cada jogador em sua posição e, a partir daí, serão permitidos os desafios onde os jogadores terão que defender sua posição e tentarão avançar, ocupando a posição do outro a sua frente.</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">3 – Comunicações e Marcação dos Jogos</h3>
-                        <p>A comunicação entre o comitê e os jogadores será, principalmente, através do grupo whatsapp e/ou pelo e-mail ligaolimpicadegolfe@gmail.com.</p>
-                        <p>Os desafios deverão ser feitos pelo grupo de whatsapp dos jogadores da Liga Olímpica de Golfe e, quando aceitos pelo oponente, obrigatoriamente registrados na plataforma/sistema da Liga.</p>
-                        <p>Os jogadores deverão acertar entre si a data, horário e local diretamente entre si e mencionar na mensagem whatsapp o desafio feito/aceito também mencionando nome dos jogadores, handicaps, data, horário e local da realização do jogo.</p>
-                        
-                        <div class="alert alert-warning my-4">
-                            <p class="mb-0">Jogos não informados, antes ou depois de sua realização, pelo grupo de whatsapp da Liga Olímpica de Golfe não serão considerados para efeito de classificação do ranking.</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Modal de Confirmação para Excluir -->
+            {% if regulamento %}
+            <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title">Confirmar Exclusão</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
-                        
-                        <p>Os desafios não poderão ser recusados, exceto se o jogador já tiver realizado o mínimo de jogos exigidos no mês, o que será controlado pelo conselho.</p>
-                        <p>Caso o desafiado não possa aceitar a data inicial proposta pelo desafiante, deverá disponibilizar 3 novas datas/horários para a realização do jogo desafio, que deverá ser dentro de 7 dias da data do desafio inicial.</p>
-                        <p>Desafio recusado, sem forte motivo aceito pelo conselho, será considerada a vitória do oponente ao que não jogou a partida desafio.</p>
-                        
-                        <div class="alert alert-info my-4">
-                            <p class="mb-0"><strong>ATENÇÃO:</strong> Todos os jogadores deverão ter handicap oficial. Caso algum jogador não tenha, por algum motivo, ele deverá jogar com HCP index zero até o restabelecimento de seu HCP de forma oficial.</p>
+                        <div class="modal-body">
+                            <p>Tem certeza que deseja remover o regulamento atual?</p>
+                            <p class="text-danger small"><i class="fas fa-exclamation-triangle me-1"></i> Os jogadores não terão acesso ao regulamento até que um novo seja enviado.</p>
                         </div>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">4 – Realizações dos Desafios</h3>
-                        <p>Os jogos deverão ser realizados no campo do Golfe Olímpico Rio de Janeiro. Caso seja de comum acordo entre os jogadores, os jogos poderão ser realizados em outros locais fora do Campo Olímpico.</p>
-                        <p>Não poderá ser marcado ou aceito um novo desafio caso exista algum desafio confirmado e que o jogo ainda não tenha sido realizado.</p>
-                        <p>Os desafiados que não responderem ou aceitarem seus desafios no período máximo de 48 horas serão declarados vencidos e perderão sua posição no ranking para o desafiante conforme critério do regulamento para vitórias do desafiante sobre o desafiado.</p>
-                        <p>O jogador que tiver realizado dois jogos como desafiados tem o direito de recusar novo desafio em um período de 10 dias, a partir da data de seu último jogo, para que possa fazer um jogo como desafiante. Caso não seja marcado o jogo como desafiante, o jogador volta ser elegível para ser desafiado.</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">5 – Resultados</h3>
-                        <p>O vencedor deverá divulgar o resultado via grupo de whatsapp da Liga Olímpica no prazo máximo de 24 horas após a realização do jogo e, também registrar na plataforma da Liga Olímpica.</p>
-                        <p>A comunicação deverá conter nomes dos jogadores, posições no ranking antes do jogo de cada, resultado do jogo e dia em que foi realizado.</p>
-                        
-                        <h4 class="mt-4 mb-3">Em caso de empate após a disputa dos 18 buracos, na modalidade strokeplay:</h4>
-                        <p>O critério de desempate será definido pelos jogadores antes do início da partida. Não existindo combinado será: Os últimos 9 buracos jogados (back nine), persistindo o empate os últimos 6 buracos, permanecendo o empate os últimos 3 buracos e permanecendo o empate o último buraco jogado.</p>
-                        
-                        <h4 class="mt-4 mb-3">Em caso de empate após a disputa dos 18 buracos, na modalidade matchplay:</h4>
-                        <p>O critério de desempate será definido pelos jogadores antes do início da partida. Não existindo combinado serão utilizadas as regras oficiais de golfe para o desempate na modalidade que consiste em continuar o jogo no buraco seguinte até que tenha um vencedor. Os play offs jogados deverão respeitar os HCP stroke de cada jogador por buraco. Exemplo: Começou o jogo no buraco 1 e terminou o jogo no buraco 18 empatados, continua jogando os buracos 1, 2, 3 e assim sucessivamente até que tenha um vencedor. Começou o jogo no buraco 10 e terminou o jogo no buraco 9 empatados, continua jogando os buracos 10,11,12 e assim sucessivamente até que tenha um vencedor.</p>
-                        <p>Permanecendo o empate após todos os critérios acima, será declarado vencedor o jogador mais velho (idade cronológica).</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">6 – Atualizações das Posições no Ranking</h3>
-                        <p>A atualização do ranking será feita, diariamente, através da plataforma da Liga Olímpica de Golfe.</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">7 – Jogos Não Realizados</h3>
-                        <p>Em caso de não realização do jogo programado, por motivo de força maior (chuva, interdição do campo...), o mesmo será remarcado para outra data em comum acordo entre os jogadores.</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">8 – Os Jogos</h3>
-                        <p>Os jogos serão realizados na forma de disputa STROKE PLAY ou MATCHPLAY, sempre utilizando os handicaps de cada jogador que conste na CBG (Confederação Brasileira de Golfe) / FGERJ (Federação de Golfe do Estado do Rio de Janeiro) e BLUEGOLF na data do desafio. Serão igualmente aceitos todos os aplicativos/sistemas de controle de handicaps como THE GRINT e similares aprovados pelo Conselho da Liga Olímpica de Golfe, desde que possuam minimamente 25 scores registrados nos últimos 12 (doze) meses e tenham também minimamente 5 (cinco) golfistas seguidores no aplicativo/sistema em questão.</p>
-                        <p>Todos os jogos realizados na modalidade STROKEPLAY serão disputados no critério de 4 tacadas acima do par do buraco, conforme novas regras em vigor da CBG (par 3 = 7 tacadas máximas, par 4= 8 tacadas máximas, par 5 = 9 tacadas máximas).</p>
-                        
-                        <div class="alert alert-warning my-4">
-                            <p class="mb-0"><strong>Observação:</strong> A modalidade escolhida para o jogo (strokeplay ou matchplay) será sempre definida/escolhida pelo desafiado do confronto.</p>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <form action="{{ url_for('delete_regulamento') }}" method="post" class="d-inline">
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="fas fa-trash me-1"></i> Excluir
+                                </button>
+                            </form>
                         </div>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">9 – Tempo de Tolerância</h3>
-                        <p>Haverá tolerância MÁXIMA de 15 (quinze) minutos, no tee de saída do buraco 01 do Campo Olímpico, para o jogador em atraso. Caso esse tempo seja ultrapassado, o golfista presente já poderá declarar vitória por "W.O."</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">10 – As Bolas</h3>
-                        <p>Cada jogador deverá levar e utilizar suas bolas de golfe, que deverão ser novas ou em bom estado.</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">11 – W.O.</h3>
-                        <p>Será considerado "W.O." quando o desafio for marcado e um dos jogadores, desafiado ou desafiante, não comparecer na hora do jogo ou atraso superior a 15 minutos ou será aplicado ao jogador que não avisar a necessidade de adiamento da data e horário do jogo agendado com antecedência mínima de 48 horas da data da realização do jogo;</p>
-                        <p>Caso o desafiado não responda ao desafio no prazo de 48 horas após o envio pelo desafiante ou caso não possa jogar na data sugerida e não disponibilize duas novas datas para o jogo, dentro do prazo de 7 dias da data da mensagem do desafio, será declarada a vitória do desafiante por WxO com a movimentação prevista de posições no ranking em caso de vitória do desafiante.</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">12 – Aquecimento Pré-jogo</h3>
-                        <p>O aquecimento dos jogadores antes do jogo poderá ser realizado por cada jogador no driving range, campinho, putting green, ou outro lugar que achar apropriado e permitido desde que não atrase o horário marcado para o início do jogo agendado com prazo máximo de 15 minutos de atraso conforme estipulado anteriormente.</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">13 – Inclusão de novos jogadores</h3>
-                        <p>Os mesmos deverão estar cientes e respeitar o regulamento do ranking de Liga Olímpica de Golfe. Os novos jogadores, independente de seus handicaps, irão ingressar nas colocações finais da pirâmide.</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">14 – Idade Mínima dos Participantes</h3>
-                        <p>A idade mínima para participar do ranking da Liga Olímpica de Golfe é de 16 anos completos.</p>
-                        <p>Casos especiais abaixo dessa idade poderão ser analisados pelo conselho e, caso aceitos, não poderão ser utilizados como precedentes para aceitação de novos competidores abaixo dessa idade mínima.</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">15 – Benefícios</h3>
-                        <p>O Sistema de Pirâmide Única possibilita jogos equilibrados e mais justos, pois cada golfista terá sempre um grupo seleto para desafiar que, a princípio, tem o mesmo nível ou nível próximo. Vencendo todos os jogos, dentro do grupo inicial, o próximo grupo a desafiar terá golfistas com nível de jogo mais elevado e, com isso, o jogador terá a oportunidade de melhorar seu nível técnico, além de conhecer novos jogadores e iniciar novas amizades.</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">16 – Atualização do Ranking</h3>
-                        <p>O ranking será atualizado diariamente, permitindo assim que os participantes tracem suas estratégias de desafios e possam desafiar os participantes em seu raio de alcance dentro dos critérios estabelecidos.</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">17 – Resultado final e Premiações</h3>
-                        <p>O resultado final será divulgado na primeira semana do mês de dezembro de 2025, com os resultados computados até 26/11/2025 (inclusive). Ao término do dia 26/11/2025, conheceremos os quatro primeiros colocados do ranking que jogarão as finais da competição no dia 29/11/2025 da seguinte forma: O primeiro colocado jogará contra o quarto colocado e o segundo colocado enfrentará o terceiro colocado. Os vencedores dos dois confrontos se enfrentarão para definir o grande campeão do ranking 2025. Os perdedores se enfrentarão para definir quem será o terceiro colocado do ranking 2025. Esses jogos são obrigatórios e em caso do não comparecimento do jogador será declarado derrotado por WxO. A data da festa de confraternização/entrega de prêmios aos ganhadores do ranking 2025 será definida e divulgada em breve pelo Conselho Diretor.</p>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">Sistema de Pirâmide Única</h3>
-                        <p>O objetivo é defender sua posição atual e desafiar outro jogador com melhor colocação no ranking, para ocupar a posição desse golfista.</p>
-                        
-                        <ol class="mb-4">
-                            <li class="mb-2">Cada golfista poderá desafiar até QUATRO vezes por mês golfistas que estejam acima de sua posição e não será válido desafio para o mesmo participante dentro do mês.</li>
-                            <li class="mb-2">Cada golfista poderá ser desafiado até TRÊS vezes por mês.</li>
-                            <li class="mb-2">Cada golfista deverá obrigatoriamente realizar no mínimo dois jogos, sendo UM desafio e UM aceite de desafio no mês. Os Top 10 deverão aceitar no mínimo 3 (três) desafios a cada 2 (dois) meses. Caso este critério não seja cumprido, o jogador, na mudança de mês, cairá uma posição no ranking, trocando de posição com o jogador posicionado logo após a sua posição.</li>
-                            <li class="mb-2">Sairão do ranking, automaticamente, os golfistas que não jogarem no período de TRÊS meses consecutivos; salvo justificativa aceita pelo comitê organizador.</li>
-                            <li class="mb-2">Caso um ex-integrante do ranking queira entrar novamente no sistema, o mesmo terá que recomeçar na base da pirâmide e atender os requisitos necessários.</li>
-                            <li class="mb-2">Os desafios somente poderão ser agendados para até 7 (sete) dias corridos da data da comunicação/formalização do desafio aceito por whatsapp e registrados na plataforma.</li>
-                        </ol>
-                        
-                        <h4 class="mt-4 mb-3">Estrutura da Pirâmide</h4>
-                        <div class="table-responsive">
-                            <table class="table table-bordered text-center">
-                                <thead class="bg-primary text-white">
-                                    <tr>
-                                        <th>Linha</th>
-                                        <th colspan="16">Posições</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>A</td>
-                                        <td>CAMP</td>
-                                        <td colspan="15"></td>
-                                    </tr>
-                                    <tr>
-                                        <td>B</td>
-                                        <td>VICE</td>
-                                        <td>TERC</td>
-                                        <td colspan="14"></td>
-                                    </tr>
-                                    <tr>
-                                        <td>C</td>
-                                        <td>1</td>
-                                        <td>2</td>
-                                        <td>3</td>
-                                        <td>4</td>
-                                        <td colspan="12"></td>
-                                    </tr>
-                                    <tr>
-                                        <td>D</td>
-                                        <td>5</td>
-                                        <td>6</td>
-                                        <td>7</td>
-                                        <td>8</td>
-                                        <td>9</td>
-                                        <td>10</td>
-                                        <td colspan="10"></td>
-                                    </tr>
-                                    <tr>
-                                        <td>E</td>
-                                        <td>11</td>
-                                        <td>12</td>
-                                        <td>13</td>
-                                        <td>14</td>
-                                        <td>15</td>
-                                        <td>16</td>
-                                        <td>17</td>
-                                        <td>18</td>
-                                        <td colspan="8"></td>
-                                    </tr>
-                                    <tr>
-                                        <td>F</td>
-                                        <td>19</td>
-                                        <td>20</td>
-                                        <td>21</td>
-                                        <td>22</td>
-                                        <td>23</td>
-                                        <td>24</td>
-                                        <td>25</td>
-                                        <td>26</td>
-                                        <td>27</td>
-                                        <td>28</td>
-                                        <td colspan="6"></td>
-                                    </tr>
-                                    <tr>
-                                        <td>G</td>
-                                        <td>29</td>
-                                        <td>30</td>
-                                        <td>31</td>
-                                        <td>32</td>
-                                        <td>33</td>
-                                        <td>34</td>
-                                        <td>35</td>
-                                        <td>36</td>
-                                        <td>37</td>
-                                        <td>38</td>
-                                        <td>39</td>
-                                        <td>40</td>
-                                        <td colspan="4"></td>
-                                    </tr>
-                                    <tr>
-                                        <td>H</td>
-                                        <td>41</td>
-                                        <td>42</td>
-                                        <td>43</td>
-                                        <td>44</td>
-                                        <td>45</td>
-                                        <td>46</td>
-                                        <td>47</td>
-                                        <td>48</td>
-                                        <td>49</td>
-                                        <td>50</td>
-                                        <td>51</td>
-                                        <td>52</td>
-                                        <td>53</td>
-                                        <td>54</td>
-                                        <td colspan="2"></td>
-                                    </tr>
-                                    <tr>
-                                        <td>I</td>
-                                        <td>55</td>
-                                        <td>56</td>
-                                        <td>57</td>
-                                        <td>58</td>
-                                        <td>59</td>
-                                        <td>60</td>
-                                        <td>61</td>
-                                        <td>62</td>
-                                        <td>63</td>
-                                        <td>64</td>
-                                        <td>65</td>
-                                        <td>66</td>
-                                        <td>67</td>
-                                        <td>68</td>
-                                        <td>69</td>
-                                        <td>70</td>
-                                    </tr>
-                                    <tr>
-                                        <td>J</td>
-                                        <td>71</td>
-                                        <td>72</td>
-                                        <td>73</td>
-                                        <td>74</td>
-                                        <td>75</td>
-                                        <td>76</td>
-                                        <td>77</td>
-                                        <td>78</td>
-                                        <td>79</td>
-                                        <td>80</td>
-                                        <td>81</td>
-                                        <td>82</td>
-                                        <td>83</td>
-                                        <td>84</td>
-                                        <td colspan="2"></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        <h4 class="mt-4 mb-3">Limites dos Desafios</h4>
-                        <p>Regra Geral: O jogador de uma linha poderá desafiar qualquer jogador a sua frente da sua posição até o primeiro jogador da linha acima da sua. Em caso de vitória contra um jogador de uma linha acima, o vencedor terá direito a um novo desafio novamente no mesmo critério.</p>
-                        
-                        <h4 class="mt-4 mb-3">Regras para Troca de Posições</h4>
-                        <ol>
-                            <li class="mb-2">O jogador desafiado, em caso de derrota, perderá 1(uma) posição, sendo sua posição original assumida pelo desafiante.</li>
-                            <li class="mb-2">Em caso de derrota, o desafiante trocará de posição com o jogador imediatamente abaixo da sua posição. (Perderá uma posição)</li>
-                        </ol>
-                        
-                        <div class="alert alert-info my-4">
-                            <p class="mb-0"><strong>OBSERVAÇÃO:</strong> O Conselho do Ranking da Liga Olímpica de Golfe se reserva o direito de avaliar o regulamento e introduzir, retirar ou alterar itens desde que qualquer mudança NUNCA prejudique qualquer jogador ou a competição, uma vez que o torneio já estará em andamento.</p>
-                        </div>
-                    </section>
-                    
-                    <section class="mb-5">
-                        <h3 class="border-start border-warning border-4 ps-3 mb-4">IMPORTANTE:</h3>
-                        <p>Segue abaixo a lista com os possíveis casos dentro do mesmo mês.</p>
-                        <p><strong>LEGENDA:</strong></p>
-                        <ul>
-                            <li>GD - Golfista Desafiou</li>
-                            <li>GFD - Golfista Foi Desafiado</li>
-                            <li>V – Venceu</li>
-                            <li>P – Perdeu</li>
-                            <li>N - Não teve jogo</li>
-                        </ul>
-                    </section>
-                    
-                    <div class="text-center mt-5 pt-4 border-top text-muted">
-                        <p>Liga Olímpica de Golfe © 2025</p>
-                        <p>Para mais informações: ligaolimpicadegolfe@gmail.com</p>
-                        <p><small>Última atualização: 07/07/2025</small></p>
                     </div>
                 </div>
             </div>
+            {% endif %}
+            {% endif %}
+            
         </div>
     </div>
 </div>
+
+<style>
+    .pdf-icon {
+        width: 100px;
+        height: 100px;
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 30px rgba(220, 53, 69, 0.3);
+    }
+    
+    .pdf-icon i {
+        font-size: 3rem;
+        color: white;
+    }
+    
+    .empty-icon {
+        width: 80px;
+        height: 80px;
+        background: #e9ecef;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .empty-icon i {
+        font-size: 2rem;
+        color: #adb5bd;
+    }
+    
+    .btn-success {
+        background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 100%);
+        border: none;
+        box-shadow: 0 4px 15px rgba(26, 95, 42, 0.3);
+        transition: all 0.3s;
+    }
+    
+    .btn-success:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(26, 95, 42, 0.4);
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('uploadForm');
+    const btn = document.getElementById('btnUpload');
+    
+    if (form && btn) {
+        form.addEventListener('submit', function() {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Enviando...';
+        });
+    }
+});
+</script>
 {% endblock %}
