@@ -289,7 +289,7 @@
                             <div class="mb-3">
                                 <label for="new_scheduled_date" class="form-label">Nova Data do Desafio</label>
                                 <input type="date" class="form-control" id="new_scheduled_date" name="scheduled_date" required>
-                                <div class="form-text">A nova data deve estar dentro dos próximos 7 dias a partir de hoje.</div>
+                                <div class="form-text">A nova data deve estar dentro dos próximos 2 dias a partir de hoje.</div>
                                 <div id="modal-date-error" class="text-danger mt-1"></div>
                             </div>
                             <input type="hidden" name="status" value="pending">
@@ -438,11 +438,11 @@
         // Validação da data para o modal de propor nova data
         const newDateField = document.getElementById('new_scheduled_date');
         if (newDateField) {
-            // Função para calcular a data máxima (hoje + 7 dias)
+            // Função para calcular a data máxima (hoje + 2 dias)
             function getMaxDate() {
                 const today = new Date();
                 const maxDate = new Date();
-                maxDate.setDate(today.getDate() + 7);
+                maxDate.setDate(today.getDate() + 2);
                 return maxDate;
             }
             
@@ -454,7 +454,7 @@
                 return `${year}-${month}-${day}`;
             }
             
-            // Definir a data máxima (7 dias a partir de hoje)
+            // Definir a data máxima (2 dias a partir de hoje)
             const maxDate = getMaxDate();
             newDateField.max = formatDateForInput(maxDate);
             
@@ -484,7 +484,7 @@
                     newDateField.setCustomValidity("Data inválida");
                     return false;
                 } else if (selectedDate > maxDateObj) {
-                    errorElement.textContent = "A data deve ser no máximo 7 dias a partir de hoje.";
+                    errorElement.textContent = "A data deve ser no máximo 2 dias a partir de hoje.";
                     newDateField.setCustomValidity("Data inválida");
                     return false;
                 } else {
