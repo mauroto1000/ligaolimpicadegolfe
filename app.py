@@ -3014,9 +3014,27 @@ def new_challenge():
         
         # Inserir o novo desafio
         conn.execute('''
-            INSERT INTO challenges (challenger_id, challenged_id, status, scheduled_date, created_at, response_deadline)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (challenger_id, challenged_id, 'pending', scheduled_date, current_datetime, response_deadline))
+            INSERT INTO challenges (
+                challenger_id, 
+                challenged_id, 
+                status, 
+                scheduled_date, 
+                created_at, 
+                response_deadline,
+                challenger_position_at_creation,
+                challenged_position_at_creation
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            challenger_id, 
+            challenged_id, 
+            'pending', 
+            scheduled_date, 
+            current_datetime, 
+            response_deadline,
+            challenger['position'],
+            challenged['position']
+        ))
         
         # Obter o ID do desafio recém-criado
         challenge_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
@@ -7642,6 +7660,110 @@ def toggle_bloqueio_jogador(player_id):
     
     return redirect(url_for('player_detail', player_id=player_id))
 
+
+@app.route('/criar-colunas-posicao-desafio')
+def criar_colunas_posicao_desafio():
+    """Cria as colunas para armazenar as posições no momento do desafio"""
+    conn = get_db_connection()
+    
+    try:
+        # Verificar se as colunas já existem
+        columns = conn.execute("PRAGMA table_info(challenges)").fetchall()
+        column_names = [col['name'] for col in columns]
+        
+        colunas_criadas = []
+        
+        # Adicionar coluna challenger_position_at_creation
+        if 'challenger_position_at_creation' not in column_names:
+            conn.execute('ALTER TABLE challenges ADD COLUMN challenger_position_at_creation INTEGER')
+            colunas_criadas.append('challenger_position_at_creation')
+        
+        # Adicionar coluna challenged_position_at_creation
+        if 'challenged_position_at_creation' not in column_names:
+            conn.execute('ALTER TABLE challenges ADD COLUMN challenged_position_at_creation INTEGER')
+            colunas_criadas.append('challenged_position_at_creation')
+        
+        conn.commit()
+        conn.close()
+        
+        if colunas_criadas:
+            return f"✅ Colunas criadas com sucesso: {', '.join(colunas_criadas)}"
+        else:
+            return "ℹ️ As colunas já existem na tabela challenges."
+            
+    except Exception as e:
+        conn.close()
+        return f"❌ Erro ao criar colunas: {str(e)}"
+
+@app.route('/preencher-posicoes-historicas')
+@login_required
+def preencher_posicoes_historicas():
+    """Tenta preencher as posições dos desafios antigos baseado no histórico"""
+    if not session.get('is_admin'):
+        flash('Acesso negado.', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    
+    try:
+        # Buscar desafios sem posição preenchida
+        desafios = conn.execute('''
+            SELECT id, challenger_id, challenged_id, created_at
+            FROM challenges
+            WHERE challenger_position_at_creation IS NULL
+               OR challenged_position_at_creation IS NULL
+        ''').fetchall()
+        
+        atualizados = 0
+        
+        for desafio in desafios:
+            # Tentar buscar a posição do challenger no momento do desafio
+            challenger_pos = None
+            challenged_pos = None
+            
+            # Buscar no ranking_history a posição mais próxima da data do desafio
+            hist_challenger = conn.execute('''
+                SELECT new_position 
+                FROM ranking_history 
+                WHERE player_id = ? 
+                AND change_date <= ?
+                ORDER BY change_date DESC
+                LIMIT 1
+            ''', (desafio['challenger_id'], desafio['created_at'])).fetchone()
+            
+            if hist_challenger:
+                challenger_pos = hist_challenger['new_position']
+            
+            hist_challenged = conn.execute('''
+                SELECT new_position 
+                FROM ranking_history 
+                WHERE player_id = ? 
+                AND change_date <= ?
+                ORDER BY change_date DESC
+                LIMIT 1
+            ''', (desafio['challenged_id'], desafio['created_at'])).fetchone()
+            
+            if hist_challenged:
+                challenged_pos = hist_challenged['new_position']
+            
+            # Se encontrou ambas as posições, atualizar
+            if challenger_pos and challenged_pos:
+                conn.execute('''
+                    UPDATE challenges 
+                    SET challenger_position_at_creation = ?,
+                        challenged_position_at_creation = ?
+                    WHERE id = ?
+                ''', (challenger_pos, challenged_pos, desafio['id']))
+                atualizados += 1
+        
+        conn.commit()
+        conn.close()
+        
+        return f"✅ {atualizados} desafios atualizados com posições históricas."
+        
+    except Exception as e:
+        conn.close()
+        return f"❌ Erro: {str(e)}"
 
 
 if __name__ == '__main__':
