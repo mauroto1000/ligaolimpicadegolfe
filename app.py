@@ -3091,6 +3091,19 @@ def new_challenge():
             # Continuar mesmo se o log falhar
         
         conn.commit()
+
+        # Notificação WhatsApp
+        try:
+            from whatsapp_integration import notificar_novo_desafio
+            notificar_novo_desafio(
+                challenger=dict(challenger),
+                challenged=dict(challenged),
+                scheduled_date=scheduled_date
+            )
+        except Exception as e:
+            print(f"[WhatsApp] Erro: {e}")
+  
+
         conn.close()
         
         # Mensagem de sucesso diferenciada para admin principal
@@ -7764,6 +7777,27 @@ def preencher_posicoes_historicas():
     except Exception as e:
         conn.close()
         return f"❌ Erro: {str(e)}"
+
+
+@app.route('/criar-coluna-telefone')
+def criar_coluna_telefone():
+    conn = get_db_connection()
+    try:
+        columns = conn.execute("PRAGMA table_info(players)").fetchall()
+        column_names = [col['name'] for col in columns]
+        
+        if 'telefone' not in column_names:
+            conn.execute('ALTER TABLE players ADD COLUMN telefone TEXT')
+            conn.commit()
+            conn.close()
+            return "✅ Coluna 'telefone' criada com sucesso!"
+        else:
+            conn.close()
+            return "ℹ️ Coluna 'telefone' já existe."
+    except Exception as e:
+        conn.close()
+        return f"❌ Erro: {str(e)}"
+
 
 
 if __name__ == '__main__':
