@@ -7800,6 +7800,47 @@ def criar_coluna_telefone():
 
 
 
+# ============================================================
+# ROTA PARA ATUALIZAR WHATSAPP DO JOGADOR
+# Adicionar ao app.py
+# ============================================================
+
+@app.route('/player/<int:player_id>/update-whatsapp', methods=['POST'])
+@login_required
+def update_player_whatsapp(player_id):
+    """Atualiza o WhatsApp do jogador para notificações"""
+    
+    # Verificar permissão (próprio jogador ou admin)
+    if session.get('player_id') != player_id and not session.get('is_admin'):
+        flash('Você não tem permissão para editar este perfil.', 'danger')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    new_whatsapp = request.form.get('new_whatsapp', '').strip()
+    
+    # Remover caracteres não numéricos
+    new_whatsapp = ''.join(filter(str.isdigit, new_whatsapp))
+    
+    # Se vazio, define como NULL
+    if not new_whatsapp:
+        new_whatsapp = None
+    
+    conn = get_db_connection()
+    conn.execute(
+        'UPDATE players SET telefone = ? WHERE id = ?',
+        (new_whatsapp, player_id)
+    )
+    conn.commit()
+    conn.close()
+    
+    if new_whatsapp:
+        flash(f'WhatsApp atualizado para {new_whatsapp}. Você receberá notificações!', 'success')
+    else:
+        flash('WhatsApp removido. Você não receberá mais notificações.', 'info')
+    
+    return redirect(url_for('player_detail', player_id=player_id))
+
+
+
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
     if not os.path.exists(DATABASE):
