@@ -71,7 +71,6 @@
                             </button>
                         </p>
                         
-                        <!-- Formulário para editar nome (inicialmente oculto) -->
                         <form id="editNameForm" action="{{ url_for('update_player_name', player_id=player.id) }}" 
                               method="post" class="d-none mb-3">
                             <div class="input-group">
@@ -99,7 +98,6 @@
                             </button>
                         </p>
                         
-                        <!-- Formulário para editar contato (inicialmente oculto) -->
                         <form id="editContactForm" action="{{ url_for('update_player_contact', player_id=player.id) }}" 
                               method="post" class="d-none mb-3">
                             <div class="input-group">
@@ -137,7 +135,6 @@
                             </button>
                         </p>
                         
-                        <!-- Formulário para editar país (inicialmente oculto) -->
                         <form id="editCountryForm" action="{{ url_for('update_player_country', player_id=player.id) }}" 
                             method="post" class="d-none mb-3">
                             <div class="input-group">
@@ -188,7 +185,6 @@
                         </form>
                     </div>
 
-                    <!-- NOVA SEÇÃO: SEXO -->
                     <div class="col-md-6">
                         <h5>Sexo</h5>
                         <p class="d-flex align-items-center">
@@ -209,7 +205,6 @@
                             </button>
                         </p>
                         
-                        <!-- Formulário para editar sexo (inicialmente oculto) -->
                         <form id="editSexoForm" action="{{ url_for('update_player_sexo', player_id=player.id) }}" 
                             method="post" class="d-none mb-3">
                             <div class="input-group">
@@ -232,7 +227,6 @@
                     </div>
                 </div>
                 
-                <!-- Seção com Posição e Tier -->
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <h5>Posição Atual</h5>
@@ -252,7 +246,7 @@
                     </div>
                 </div>
 
-                <!-- CARTEIRINHA DIGITAL - Visível apenas para o próprio jogador ativo -->
+                <!-- CARTEIRINHA DIGITAL - PARA O PRÓPRIO JOGADOR -->
                 {% if is_own_profile and player.active == 1 %}
                 <div class="card mb-3 border-success">
                     <div class="card-header text-white" style="background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 100%);">
@@ -275,7 +269,7 @@
                 </div>
                 {% endif %}
 
-                <!-- Opção de alterar senha (visível apenas para o próprio usuário) -->
+                <!-- ACESSO À CONTA - PARA O PRÓPRIO JOGADOR -->
                 {% if is_own_profile %}
                 <div class="card mb-3">
                     <div class="card-header bg-info text-white">
@@ -291,11 +285,15 @@
                 </div>
                 {% endif %}
 
-                <!-- Botão de Reset de Senha e Ajustar Posição (visível apenas para admins) -->
+                <!-- ============================================================ -->
+                <!-- ÁREA DO ADMINISTRADOR -->
+                <!-- ============================================================ -->
                 {% if is_admin %}
+                
+                <!-- GERENCIAMENTO DE ACESSO -->
                 <div class="card mb-3">
                     <div class="card-header bg-warning text-dark">
-                        <h5 class="mb-0">Gerenciamento de Acesso</h5>
+                        <h5 class="mb-0"><i class="fas fa-user-cog me-2"></i>Gerenciamento de Acesso</h5>
                     </div>
                     <div class="card-body">
                         <p>Código do jogador: <strong>{{ player['player_code'] }}</strong></p>
@@ -312,7 +310,7 @@
                             {% endif %}
                         </div>
                         
-                        <!-- Modal para confirmar reset de senha -->
+                        <!-- Modal Resetar Senha -->
                         <div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
                             <div class="modal-dialog">
                                 <div class="modal-content">
@@ -341,9 +339,64 @@
                         </div>
                     </div>
                 </div>
-                {% endif %}
 
-                <!-- Se houver jogadores disponíveis para desafiar -->
+                <!-- ============================================================ -->
+                <!-- CONTROLE MANUAL DA CARTEIRINHA (ADMIN) -->
+                <!-- ============================================================ -->
+                {% if player.active == 1 %}
+                <div class="card mb-3 border-success">
+                    <div class="card-header text-white" style="background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 100%);">
+                        <h5 class="mb-0">
+                            <i class="fas fa-id-card me-2"></i>Controle da Carteirinha (Admin)
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% set is_forcada = player.carteirinha_forcada == 1 %}
+                        
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <div>
+                                <strong>Status atual:</strong>
+                                {% if is_forcada %}
+                                    <span class="badge bg-success ms-2">
+                                        <i class="fas fa-lock me-1"></i> ATIVA (Forçada pelo Admin)
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary ms-2">
+                                        <i class="fas fa-sync me-1"></i> Automático
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <p class="text-muted small mb-3">
+                            {% if is_forcada %}
+                                A carteirinha está <strong>forçadamente ativa</strong> pelo admin, 
+                                independente de ter jogado nos últimos 30 dias.
+                            {% else %}
+                                A carteirinha segue a regra automática: 
+                                <strong>ativa se jogou nos últimos 30 dias</strong>.
+                            {% endif %}
+                        </p>
+                        
+                        <form action="{{ url_for('toggle_carteirinha_forcada', player_id=player.id) }}" method="POST">
+                            {% if is_forcada %}
+                                <button type="submit" class="btn btn-outline-secondary w-100">
+                                    <i class="fas fa-sync me-2"></i> Voltar ao Modo Automático
+                                </button>
+                            {% else %}
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="fas fa-check-circle me-2"></i> Forçar Carteirinha ATIVA
+                                </button>
+                            {% endif %}
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% endif %}
+                <!-- FIM ÁREA DO ADMINISTRADOR -->
+
+                <!-- JOGADORES DISPONÍVEIS PARA DESAFIAR -->
                 {% if player.active == 1 and potential_challenges %}
                 <div class="card mb-3">
                     <div class="card-header bg-warning">
@@ -368,7 +421,7 @@
                 </div>
                 {% endif %}
                 
-                <!-- Seção de Status do Jogador (Ativo/Inativo) -->
+                <!-- STATUS ATIVO/INATIVO -->
                 {% if player.active == 1 %}
                 <div class="card mb-3">
                     <div class="card-header bg-success text-white">
@@ -382,7 +435,6 @@
                     </div>
                 </div>
                 {% else %}
-                <!-- Se o jogador estiver inativo, mostrar status e botão para reativar -->
                 <div class="card mb-3">
                     <div class="card-header bg-secondary text-white">
                         <h5 class="mb-0">Status: Inativo</h5>
@@ -401,7 +453,6 @@
                     </div>
                 </div>
                 
-                <!-- Zona de perigo - Para jogadores inativos mostrar opção de exclusão definitiva -->
                 <div class="mt-4">
                     <div class="card border-danger">
                         <div class="card-header bg-danger text-white">
@@ -412,13 +463,13 @@
                             <a href="{{ url_for('delete_player', player_id=player.id) }}" class="btn btn-danger">
                                 <i class="fas fa-trash-alt me-2"></i>Excluir permanentemente
                             </a>
-                            <p class="text-muted mt-2"><small>Atenção: Esta ação não pode ser desfeita. Todos os registros relacionados a este jogador, incluindo histórico e desafios, serão excluídos.</small></p>
+                            <p class="text-muted mt-2"><small>Atenção: Esta ação não pode ser desfeita.</small></p>
                         </div>
                     </div>
                 </div>
                 {% endif %}
                 
-                <!-- Seção para Histórico de Posições -->
+                <!-- ANÁLISE DE DESEMPENHO -->
                 <div class="card mb-3">
                     <div class="card-header bg-info text-white">
                         <h5 class="mb-0">
@@ -449,6 +500,7 @@
     </div>
     
     <div class="col-md-4">
+        <!-- HISTÓRICO DE RANKING -->
         <div class="card mb-4">
             <div class="card-header bg-secondary text-white">
                 <h4 class="mb-0">Histórico de Ranking</h4>
@@ -517,99 +569,99 @@
             </div>
         </div>
         
-<!-- Desafios como Desafiante -->
-<div class="card mb-4">
-    <div class="card-header bg-info text-white">
-        <h4 class="mb-0">Desafios como Desafiante</h4>
-    </div>
-    <div class="card-body p-0">
-        <div class="list-group list-group-flush">
-            {% for challenge in challenges_as_challenger %}
-            <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
-                <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1">vs. {{ challenge['opponent_name'] }}</h6>
-                    <small>{{ challenge['scheduled_date'] }}</small>
-                </div>
-                <div class="d-flex w-100 justify-content-between">
-                    <small>Posição #{{ challenge['opponent_position'] }}</small>
-                    {% if challenge['status'] == 'pending' %}
-                    <span class="badge bg-warning text-dark">Pendente</span>
-                    {% elif challenge['status'] == 'accepted' %}
-                    <span class="badge bg-info">Aceito</span>
-                    {% elif challenge['status'] == 'completed' %}
-                        {% if challenge['result'] == 'challenger_win' %}
-                        <span class="badge bg-success">Vitória</span>
-                        {% elif challenge['result'] == 'challenged_win' %}
-                        <span class="badge bg-danger">Derrota</span>
-                        {% else %}
-                        <span class="badge bg-secondary">Concluído</span>
-                        {% endif %}
-                    {% elif challenge['status'] == 'rejected' %}
-                    <span class="badge bg-danger">Rejeitado</span>
-                    {% elif challenge['status'] == 'cancelled' %}
-                    <span class="badge bg-secondary">Cancelado</span>
+        <!-- DESAFIOS COMO DESAFIANTE -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h4 class="mb-0">Desafios como Desafiante</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for challenge in challenges_as_challenger %}
+                    <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">vs. {{ challenge['opponent_name'] }}</h6>
+                            <small>{{ challenge['scheduled_date'] }}</small>
+                        </div>
+                        <div class="d-flex w-100 justify-content-between">
+                            <small>Posição #{{ challenge['opponent_position'] }}</small>
+                            {% if challenge['status'] == 'pending' %}
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                            {% elif challenge['status'] == 'accepted' %}
+                            <span class="badge bg-info">Aceito</span>
+                            {% elif challenge['status'] == 'completed' %}
+                                {% if challenge['result'] == 'challenger_win' %}
+                                <span class="badge bg-success">Vitória</span>
+                                {% elif challenge['result'] == 'challenged_win' %}
+                                <span class="badge bg-danger">Derrota</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Concluído</span>
+                                {% endif %}
+                            {% elif challenge['status'] == 'rejected' %}
+                            <span class="badge bg-danger">Rejeitado</span>
+                            {% elif challenge['status'] == 'cancelled' %}
+                            <span class="badge bg-secondary">Cancelado</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    {% endfor %}
+                    
+                    {% if not challenges_as_challenger %}
+                    <div class="list-group-item py-3 text-center">
+                        <p class="mb-0">Nenhum desafio como desafiante</p>
+                    </div>
                     {% endif %}
                 </div>
-            </a>
-            {% endfor %}
-            
-            {% if not challenges_as_challenger %}
-            <div class="list-group-item py-3 text-center">
-                <p class="mb-0">Nenhum desafio como desafiante</p>
             </div>
-            {% endif %}
+        </div>
+
+        <!-- DESAFIOS COMO DESAFIADO -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0">Desafios como Desafiado</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for challenge in challenges_as_challenged %}
+                    <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">de {{ challenge['opponent_name'] }}</h6>
+                            <small>{{ challenge['scheduled_date'] }}</small>
+                        </div>
+                        <div class="d-flex w-100 justify-content-between">
+                            <small>Posição #{{ challenge['opponent_position'] }}</small>
+                            {% if challenge['status'] == 'pending' %}
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                            {% elif challenge['status'] == 'accepted' %}
+                            <span class="badge bg-info">Aceito</span>
+                            {% elif challenge['status'] == 'completed' %}
+                                {% if challenge['result'] == 'challenged_win' %}
+                                <span class="badge bg-success">Vitória</span>
+                                {% elif challenge['result'] == 'challenger_win' %}
+                                <span class="badge bg-danger">Derrota</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Concluído</span>
+                                {% endif %}
+                            {% elif challenge['status'] == 'rejected' %}
+                            <span class="badge bg-danger">Rejeitado</span>
+                            {% elif challenge['status'] == 'cancelled' %}
+                            <span class="badge bg-secondary">Cancelado</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    {% endfor %}
+                    
+                    {% if not challenges_as_challenged %}
+                    <div class="list-group-item py-3 text-center">
+                        <p class="mb-0">Nenhum desafio como desafiado</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Desafios como Desafiado -->
-<div class="card mb-4">
-    <div class="card-header bg-warning text-dark">
-        <h4 class="mb-0">Desafios como Desafiado</h4>
-    </div>
-    <div class="card-body p-0">
-        <div class="list-group list-group-flush">
-            {% for challenge in challenges_as_challenged %}
-            <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
-                <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1">de {{ challenge['opponent_name'] }}</h6>
-                    <small>{{ challenge['scheduled_date'] }}</small>
-                </div>
-                <div class="d-flex w-100 justify-content-between">
-                    <small>Posição #{{ challenge['opponent_position'] }}</small>
-                    {% if challenge['status'] == 'pending' %}
-                    <span class="badge bg-warning text-dark">Pendente</span>
-                    {% elif challenge['status'] == 'accepted' %}
-                    <span class="badge bg-info">Aceito</span>
-                    {% elif challenge['status'] == 'completed' %}
-                        {% if challenge['result'] == 'challenged_win' %}
-                        <span class="badge bg-success">Vitória</span>
-                        {% elif challenge['result'] == 'challenger_win' %}
-                        <span class="badge bg-danger">Derrota</span>
-                        {% else %}
-                        <span class="badge bg-secondary">Concluído</span>
-                        {% endif %}
-                    {% elif challenge['status'] == 'rejected' %}
-                    <span class="badge bg-danger">Rejeitado</span>
-                    {% elif challenge['status'] == 'cancelled' %}
-                    <span class="badge bg-secondary">Cancelado</span>
-                    {% endif %}
-                </div>
-            </a>
-            {% endfor %}
-            
-            {% if not challenges_as_challenged %}
-            <div class="list-group-item py-3 text-center">
-                <p class="mb-0">Nenhum desafio como desafiado</p>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-</div>
-</div>
-</div>
-
-<!-- Modal para Upload de Foto -->
+<!-- MODAL UPLOAD FOTO -->
 <div class="modal fade" id="uploadPhotoModal" tabindex="-1" aria-labelledby="uploadPhotoModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -622,16 +674,12 @@
                     <div class="mb-3">
                         <label for="profile_photo" class="form-label">Selecione uma nova foto</label>
                         <input class="form-control" type="file" id="profile_photo" name="profile_photo" accept="image/*" required>
-                        <div class="form-text">
-                            Formatos aceitos: JPG, PNG, GIF. Tamanho máximo: 5MB.
-                        </div>
+                        <div class="form-text">Formatos aceitos: JPG, PNG, GIF. Tamanho máximo: 5MB.</div>
                     </div>
-                    
                     <div class="mb-3">
                         <label class="form-label">Pré-visualização</label>
                         <div class="text-center">
-                            <img id="photoPreview" src="#" alt="Pré-visualização" 
-                                 style="max-width: 100%; max-height: 200px; display: none;">
+                            <img id="photoPreview" src="#" alt="Pré-visualização" style="max-width: 100%; max-height: 200px; display: none;">
                         </div>
                     </div>
                 </div>
@@ -644,7 +692,7 @@
     </div>
 </div>
 
-<!-- Modal para Confirmar Remoção da Foto -->
+<!-- MODAL REMOVER FOTO -->
 <div class="modal fade" id="removePhotoModal" tabindex="-1" aria-labelledby="removePhotoModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -666,11 +714,9 @@
 </div>
 
 <script>
-// Funções para interatividade da página
 function toggleEditName() {
     const displayElement = document.getElementById('playerNameDisplay');
     const formElement = document.getElementById('editNameForm');
-
     if (formElement.classList.contains('d-none')) {
         displayElement.classList.add('d-none');
         formElement.classList.remove('d-none');
@@ -683,7 +729,6 @@ function toggleEditName() {
 function toggleEditContact() {
     const displayElement = document.getElementById('playerContactDisplay');
     const formElement = document.getElementById('editContactForm');
-
     if (formElement.classList.contains('d-none')) {
         displayElement.classList.add('d-none');
         formElement.classList.remove('d-none');
@@ -696,7 +741,6 @@ function toggleEditContact() {
 function toggleEditCountry() {
     const displayElement = document.getElementById('playerCountryDisplay');
     const formElement = document.getElementById('editCountryForm');
-
     if (formElement.classList.contains('d-none')) {
         displayElement.classList.add('d-none');
         formElement.classList.remove('d-none');
@@ -709,7 +753,6 @@ function toggleEditCountry() {
 function toggleEditSexo() {
     const displayElement = document.getElementById('playerSexoDisplay');
     const formElement = document.getElementById('editSexoForm');
-
     if (formElement.classList.contains('d-none')) {
         displayElement.classList.add('d-none');
         formElement.classList.remove('d-none');
@@ -719,19 +762,15 @@ function toggleEditSexo() {
     }
 }
 
-// Preview da imagem antes do upload
 document.getElementById('profile_photo').addEventListener('change', function(e) {
     const preview = document.getElementById('photoPreview');
     const file = e.target.files[0];
-    
     if (file) {
         const reader = new FileReader();
-        
         reader.onload = function(e) {
             preview.src = e.target.result;
             preview.style.display = 'block';
         }
-        
         reader.readAsDataURL(file);
     } else {
         preview.style.display = 'none';
