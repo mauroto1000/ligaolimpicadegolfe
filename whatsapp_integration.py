@@ -152,7 +152,7 @@ Você foi desafiado por *{challenger['name']}* (#{challenger['position']})
 
 Acesse o sistema para aceitar ou propor nova data.
 
-⏰ Você tem 7 dias para responder."""
+⏰ Você tem 2 dias para responder."""
 
         resultado = whatsapp.enviar_texto(telefone_desafiado, msg_privada)
         
@@ -267,3 +267,30 @@ O desafio entre *{challenger['name']}* e *{challenged['name']}* foi cancelado.
 
     whatsapp.enviar_para_grupo(WHATSAPP_GRUPO_LIGA, msg_grupo)
 
+
+# ============================================================
+# ROTA PARA CRIAR COLUNA TELEFONE (adicionar ao app.py)
+# Executar uma vez: /criar-coluna-telefone
+# ============================================================
+"""
+@app.route('/criar-coluna-telefone')
+def criar_coluna_telefone():
+    conn = get_db_connection()
+    
+    try:
+        columns = conn.execute("PRAGMA table_info(players)").fetchall()
+        column_names = [col['name'] for col in columns]
+        
+        if 'telefone' not in column_names:
+            conn.execute('ALTER TABLE players ADD COLUMN telefone TEXT')
+            conn.commit()
+            conn.close()
+            return "✅ Coluna 'telefone' criada com sucesso!"
+        else:
+            conn.close()
+            return "ℹ️ Coluna 'telefone' já existe."
+            
+    except Exception as e:
+        conn.close()
+        return f"❌ Erro: {str(e)}"
+"""
