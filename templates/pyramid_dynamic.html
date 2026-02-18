@@ -272,6 +272,7 @@
         background-color: rgba(0,0,0,0.1);
     }
     
+    /* Data do desafio - ALINHADA À ESQUERDA */
     .challenge-date,
     .pending-date {
         font-size: 9px;
@@ -281,8 +282,7 @@
         border-radius: 3px;
         position: absolute;
         bottom: 2px;
-        left: 50%;
-        transform: translateX(-50%);
+        left: 2px;
         white-space: nowrap;
         box-shadow: 0 1px 2px rgba(0,0,0,0.2);
         z-index: 3;
@@ -436,6 +436,54 @@
     .legend-blue { background-color: #002970; }
     .legend-pink { background-color: #e91e63; }
 
+    /* Jogador bloqueado (viagem/saúde) */
+    .pyramid-cell.blocked {
+        background-color: #ffc107 !important;
+        color: #212529 !important;
+        position: relative;
+    }
+
+    .pyramid-cell.blocked::before {
+        content: "✕";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 36px;
+        font-weight: bold;
+        color: rgba(0, 0, 0, 0.5);
+        z-index: 1;
+        pointer-events: none;
+    }
+
+    .pyramid-cell.blocked .player-name {
+        opacity: 0.6;
+        position: relative;
+        z-index: 2;
+    }
+
+    .pyramid-cell.blocked .player-position {
+        background-color: rgba(0, 0, 0, 0.3);
+        z-index: 2;
+    }
+
+    .pyramid-cell.blocked:hover {
+        transform: scale(1.08);
+        box-shadow: 0 4px 12px rgba(255, 193, 7, 0.5);
+    }
+
+    .blocked-badge {
+        font-size: 8px;
+        background: #dc3545;
+        color: white;
+        padding: 1px 3px;
+        border-radius: 2px;
+        position: absolute;
+        top: 14px;
+        left: 2px;
+        z-index: 5;
+    }
+
     .card-header h3 {
         font-size: 1.1rem;
     }
@@ -585,8 +633,14 @@
                 <span class="ms-1">Data aceita</span>
             </div>
             <div class="legend-item">
-                <span style="font-size: 11px; padding: 2px 5px; background-color: #dc3545; color: #fff; border-radius: 3px;">(?)</span>
-                <span class="ms-1">Aguardando</span>
+                <span style="font-size: 11px; padding: 2px 5px; background-color: #dc3545; color: #fff; border-radius: 3px;">(10/03)</span>
+                <span class="ms-1">Aguardando aceite</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color legend-yellow" style="position: relative; display: flex; align-items: center; justify-content: center;">
+                    <span style="font-weight: bold; color: #000; font-size: 14px;">✕</span>
+                </div>
+                <span>Bloqueado (viagem/saúde)</span>
             </div>
         </div>
 
@@ -622,15 +676,25 @@
                                         {% for player in male_players_in_tier|sort(attribute='position') %}
                                             {% if position_counter.append(position_counter.pop() + 1) %}{% endif %}
                                             <div class="pyramid-cell 
-                                                 {% if player.has_pending_challenge %}pending-challenge{% endif %}
+                                                 {% if player.bloqueado == 1 %}blocked{% endif %}
+                                                 {% if player.has_pending_challenge and player.bloqueado != 1 %}pending-challenge{% endif %}
                                                  {% if player.challenge_status == 'completed_pending' %}completed-pending-challenge{% endif %}"
                                                  data-player-name="{{ player.name|lower }}"
                                                  data-player-id="{{ player.id }}"
                                                  data-position="{{ position_counter[0] }}"
                                                  data-gender="masculino"
+                                                 data-blocked="{{ player.bloqueado or 0 }}"
                                                  onclick="window.location='{{ url_for('player_detail', player_id=player.id) }}'">
                                                 
                                                 <span class="player-position">{{ position_counter[0] }}</span>
+                                                
+                                                {% if player.bloqueado == 1 %}
+                                                <span class="blocked-badge">
+                                                    {% if player.bloqueio_motivo == 'Viagem' %}🧳
+                                                    {% elif player.bloqueio_motivo == 'Saúde' %}🏥
+                                                    {% else %}🚫{% endif %}
+                                                </span>
+                                                {% endif %}
                                                 
                                                 {% if player.country %}
                                                     <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
@@ -638,7 +702,12 @@
                                                 {% endif %}
                                                 
                                                 <div class="pyramid-tooltip">
-                                                    <strong>{{ player.name }}</strong><br>
+                                                    <strong>{{ player.name }}</strong>
+                                                    {% if player.bloqueado == 1 %}
+                                                    <br><span style="color: #ff6b6b;">🚫 BLOQUEADO</span>
+                                                    <br><small>{{ player.bloqueio_motivo or 'Indisponível' }}</small>
+                                                    {% endif %}
+                                                    <br>
                                                     Posição: #{{ position_counter[0] }}<br>
                                                     Linha: {{ tier_letter }}<br>
                                                     {% if player.hcp_index is not none %}HCP: {{ player.hcp_index }}{% endif %}
@@ -646,18 +715,28 @@
                                                 
                                                 <span class="player-name">{{ player.name }}</span>
                                                 
-                                                {% set displayed = false %}
-                                                {% if player.has_pending_challenge and not displayed %}
-                                                    {% for challenge in challenges %}
-                                                        {% if not displayed and challenge.status == 'pending' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
-                                                            <span class="pending-date">(?)</span>
-                                                            {% set displayed = true %}
-                                                        {% endif %}
-                                                    {% endfor %}
-                                                {% endif %}
+                                                {% set displayed = [false] %}
                                                 
+                                                {# Primeiro verifica desafios pendentes (aguardando aceite) - mostra a data #}
                                                 {% for challenge in challenges %}
-                                                    {% if not displayed and challenge.status == 'accepted' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                                    {% if not displayed[0] and challenge.status == 'pending' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                                        <span class="pending-date">
+                                                            {% set date_str = challenge.scheduled_date|string %}
+                                                            {% if '-' in date_str %}
+                                                                {% set parts = date_str.split('-') %}
+                                                                ({{ parts[2].split(' ')[0] }}/{{ parts[1] }})
+                                                            {% else %}
+                                                                (?)
+                                                            {% endif %}
+                                                        </span>
+                                                        {% if displayed.append(true) %}{% endif %}
+                                                        {% if displayed.pop(0) %}{% endif %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                                
+                                                {# Depois verifica desafios aceitos #}
+                                                {% for challenge in challenges %}
+                                                    {% if not displayed[0] and challenge.status == 'accepted' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
                                                         <span class="challenge-date">
                                                             {% set date_str = challenge.scheduled_date|string %}
                                                             {% if '-' in date_str %}
@@ -665,7 +744,8 @@
                                                                 ({{ parts[2].split(' ')[0] }}/{{ parts[1] }})
                                                             {% endif %}
                                                         </span>
-                                                        {% set displayed = true %}
+                                                        {% if displayed.append(true) %}{% endif %}
+                                                        {% if displayed.pop(0) %}{% endif %}
                                                     {% endif %}
                                                 {% endfor %}
                                                 
@@ -717,14 +797,24 @@
                                                 {% set player = female_by_position[current_index[0]] %}
                                                 {% if ladies_position.append(ladies_position.pop() + 1) %}{% endif %}
                                                 <div class="pyramid-cell 
-                                                     {% if player.has_pending_challenge %}pending-challenge{% endif %}"
+                                                     {% if player.bloqueado == 1 %}blocked{% endif %}
+                                                     {% if player.has_pending_challenge and player.bloqueado != 1 %}pending-challenge{% endif %}"
                                                      data-player-name="{{ player.name|lower }}"
                                                      data-player-id="{{ player.id }}"
                                                      data-position="{{ ladies_position[0] }}"
                                                      data-gender="feminino"
+                                                     data-blocked="{{ player.bloqueado or 0 }}"
                                                      onclick="window.location='{{ url_for('player_detail', player_id=player.id) }}'">
                                                     
                                                     <span class="player-position">{{ ladies_position[0] }}</span>
+                                                    
+                                                    {% if player.bloqueado == 1 %}
+                                                    <span class="blocked-badge">
+                                                        {% if player.bloqueio_motivo == 'Viagem' %}🧳
+                                                        {% elif player.bloqueio_motivo == 'Saúde' %}🏥
+                                                        {% else %}🚫{% endif %}
+                                                    </span>
+                                                    {% endif %}
                                                     
                                                     {% if player.country %}
                                                         <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 

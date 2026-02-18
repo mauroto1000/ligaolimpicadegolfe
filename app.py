@@ -2868,7 +2868,6 @@ def challenges_list():
 # Substitua a rota new_challenge existente por esta versão modificada
 
 # Substitua a rota new_challenge existente por esta versão modificada
-
 @app.route('/new_challenge', methods=['GET', 'POST'])
 @login_required
 def new_challenge():
@@ -2920,6 +2919,24 @@ def new_challenge():
             conn.close()
             flash('Um dos jogadores está inativo e não pode participar de desafios.', 'error')
             return redirect(url_for('new_challenge'))
+        
+        # =====================================================
+        # VERIFICAÇÃO DE BLOQUEIO (VIAGEM/SAÚDE)
+        # =====================================================
+        if challenged['bloqueado'] == 1:
+            motivo = challenged['bloqueio_motivo'] or 'indisponível'
+            conn.close()
+            flash(f'❌ {challenged["name"]} está temporariamente bloqueado ({motivo}).', 'error')
+            return redirect(url_for('new_challenge', challenger_id=challenger_id))
+        
+        if challenger['bloqueado'] == 1:
+            motivo = challenger['bloqueio_motivo'] or 'indisponível'
+            conn.close()
+            flash(f'❌ Você está temporariamente bloqueado ({motivo}) e não pode criar desafios.', 'error')
+            return redirect(url_for('dashboard'))
+        # =====================================================
+        # FIM VERIFICAÇÃO DE BLOQUEIO
+        # =====================================================
         
         # Regras aplicáveis a todos os usuários, incluindo administradores
         error = None
@@ -3065,6 +3082,12 @@ def new_challenge():
         players_with_challenges.add(challenge['challenger_id'])
         players_with_challenges.add(challenge['challenged_id'])
     
+    # =====================================================
+    # Buscar jogadores bloqueados para filtrar da lista
+    # =====================================================
+    blocked_players = conn.execute('SELECT id FROM players WHERE bloqueado = 1').fetchall()
+    blocked_player_ids = {p['id'] for p in blocked_players}
+    
     if is_main_admin:
         # Admin principal vê TODOS os jogadores ativos como possíveis desafiados
         all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
@@ -3091,9 +3114,14 @@ def new_challenge():
                     if preselected_challenger_id in players_with_challenges:
                         flash('Este jogador já está envolvido em um desafio pendente ou aceito.', 'warning')
                     
-                    # Filtrar jogadores com desafios pendentes
+                    # Verificar se o desafiante está bloqueado
+                    if preselected_challenger_id in blocked_player_ids:
+                        flash('Este jogador está bloqueado e não pode criar desafios.', 'warning')
+                    
+                    # Filtrar jogadores com desafios pendentes E bloqueados
                     eligible_challenged = [player for player in eligible_challenged 
-                                          if player['id'] not in players_with_challenges]
+                                          if player['id'] not in players_with_challenges
+                                          and player['id'] not in blocked_player_ids]
             except (ValueError, TypeError):
                 preselected_challenger_id = None
                 
@@ -3128,9 +3156,14 @@ def new_challenge():
                     if preselected_challenger_id in players_with_challenges:
                         flash('Este jogador já está envolvido em um desafio pendente ou aceito.', 'warning')
                     
-                    # Filtrar jogadores com desafios pendentes
+                    # Verificar se o desafiante está bloqueado
+                    if preselected_challenger_id in blocked_player_ids:
+                        flash('Este jogador está bloqueado e não pode criar desafios.', 'warning')
+                    
+                    # Filtrar jogadores com desafios pendentes E bloqueados
                     eligible_challenged = [player for player in eligible_challenged 
-                                          if player['id'] not in players_with_challenges]
+                                          if player['id'] not in players_with_challenges
+                                          and player['id'] not in blocked_player_ids]
             except (ValueError, TypeError):
                 preselected_challenger_id = None
     else:
@@ -3146,6 +3179,12 @@ def new_challenge():
                     preselected_challenger_id = None
         
         if preselected_challenger_id:
+            # Verificar se o jogador está bloqueado
+            if preselected_challenger_id in blocked_player_ids:
+                conn.close()
+                flash('Você está temporariamente bloqueado e não pode criar desafios.', 'warning')
+                return redirect(url_for('dashboard'))
+            
             if preselected_challenger_id in players_with_challenges:
                 conn.close()
                 flash('Este jogador já está envolvido em um desafio pendente ou aceito.', 'warning')
@@ -3171,13 +3210,16 @@ def new_challenge():
                     ORDER BY position DESC
                 ''', (challenger['position'], min_position, preselected_challenger_id)).fetchall()
                 
-                # Filtrar jogadores com desafios pendentes
+                # Filtrar jogadores com desafios pendentes E bloqueados
                 eligible_challenged = [player for player in eligible_challenged 
-                                      if player['id'] not in players_with_challenges]
+                                      if player['id'] not in players_with_challenges
+                                      and player['id'] not in blocked_player_ids]
         else:
             all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
+            # Filtrar jogadores com desafios pendentes E bloqueados
             all_players = [player for player in all_players 
-                          if player['id'] not in players_with_challenges]
+                          if player['id'] not in players_with_challenges
+                          and player['id'] not in blocked_player_ids]
     
     # Adicionar data atual formatada para o campo de data
     today_date = datetime.now().strftime('%Y-%m-%d')
@@ -7475,6 +7517,112 @@ def criar_tabela_regulamento():
     conn.commit()
     conn.close()
     return "Tabela 'regulamento' criada com sucesso!"
+
+
+# ============================================================
+# SISTEMA DE BLOQUEIO DE JOGADOR (SAÚDE/VIAGEM)
+# 
+# 1. Execute a rota /criar-coluna-bloqueio uma vez
+# 2. Adicione as rotas no app.py
+# 3. Adicione o CSS e HTML na pirâmide
+# 4. Adicione o controle no player_detail.html
+# ============================================================
+
+# ============================================================
+# PASSO 1: Rota para criar coluna no banco (executar uma vez)
+# ============================================================
+
+@app.route('/criar-coluna-bloqueio')
+@login_required
+def criar_coluna_bloqueio():
+    """Cria as colunas para bloqueio de jogador - executar uma vez"""
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    try:
+        cursor = conn.execute("PRAGMA table_info(players)")
+        columns = [col[1] for col in cursor.fetchall()]
+        
+        if 'bloqueado' not in columns:
+            conn.execute('ALTER TABLE players ADD COLUMN bloqueado INTEGER DEFAULT 0')
+            conn.commit()
+            flash('✅ Coluna "bloqueado" criada!', 'success')
+        
+        if 'bloqueio_motivo' not in columns:
+            conn.execute('ALTER TABLE players ADD COLUMN bloqueio_motivo TEXT')
+            conn.commit()
+            flash('✅ Coluna "bloqueio_motivo" criada!', 'success')
+        
+        if 'bloqueio_ate' not in columns:
+            conn.execute('ALTER TABLE players ADD COLUMN bloqueio_ate DATE')
+            conn.commit()
+            flash('✅ Coluna "bloqueio_ate" criada!', 'success')
+            
+        flash('✅ Sistema de bloqueio configurado com sucesso!', 'success')
+        
+    except Exception as e:
+        flash(f'❌ Erro: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('admin_dashboard'))
+
+
+# ============================================================
+# PASSO 2: Rota para bloquear/desbloquear jogador
+# ============================================================
+
+@app.route('/admin/toggle-bloqueio/<int:player_id>', methods=['POST'])
+@login_required
+def toggle_bloqueio_jogador(player_id):
+    """Admin pode bloquear/desbloquear jogador"""
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    try:
+        player = conn.execute('SELECT name, bloqueado FROM players WHERE id = ?', 
+                              (player_id,)).fetchone()
+        
+        if not player:
+            flash('❌ Jogador não encontrado.', 'error')
+            conn.close()
+            return redirect(url_for('index'))
+        
+        # Se está bloqueado, desbloqueia
+        if player['bloqueado'] == 1:
+            conn.execute('''
+                UPDATE players 
+                SET bloqueado = 0, bloqueio_motivo = NULL, bloqueio_ate = NULL 
+                WHERE id = ?
+            ''', (player_id,))
+            conn.commit()
+            flash(f'✅ {player["name"]} foi DESBLOQUEADO e pode receber desafios.', 'success')
+        else:
+            # Se não está bloqueado, pega os dados do formulário
+            motivo = request.form.get('motivo', 'Não especificado')
+            data_ate = request.form.get('data_ate', None)
+            
+            conn.execute('''
+                UPDATE players 
+                SET bloqueado = 1, bloqueio_motivo = ?, bloqueio_ate = ? 
+                WHERE id = ?
+            ''', (motivo, data_ate, player_id))
+            conn.commit()
+            
+            msg_data = f" até {data_ate}" if data_ate else ""
+            flash(f'🚫 {player["name"]} foi BLOQUEADO ({motivo}){msg_data}.', 'warning')
+        
+    except Exception as e:
+        flash(f'❌ Erro: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('player_detail', player_id=player_id))
+
 
 
 if __name__ == '__main__':
