@@ -6783,6 +6783,29 @@ def adjust_player_position(player_id):
                            players_list=players_same_gender)
 
 
+# ============================================================
+# FUNÇÃO check_player_activity
+# 
+# Adicione esta função no app.py ANTES das rotas da carteirinha
+# (pode ser logo após as funções parse_datetime e generate_verification_token)
+# ============================================================
+
+def check_player_activity(conn, player_id):
+    """
+    Verifica se o jogador tem pelo menos 1 desafio concluído nos últimos 30 dias.
+    Retorna True se ativo, False se inativo.
+    """
+    result = conn.execute('''
+        SELECT COUNT(*) as count FROM challenges 
+        WHERE (challenger_id = ? OR challenged_id = ?)
+        AND status = 'completed'
+        AND scheduled_date >= date('now', '-30 days')
+    ''', (player_id, player_id)).fetchone()
+    
+    return result['count'] > 0
+
+
+
 """
 ============================================================
 CARTEIRINHA DIGITAL - Implementação Completa
@@ -6931,15 +6954,32 @@ def carteirinha():
     
     conn = get_db_connection()
     player = conn.execute('SELECT * FROM players WHERE id = ?', (user_id,)).fetchone()
-    conn.close()
     
     if not player:
+        conn.close()
         flash('Jogador não encontrado.', 'error')
         return redirect(url_for('dashboard'))
     
     if not player['active']:
+        conn.close()
         flash('Sua carteirinha está inativa. Entre em contato com a administração.', 'warning')
         return redirect(url_for('dashboard'))
+    
+    # ============================================================
+    # VERIFICAÇÃO DE ATIVIDADE: Jogou nos últimos 30 dias?
+    # ============================================================
+    is_card_active = check_player_activity(conn, user_id)
+    
+    # Buscar último jogo para mostrar na carteirinha
+    last_game = conn.execute('''
+        SELECT scheduled_date FROM challenges 
+        WHERE (challenger_id = ? OR challenged_id = ?)
+        AND status = 'completed'
+        ORDER BY scheduled_date DESC
+        LIMIT 1
+    ''', (user_id, user_id)).fetchone()
+    
+    last_game_date = last_game['scheduled_date'] if last_game else None
     
     # Gerar token de verificação (válido por 10 minutos)
     token_data = generate_verification_token(user_id, validity_minutes=10)
@@ -6957,12 +6997,16 @@ def carteirinha():
     seconds_remaining = int((expires_at - datetime.now()).total_seconds())
     seconds_remaining = max(0, seconds_remaining)
     
+    conn.close()
+    
     return render_template('carteirinha.html', 
                           player=player,
                           token=token_data['token'],
                           expires_at=expires_at,
                           seconds_remaining=seconds_remaining,
-                          verification_url=verification_url)
+                          verification_url=verification_url,
+                          is_card_active=is_card_active,
+                          last_game_date=last_game_date)
 
 
 @app.route('/carteirinha/renovar', methods=['POST'])
@@ -7018,6 +7062,25 @@ def verificar_carteirinha(token):
                                   error='Token inválido ou expirado',
                                   verified_at=verified_at)
         
+        # ============================================================
+        # VERIFICAÇÃO DE ATIVIDADE: Carteirinha está ativa?
+        # ============================================================
+        conn = get_db_connection()
+        is_card_active = check_player_activity(conn, result['player_id'])
+        
+        # Buscar último jogo
+        last_game = conn.execute('''
+            SELECT scheduled_date FROM challenges 
+            WHERE (challenger_id = ? OR challenged_id = ?)
+            AND status = 'completed'
+            ORDER BY scheduled_date DESC
+            LIMIT 1
+        ''', (result['player_id'], result['player_id'])).fetchone()
+        
+        last_game_date = last_game['scheduled_date'] if last_game else None
+        
+        conn.close()
+        
         # Calcular tempo restante
         expires_at = parse_datetime(result.get('expires_at'))
         if expires_at:
@@ -7033,10 +7096,11 @@ def verificar_carteirinha(token):
                               player=result,
                               verified_at=verified_at,
                               minutes_remaining=minutes_remaining,
-                              seconds_remaining=seconds_remaining)
+                              seconds_remaining=seconds_remaining,
+                              is_card_active=is_card_active,
+                              last_game_date=last_game_date)
     
     except Exception as e:
-        # Mostra o erro na página para debug
         error_details = traceback.format_exc()
         return f"""
         <h1>Erro na verificação</h1>
