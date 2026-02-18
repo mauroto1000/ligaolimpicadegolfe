@@ -2963,21 +2963,34 @@ def new_challenge():
                 error = "Um dos jogadores já está envolvido em um desafio pendente ou aceito. Conclua o desafio atual antes de criar um novo."
         
         # =====================================================
-        # NOVA REGRA: Limite de 8 posições acima
+        # REGRA: Limite de 8 jogadores ELEGÍVEIS acima
+        # (desconsidera jogadores bloqueados na contagem)
         # =====================================================
         if not error and not is_main_admin:
             challenger_position = challenger['position']
             challenged_position = challenged['position']
-            
-            # Calcular diferença de posições
-            position_difference = challenger_position - challenged_position
+            challenger_sexo = challenger['sexo'] or 'masculino'
             
             # Regra 1: Só pode desafiar jogadores em posições melhores (número menor)
             if challenged_position >= challenger_position:
                 error = "Você só pode desafiar jogadores em posições melhores que a sua."
-            # Regra 2: Limite de 8 posições acima
-            elif position_difference > 8:
-                error = f"Você só pode desafiar jogadores até 8 posições acima da sua. Sua posição: {challenger_position}, posição do desafiado: {challenged_position} (diferença: {position_difference})."
+            else:
+                # Buscar os 8 jogadores elegíveis acima (não bloqueados, ativos, mesmo sexo)
+                eligible_above = conn.execute('''
+                    SELECT id, position FROM players 
+                    WHERE active = 1 
+                    AND position < ?
+                    AND (bloqueado = 0 OR bloqueado IS NULL)
+                    AND (sexo = ? OR (sexo IS NULL AND ? = 'masculino'))
+                    ORDER BY position DESC
+                    LIMIT 8
+                ''', (challenger_position, challenger_sexo, challenger_sexo)).fetchall()
+                
+                # Verificar se o desafiado está entre os 8 elegíveis
+                eligible_ids = [p['id'] for p in eligible_above]
+                
+                if int(challenged_id) not in eligible_ids:
+                    error = f"Você só pode desafiar os 8 jogadores elegíveis mais próximos acima da sua posição. Jogadores bloqueados não contam."
         
         # Se for admin principal, mostrar uma mensagem informativa no log
         if is_main_admin and not error:
@@ -3139,18 +3152,17 @@ def new_challenge():
                 
                 if challenger:
                     # =====================================================
-                    # NOVA REGRA: Limite de 8 posições acima
+                    # REGRA: 8 jogadores ELEGÍVEIS acima (não bloqueados)
                     # =====================================================
-                    min_position = max(1, challenger['position'] - 8)
-                    
                     eligible_challenged = conn.execute('''
                         SELECT * FROM players 
                         WHERE active = 1
                         AND position < ?
-                        AND position >= ?
+                        AND (bloqueado = 0 OR bloqueado IS NULL)
                         AND id != ?
                         ORDER BY position DESC
-                    ''', (challenger['position'], min_position, preselected_challenger_id)).fetchall()
+                        LIMIT 8
+                    ''', (challenger['position'], preselected_challenger_id)).fetchall()
                     
                     # Verificar se o desafiante já tem desafios pendentes
                     if preselected_challenger_id in players_with_challenges:
@@ -3160,10 +3172,9 @@ def new_challenge():
                     if preselected_challenger_id in blocked_player_ids:
                         flash('Este jogador está bloqueado e não pode criar desafios.', 'warning')
                     
-                    # Filtrar jogadores com desafios pendentes E bloqueados
+                    # Filtrar jogadores com desafios pendentes
                     eligible_challenged = [player for player in eligible_challenged 
-                                          if player['id'] not in players_with_challenges
-                                          and player['id'] not in blocked_player_ids]
+                                          if player['id'] not in players_with_challenges]
             except (ValueError, TypeError):
                 preselected_challenger_id = None
     else:
@@ -3197,23 +3208,21 @@ def new_challenge():
                 all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
                 
                 # =====================================================
-                # NOVA REGRA: Limite de 8 posições acima
+                # REGRA: 8 jogadores ELEGÍVEIS acima (não bloqueados)
                 # =====================================================
-                min_position = max(1, challenger['position'] - 8)
-                
                 eligible_challenged = conn.execute('''
                     SELECT * FROM players 
                     WHERE active = 1
                     AND position < ?
-                    AND position >= ?
+                    AND (bloqueado = 0 OR bloqueado IS NULL)
                     AND id != ?
                     ORDER BY position DESC
-                ''', (challenger['position'], min_position, preselected_challenger_id)).fetchall()
+                    LIMIT 8
+                ''', (challenger['position'], preselected_challenger_id)).fetchall()
                 
-                # Filtrar jogadores com desafios pendentes E bloqueados
+                # Filtrar jogadores com desafios pendentes
                 eligible_challenged = [player for player in eligible_challenged 
-                                      if player['id'] not in players_with_challenges
-                                      and player['id'] not in blocked_player_ids]
+                                      if player['id'] not in players_with_challenges]
         else:
             all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
             # Filtrar jogadores com desafios pendentes E bloqueados
