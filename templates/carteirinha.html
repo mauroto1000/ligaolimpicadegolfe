@@ -125,17 +125,69 @@
                 </div>
             </div>
             
+            <!-- Badge de Status ATIVO/INATIVO -->
+            <div class="text-center mb-4">
+                {% if is_card_active %}
+                <span class="status-badge-card ativo">
+                    <i class="fas fa-check-circle me-2"></i> CARTEIRINHA ATIVA
+                </span>
+                {% else %}
+                <span class="status-badge-card inativo">
+                    <i class="fas fa-times-circle me-2"></i> CARTEIRINHA INATIVA
+                </span>
+                {% endif %}
+            </div>
+            
+            <!-- AVISO DE CARTEIRINHA INATIVA -->
+            {% if not is_card_active %}
+            <div class="alert alert-danger border-0 shadow-sm mb-4" style="border-radius: 15px;">
+                <div class="d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-exclamation-triangle fa-2x text-danger"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <h5 class="alert-heading mb-1">
+                            <i class="fas fa-ban me-1"></i> CARTEIRINHA INATIVA
+                        </h5>
+                        <p class="mb-1">
+                            Você não jogou nenhum desafio nos últimos 30 dias.
+                        </p>
+                        <small class="text-muted">
+                            {% if last_game_date %}
+                                <i class="fas fa-calendar-alt me-1"></i> Último jogo: {{ last_game_date }}
+                            {% else %}
+                                <i class="fas fa-calendar-times me-1"></i> Nenhum jogo registrado.
+                            {% endif %}
+                        </small>
+                        <hr class="my-2">
+                        <p class="mb-0 small">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Para reativar sua carteirinha, complete um desafio.
+                            <a href="{{ url_for('dashboard') }}" class="alert-link">Ir para o Dashboard</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
             <!-- Seção do QR Code -->
-            <div class="card shadow-sm border-0 mb-4" style="border-radius: 15px;">
+            <div class="card shadow-sm border-0 mb-4 {% if not is_card_active %}opacity-75{% endif %}" style="border-radius: 15px;">
                 <div class="card-body text-center p-4">
                     <h5 class="mb-3">
                         <i class="fas fa-qrcode me-2 text-success"></i>
                         QR Code de Verificação
                     </h5>
                     
+                    {% if is_card_active %}
                     <p class="text-muted mb-3">
                         Apresente este QR Code no estabelecimento parceiro para validar sua carteirinha.
                     </p>
+                    {% else %}
+                    <p class="text-danger mb-3">
+                        <i class="fas fa-exclamation-circle me-1"></i>
+                        <strong>QR Code inativo</strong> - Jogue um desafio para reativar sua carteirinha
+                    </p>
+                    {% endif %}
                     
                     <!-- QR Code -->
                     <div id="qrcode" class="d-inline-block p-3 bg-white rounded shadow-sm mb-3"></div>
@@ -456,6 +508,7 @@
         left: 20px;
         right: 180px;
         text-align: center;
+        z-index: 10;
     }
     
     .nome-jogador {
@@ -475,6 +528,7 @@
         left: 20px;
         right: 180px;
         text-align: center;
+        z-index: 10;
     }
     
     .codigo-label {
@@ -493,12 +547,37 @@
         margin-top: 5px;
     }
     
+    /* Badge de Status ATIVO/INATIVO (abaixo da carteirinha) */
+    .status-badge-card {
+        display: inline-flex;
+        align-items: center;
+        padding: 12px 30px;
+        border-radius: 30px;
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+    
+    .status-badge-card.ativo {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+        box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+    }
+    
+    .status-badge-card.inativo {
+        background: linear-gradient(135deg, #dc3545, #c82333);
+        color: white;
+        box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4);
+    }
+    
     /* Bola de golfe */
     .bola-golfe {
         position: absolute;
         bottom: 5%;
         left: 5%;
         opacity: 0.9;
+        z-index: 2;
     }
     
     /* Campo com buraco */
@@ -507,8 +586,9 @@
         bottom: 0;
         left: 0;
         right: 0;
-        height: 30%;
+        height: 22%;
         overflow: hidden;
+        z-index: 1;
     }
     
     .campo-verde {
@@ -634,6 +714,11 @@
         .codigo-area {
             right: 120px;
             top: 52%;
+        }
+        
+        .status-badge-card {
+            padding: 10px 20px;
+            font-size: 0.85rem;
         }
         
         .logo-icon svg {
