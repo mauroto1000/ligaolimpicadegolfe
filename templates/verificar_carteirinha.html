@@ -72,10 +72,105 @@
         
         .status-valid { background: linear-gradient(135deg, #28a745, #20c997); }
         .status-invalid { background: linear-gradient(135deg, #dc3545, #ff6b6b); }
+        .status-warning { background: linear-gradient(135deg, #dc3545, #c82333); }
         
-        .status-text { font-size: 1.4rem; font-weight: 700; margin-bottom: 25px; }
+        .status-text { font-size: 1.4rem; font-weight: 700; margin-bottom: 10px; }
         .status-text.valid { color: #28a745; }
         .status-text.invalid { color: #dc3545; }
+        .status-text.warning { color: #dc3545; font-size: 1.2rem; }
+        
+        /* Etiqueta de Status da Carteirinha */
+        .card-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 25px;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+        
+        .card-status-badge.ativo {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+        }
+        
+        .card-status-badge.inativo {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.5);
+        }
+        
+        .card-status-badge.piscante {
+            animation: piscar-badge 0.6s ease-in-out infinite;
+        }
+        
+        @keyframes piscar-badge {
+            0%, 100% { 
+                transform: scale(1);
+                box-shadow: 0 4px 15px rgba(220, 53, 69, 0.5);
+            }
+            50% { 
+                transform: scale(1.05);
+                box-shadow: 0 6px 25px rgba(220, 53, 69, 0.8);
+            }
+        }
+        
+        /* Banner INATIVO Piscante */
+        .inativo-banner-container {
+            background: #dc3545;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        .inativo-banner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 50%, #dc3545 100%);
+            animation: piscar 0.8s ease-in-out infinite;
+        }
+        
+        .inativo-banner span {
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: white;
+            letter-spacing: 8px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .inativo-banner i {
+            font-size: 1.5rem;
+            color: #ffcc00;
+            animation: pulse-icon 0.8s ease-in-out infinite;
+        }
+        
+        @keyframes piscar {
+            0%, 100% { 
+                background: linear-gradient(135deg, #dc3545 0%, #c82333 50%, #dc3545 100%);
+                box-shadow: inset 0 0 30px rgba(0,0,0,0.3);
+            }
+            50% { 
+                background: linear-gradient(135deg, #ff4757 0%, #ff6b6b 50%, #ff4757 100%);
+                box-shadow: inset 0 0 50px rgba(255,255,255,0.2);
+            }
+        }
+        
+        @keyframes pulse-icon {
+            0%, 100% { 
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% { 
+                transform: scale(1.2);
+                opacity: 0.8;
+            }
+        }
         
         .player-photo {
             width: 110px;
@@ -196,14 +291,38 @@
         </div>
         
         {% if valid %}
+        
+        <!-- BANNER PISCANTE INATIVO -->
+        {% if not is_card_active %}
+        <div class="inativo-banner-container">
+            <div class="inativo-banner">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>INATIVO</span>
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+        </div>
+        {% endif %}
+        
         <!-- MEMBRO VERIFICADO -->
         <div class="status-section">
             
+            {% if is_card_active %}
             <div class="status-icon status-valid">
                 <i class="fas fa-check fa-3x text-white"></i>
             </div>
-            
             <div class="status-text valid">MEMBRO VERIFICADO</div>
+            <div class="card-status-badge ativo">
+                <i class="fas fa-check-circle"></i> CARTEIRINHA ATIVA
+            </div>
+            {% else %}
+            <div class="status-icon status-warning">
+                <i class="fas fa-exclamation fa-3x text-white"></i>
+            </div>
+            <div class="status-text valid">MEMBRO VERIFICADO</div>
+            <div class="card-status-badge inativo piscante">
+                <i class="fas fa-times-circle"></i> CARTEIRINHA INATIVA
+            </div>
+            {% endif %}
             
             <!-- Foto -->
             {% if player and player['profile_photo'] %}
