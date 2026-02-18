@@ -2641,6 +2641,7 @@ def update_player_sexo(player_id):
 
 
 @app.route('/')
+@login_required 
 def index():
     conn = get_db_connection()
     
@@ -2670,11 +2671,13 @@ def index():
 
 
 @app.route('/pyramid')
+@login_required 
 def pyramid_redirect():
     """Redireciona a rota antiga para a nova rota da pirâmide"""
     return redirect(url_for('pyramid_dynamic'))
 
 @app.route('/pyramid_dynamic')
+@login_required 
 def pyramid_dynamic():
     conn = get_db_connection()
     
@@ -2756,6 +2759,7 @@ def pyramid_dynamic():
                           challenges=challenges_for_display)
 
 @app.route('/pyramid_print')
+@login_required 
 def pyramid_print():
     """Página de impressão da pirâmide em alta resolução"""
     conn = get_db_connection()
@@ -2781,12 +2785,14 @@ def pyramid_print():
 # Altere estas rotas no seu arquivo app.py:
 
 @app.route('/challenges')
+@login_required 
 def challenges():
     """Redireciona para a página de lista de desafios (nova interface principal)"""
     return redirect(url_for('challenges_list'))
 
 # Rota para o calendário de desafios
 @app.route('/challenges/calendar')
+@login_required 
 def challenges_calendar():
     conn = get_db_connection()
     # Obter todos os desafios com nomes dos jogadores
@@ -2808,6 +2814,7 @@ def challenges_calendar():
 
 # Rota para a lista de desafios (agora a padrão)
 @app.route('/challenges/list')
+@login_required 
 def challenges_list():
     conn = get_db_connection()
     
@@ -3624,6 +3631,7 @@ def result_type_description_filter(result_type):
 
 
 @app.route('/history')
+@login_required 
 def history():
     conn = get_db_connection()
     history = conn.execute('''
@@ -3638,6 +3646,7 @@ def history():
 
 
 @app.route('/player/<int:player_id>')
+@login_required 
 def player_detail(player_id):
     conn = get_db_connection()
     player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
@@ -4486,6 +4495,7 @@ def update_player_hcp(player_id):
 
 
 @app.route('/ranking_history')
+@login_required 
 def ranking_history():
     """Mostra o histórico de todas as posições em um gráfico"""
     conn = get_db_connection()
