@@ -6783,26 +6783,48 @@ def adjust_player_position(player_id):
                            players_list=players_same_gender)
 
 
+
 # ============================================================
-# FUNÇÃO check_player_activity
-# 
-# Adicione esta função no app.py ANTES das rotas da carteirinha
-# (pode ser logo após as funções parse_datetime e generate_verification_token)
+# ROTA PARA ADMIN ATIVAR/DESATIVAR CARTEIRINHA
 # ============================================================
 
-def check_player_activity(conn, player_id):
-    """
-    Verifica se o jogador tem pelo menos 1 desafio concluído nos últimos 30 dias.
-    Retorna True se ativo, False se inativo.
-    """
-    result = conn.execute('''
-        SELECT COUNT(*) as count FROM challenges 
-        WHERE (challenger_id = ? OR challenged_id = ?)
-        AND status = 'completed'
-        AND scheduled_date >= date('now', '-30 days')
-    ''', (player_id, player_id)).fetchone()
+@app.route('/admin/toggle-carteirinha/<int:player_id>', methods=['POST'])
+@login_required
+def toggle_carteirinha_forcada(player_id):
+    """Admin pode forçar carteirinha como ativa/inativa"""
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('index'))
     
-    return result['count'] > 0
+    conn = get_db_connection()
+    try:
+        player = conn.execute('SELECT name, carteirinha_forcada FROM players WHERE id = ?', 
+                              (player_id,)).fetchone()
+        
+        if not player:
+            flash('❌ Jogador não encontrado.', 'error')
+            conn.close()
+            return redirect(url_for('index'))
+        
+        # Toggle: se está 1 vira 0, se está 0 ou NULL vira 1
+        novo_valor = 0 if player['carteirinha_forcada'] == 1 else 1
+        
+        conn.execute('''
+            UPDATE players SET carteirinha_forcada = ? WHERE id = ?
+        ''', (novo_valor, player_id))
+        conn.commit()
+        
+        if novo_valor == 1:
+            flash(f'✅ Carteirinha de {player["name"]} FORÇADA COMO ATIVA pelo admin.', 'success')
+        else:
+            flash(f'ℹ️ Carteirinha de {player["name"]} voltou ao modo automático.', 'info')
+        
+    except Exception as e:
+        flash(f'❌ Erro: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('player_detail', player_id=player_id))
 
 
 
@@ -6968,7 +6990,7 @@ def carteirinha():
     # ============================================================
     # VERIFICAÇÃO DE ATIVIDADE: Jogou nos últimos 30 dias?
     # ============================================================
-    is_card_active = check_player_activity(conn, user_id)
+    is_card_active, is_forced = check_player_activity(conn, user_id)
     
     # Buscar último jogo para mostrar na carteirinha
     last_game = conn.execute('''
@@ -7006,6 +7028,7 @@ def carteirinha():
                           seconds_remaining=seconds_remaining,
                           verification_url=verification_url,
                           is_card_active=is_card_active,
+                          is_forced=is_forced,
                           last_game_date=last_game_date)
 
 
@@ -7066,7 +7089,7 @@ def verificar_carteirinha(token):
         # VERIFICAÇÃO DE ATIVIDADE: Carteirinha está ativa?
         # ============================================================
         conn = get_db_connection()
-        is_card_active = check_player_activity(conn, result['player_id'])
+        is_card_active, is_forced = check_player_activity(conn, result['player_id'])
         
         # Buscar último jogo
         last_game = conn.execute('''
@@ -7098,6 +7121,7 @@ def verificar_carteirinha(token):
                               minutes_remaining=minutes_remaining,
                               seconds_remaining=seconds_remaining,
                               is_card_active=is_card_active,
+                              is_forced=is_forced,
                               last_game_date=last_game_date)
     
     except Exception as e:
@@ -7110,11 +7134,91 @@ def verificar_carteirinha(token):
 
 
 # ============================================================
-# LEMBRETE: Adicionar no bloco if __name__ == '__main__':
-# ============================================================
+# SISTEMA DE CONTROLE MANUAL DA CARTEIRINHA
 # 
-# create_verification_tokens_table()
-#
+# 1. Execute a rota /criar-campo-carteirinha-manual para criar o campo
+# 2. Substitua a função check_player_activity
+# 3. Adicione a rota de toggle
+# 4. Adicione o botão no template player_detail.html
+# ============================================================
+
+# ============================================================
+# PASSO 1: Rota para criar o campo na tabela (execute uma vez)
+# ============================================================
+
+@app.route('/criar-campo-carteirinha-manual')
+@login_required
+def criar_campo_carteirinha_manual():
+    """Cria o campo para controle manual da carteirinha"""
+    if not session.get('is_admin', False):
+        flash('Acesso restrito.', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    try:
+        # Verificar se o campo já existe
+        cursor = conn.execute("PRAGMA table_info(players)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'carteirinha_forcada' not in columns:
+            conn.execute('''
+                ALTER TABLE players 
+                ADD COLUMN carteirinha_forcada INTEGER DEFAULT 0
+            ''')
+            conn.commit()
+            flash('✅ Campo carteirinha_forcada criado com sucesso!', 'success')
+        else:
+            flash('ℹ️ Campo já existe.', 'info')
+    except Exception as e:
+        flash(f'❌ Erro: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('admin_dashboard'))
+
+
+def check_player_activity(conn, player_id):
+    """
+    Verifica se o jogador tem carteirinha ativa.
+    Retorna tupla: (is_active, is_forced)
+    """
+    # Primeiro verificar se admin forçou como ativa
+    try:
+        player = conn.execute('''
+            SELECT carteirinha_forcada FROM players WHERE id = ?
+        ''', (player_id,)).fetchone()
+        
+        if player and player['carteirinha_forcada'] == 1:
+            return True, True  # Ativa e forçada pelo admin
+    except:
+        pass  # Coluna pode não existir ainda
+    
+    # Se não foi forçada, verificar atividade normal
+    result = conn.execute('''
+        SELECT COUNT(*) as count FROM challenges 
+        WHERE (challenger_id = ? OR challenged_id = ?)
+        AND status = 'completed'
+        AND scheduled_date >= date('now', '-30 days')
+    ''', (player_id, player_id)).fetchone()
+    
+    is_active = result['count'] > 0
+    return is_active, False
+
+
+
+@app.route('/criar-coluna-carteirinha-forcada')
+def criar_coluna_carteirinha_forcada():
+    conn = get_db_connection()
+    try:
+        conn.execute('ALTER TABLE players ADD COLUMN carteirinha_forcada INTEGER DEFAULT 0')
+        conn.commit()
+        return "Coluna criada com sucesso!"
+    except Exception as e:
+        return f"Erro ou já existe: {e}"
+    finally:
+        conn.close()
+
+
 
 
 @app.route('/admin/recalcular-posicoes')
