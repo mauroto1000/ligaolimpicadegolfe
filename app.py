@@ -2645,18 +2645,30 @@ def update_player_sexo(player_id):
 def index():
     conn = get_db_connection()
     
-    # Buscar jogadores ativos MASCULINOS ordenados por posição
+    # Buscar jogadores ativos MASCULINOS (excluir VIPs)
     male_players = conn.execute('''
         SELECT * FROM players 
-        WHERE active = 1 AND (sexo = 'masculino' OR sexo IS NULL OR sexo = '')
+        WHERE active = 1 
+        AND (sexo = 'masculino' OR sexo IS NULL OR sexo = '')
+        AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
         ORDER BY position
     ''').fetchall()
     
-    # Buscar jogadores ativos FEMININOS ordenados por posição
+    # Buscar jogadores ativos FEMININOS (excluir VIPs)
     female_players = conn.execute('''
         SELECT * FROM players 
-        WHERE active = 1 AND sexo = 'feminino'
+        WHERE active = 1 
+        AND sexo = 'feminino'
+        AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
         ORDER BY position
+    ''').fetchall()
+    
+    # Buscar MEMBROS VIP (nova seção)
+    vip_members = conn.execute('''
+        SELECT * FROM players 
+        WHERE active = 1 
+        AND tipo_membro = 'vip'
+        ORDER BY name
     ''').fetchall()
     
     # Buscar jogadores inativos
@@ -2667,6 +2679,7 @@ def index():
     return render_template('index.html', 
                           male_players=male_players,
                           female_players=female_players,
+                          vip_members=vip_members,
                           inactive_players=inactive_players)
 
 
@@ -4099,151 +4112,91 @@ def generate_player_code(conn):
 
 @app.route('/add_player', methods=['GET', 'POST'])
 def add_player():
-    """
-    Adiciona um novo jogador ao sistema, colocando-o na última posição do ranking do seu sexo.
-    Agora com suporte a rankings separados por sexo.
-    """
     if request.method == 'POST':
-        # Obter dados do formulário
         name = request.form.get('name', '').strip()
-        sexo = request.form.get('sexo', 'masculino').strip()  # NOVO CAMPO
+        sexo = request.form.get('sexo', 'masculino').strip()
+        tipo_membro = request.form.get('tipo_membro', 'jogador').strip()
         hcp_index = request.form.get('hcp_index', '').strip()
         email = request.form.get('email', '').strip()
         country = request.form.get('country', 'Brasil').strip()
         notes = request.form.get('notes', '').strip()
-        senha = request.form.get('senha', '')
+        
         if not name:
             flash('Nome é obrigatório!', 'error')
             return redirect(url_for('add_player'))
         
-        # Validar senha
         if not session.get('is_admin', False):
-            flash('Senha incorreta! Operação não autorizada.', 'error')
+            flash('Apenas administradores podem adicionar membros.', 'error')
             return redirect(url_for('add_player'))
         
         conn = get_db_connection()
         try:
-            # Verificar se o jogador já existe
-            existing_player = conn.execute('SELECT * FROM players WHERE name = ?', (name,)).fetchone()
-            if existing_player:
-                if existing_player['active'] == 0:
-                    # Se o jogador existe mas está inativo, sugerir reativação
-                    flash(f'Jogador "{name}" já existe mas está inativo. Considere reativá-lo na página de detalhes.', 'warning')
-                    conn.close()
-                    return redirect(url_for('player_detail', player_id=existing_player['id']))
-                else:
-                    # Se o jogador já existe e está ativo, informar erro
-                    flash(f'Jogador "{name}" já existe no sistema!', 'error')
-                    conn.close()
-                    return redirect(url_for('add_player'))
+            # Verificar se já existe
+            existing = conn.execute('SELECT * FROM players WHERE name = ?', (name,)).fetchone()
+            if existing:
+                flash(f'Jogador "{name}" já existe!', 'error')
+                conn.close()
+                return redirect(url_for('add_player'))
             
-            # Gerar automaticamente um novo player_code
             player_code = generate_player_code(conn)
             
-            # NOVA LÓGICA: Determinar posição baseada no sexo
-            if sexo == 'feminino':
-                # Para mulheres: buscar última posição feminina
-                last_pos_result = conn.execute(
-                    'SELECT MAX(position) as max_pos FROM players WHERE active = 1 AND sexo = "feminino"'
-                ).fetchone()
+            # MEMBRO VIP: não tem posição no ranking
+            if tipo_membro == 'vip':
+                new_position = None
+                new_tier = None
             else:
-                # Para homens: buscar última posição masculina (incluindo NULL como masculino)
-                last_pos_result = conn.execute(
-                    'SELECT MAX(position) as max_pos FROM players WHERE active = 1 AND (sexo != "feminino" OR sexo IS NULL)'
-                ).fetchone()
+                # Jogador normal: última posição do ranking
+                if sexo == 'feminino':
+                    last_pos_result = conn.execute(
+                        '''SELECT MAX(position) as max_pos FROM players 
+                           WHERE active = 1 AND sexo = 'feminino' 
+                           AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)'''
+                    ).fetchone()
+                else:
+                    last_pos_result = conn.execute(
+                        '''SELECT MAX(position) as max_pos FROM players 
+                           WHERE active = 1 AND (sexo != 'feminino' OR sexo IS NULL)
+                           AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)'''
+                    ).fetchone()
+                
+                new_position = (last_pos_result['max_pos'] or 0) + 1
+                new_tier = get_tier_from_position(new_position)
             
-            new_position = (last_pos_result['max_pos'] if last_pos_result and last_pos_result['max_pos'] is not None else 0) + 1
-            
-            # Garantir que a posição seja um inteiro válido
-            if not isinstance(new_position, int) or new_position <= 0:
-                new_position = 1
-            
-            # Determinar o tier com base na posição
-            new_tier = get_tier_from_position(new_position)
-            
-            # Converter hcp_index para float se fornecido, ou 0 se vazio
-            hcp_index_val = 0  # Valor padrão quando vazio
+            # Converter HCP
+            hcp_value = None
             if hcp_index:
                 try:
-                    hcp_index_val = float(hcp_index.replace(',', '.'))
+                    hcp_value = float(hcp_index.replace(',', '.'))
                 except ValueError:
-                    # Se não for um número válido, deixar como 0
                     pass
             
-            # Verificar quais colunas existem na tabela
-            columns_info = conn.execute('PRAGMA table_info(players)').fetchall()
-            column_names = [col[1] for col in columns_info]
-            
-            # Construir a query dinamicamente com base nas colunas existentes
-            columns = ['name', 'active', 'position', 'tier', 'player_code']
-            values = [name, 1, new_position, new_tier, player_code]
-            
-            # Adicionar sexo se a coluna existir
-            if 'sexo' in column_names:
-                columns.append('sexo')
-                values.append(sexo)
-            
-            if 'hcp_index' in column_names:
-                columns.append('hcp_index')
-                values.append(hcp_index_val)
-            
-            if 'email' in column_names and email:
-                columns.append('email')
-                values.append(email)
-            
-            if 'country' in column_names:
-                columns.append('country')
-                values.append(country)
-            
-            if 'notes' in column_names and notes:
-                columns.append('notes')
-                values.append(notes)
-            
-            # Construir a string SQL
-            columns_str = ', '.join(columns)
-            placeholders = ', '.join(['?'] * len(values))
-            
-            # Inserir o novo jogador
-            cursor = conn.execute(f'''
-                INSERT INTO players ({columns_str})
-                VALUES ({placeholders})
-            ''', values)
-            
-            player_id = cursor.lastrowid
-            
-            # Registrar no histórico - Usando 0 em vez de None para old_position e old_tier
-            reason = f'player_added_{sexo}' if 'sexo' in column_names else 'player_added'
+            # Inserir
             conn.execute('''
-                INSERT INTO ranking_history 
-                (player_id, old_position, new_position, old_tier, new_tier, reason)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (player_id, 0, new_position, "NEW", new_tier, reason))
+                INSERT INTO players (name, sexo, tipo_membro, position, tier, player_code, 
+                                     hcp_index, email, country, notes, active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            ''', (name, sexo, tipo_membro, new_position, new_tier, player_code,
+                  hcp_value, email, country, notes))
+            
+            player_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
             
             conn.commit()
             
-            # ✨ NOVA ADIÇÃO: Auto-corrigir ranking feminino se uma jogadora foi adicionada
-            if sexo == 'feminino':
-                auto_fix_female_ranking(conn)
-                conn.commit()
-            
-            # Mensagem de sucesso personalizada
-            if sexo == 'feminino':
-                ranking_type = "Ladies Liga (Ranking Feminino)"
+            if tipo_membro == 'vip':
+                flash(f'⭐ Membro VIP "{name}" criado com sucesso! Código: {player_code}', 'success')
             else:
-                ranking_type = "Ranking Masculino"
+                flash(f'🏌️ Jogador "{name}" adicionado na posição {new_position}! Código: {player_code}', 'success')
             
-            flash(f'Jogador(a) "{name}" adicionado(a) com sucesso no {ranking_type} na posição {new_position} (Tier {new_tier}) com código {player_code}!', 'success')
             return redirect(url_for('player_detail', player_id=player_id))
             
         except Exception as e:
             conn.rollback()
-            flash(f'Erro ao adicionar jogador: {str(e)}', 'error')
+            flash(f'Erro: {str(e)}', 'error')
         finally:
             conn.close()
         
         return redirect(url_for('index'))
     
-    # Para requisição GET, mostrar formulário
     return render_template('add_player.html')
 
 
@@ -7079,29 +7032,26 @@ def carteirinha():
         flash('Sua carteirinha está inativa. Entre em contato com a administração.', 'warning')
         return redirect(url_for('dashboard'))
     
-    # ============================================================
-    # VERIFICAÇÃO DE ATIVIDADE: Jogou nos últimos 30 dias?
-    # ============================================================
-    is_card_active, is_forced = check_player_activity(conn, user_id)
+    # Verificar atividade (agora retorna 3 valores)
+    is_card_active, is_forced, is_vip = check_player_activity(conn, user_id)
     
-    # Buscar último jogo para mostrar na carteirinha
-    last_game = conn.execute('''
-        SELECT scheduled_date FROM challenges 
-        WHERE (challenger_id = ? OR challenged_id = ?)
-        AND status = 'completed'
-        ORDER BY scheduled_date DESC
-        LIMIT 1
-    ''', (user_id, user_id)).fetchone()
+    # Buscar último jogo (não aplicável para VIP)
+    last_game = None
+    last_game_date = None
+    if player['tipo_membro'] != 'vip':
+        last_game = conn.execute('''
+            SELECT scheduled_date FROM challenges 
+            WHERE (challenger_id = ? OR challenged_id = ?)
+            AND status = 'completed'
+            ORDER BY scheduled_date DESC
+            LIMIT 1
+        ''', (user_id, user_id)).fetchone()
+        last_game_date = last_game['scheduled_date'] if last_game else None
     
-    last_game_date = last_game['scheduled_date'] if last_game else None
-    
-    # Gerar token de verificação (válido por 10 minutos)
+    # Gerar token de verificação
     token_data = generate_verification_token(user_id, validity_minutes=10)
-    
-    # URL de verificação
     verification_url = url_for('verificar_carteirinha', token=token_data['token'], _external=True)
     
-    # Calcular segundos restantes
     expires_at = token_data['expires_at']
     if not isinstance(expires_at, datetime):
         expires_at = parse_datetime(expires_at)
@@ -7121,6 +7071,7 @@ def carteirinha():
                           verification_url=verification_url,
                           is_card_active=is_card_active,
                           is_forced=is_forced,
+                          is_vip=is_vip,
                           last_game_date=last_game_date)
 
 
@@ -7168,7 +7119,6 @@ def verificar_carteirinha(token):
     
     try:
         verified_at = datetime.now()
-        
         result = validate_verification_token(token)
         
         if not result:
@@ -7177,22 +7127,27 @@ def verificar_carteirinha(token):
                                   error='Token inválido ou expirado',
                                   verified_at=verified_at)
         
-        # ============================================================
-        # VERIFICAÇÃO DE ATIVIDADE: Carteirinha está ativa?
-        # ============================================================
         conn = get_db_connection()
-        is_card_active, is_forced = check_player_activity(conn, result['player_id'])
         
-        # Buscar último jogo
-        last_game = conn.execute('''
-            SELECT scheduled_date FROM challenges 
-            WHERE (challenger_id = ? OR challenged_id = ?)
-            AND status = 'completed'
-            ORDER BY scheduled_date DESC
-            LIMIT 1
-        ''', (result['player_id'], result['player_id'])).fetchone()
+        # Buscar tipo de membro
+        player_info = conn.execute('SELECT tipo_membro FROM players WHERE id = ?', 
+                                   (result['player_id'],)).fetchone()
+        is_vip = player_info and player_info['tipo_membro'] == 'vip'
         
-        last_game_date = last_game['scheduled_date'] if last_game else None
+        # Verificar atividade
+        is_card_active, is_forced, _ = check_player_activity(conn, result['player_id'])
+        
+        # Buscar último jogo (apenas para jogadores normais)
+        last_game_date = None
+        if not is_vip:
+            last_game = conn.execute('''
+                SELECT scheduled_date FROM challenges 
+                WHERE (challenger_id = ? OR challenged_id = ?)
+                AND status = 'completed'
+                ORDER BY scheduled_date DESC
+                LIMIT 1
+            ''', (result['player_id'], result['player_id'])).fetchone()
+            last_game_date = last_game['scheduled_date'] if last_game else None
         
         conn.close()
         
@@ -7214,15 +7169,12 @@ def verificar_carteirinha(token):
                               seconds_remaining=seconds_remaining,
                               is_card_active=is_card_active,
                               is_forced=is_forced,
+                              is_vip=is_vip,
                               last_game_date=last_game_date)
     
     except Exception as e:
         error_details = traceback.format_exc()
-        return f"""
-        <h1>Erro na verificação</h1>
-        <p><strong>Erro:</strong> {str(e)}</p>
-        <pre>{error_details}</pre>
-        """, 500
+        return f"<h1>Erro na verificação</h1><p>{str(e)}</p>", 500
 
 
 # ============================================================
@@ -7272,20 +7224,24 @@ def criar_campo_carteirinha_manual():
 def check_player_activity(conn, player_id):
     """
     Verifica se o jogador tem carteirinha ativa.
-    Retorna tupla: (is_active, is_forced)
+    Retorna tupla: (is_active, is_forced, is_vip)
     """
-    # Primeiro verificar se admin forçou como ativa
     try:
         player = conn.execute('''
-            SELECT carteirinha_forcada FROM players WHERE id = ?
+            SELECT carteirinha_forcada, tipo_membro FROM players WHERE id = ?
         ''', (player_id,)).fetchone()
         
+        # Membro VIP sempre tem carteirinha ativa
+        if player and player['tipo_membro'] == 'vip':
+            return True, False, True
+        
+        # Admin forçou como ativa
         if player and player['carteirinha_forcada'] == 1:
-            return True, True  # Ativa e forçada pelo admin
+            return True, True, False
     except:
-        pass  # Coluna pode não existir ainda
+        pass
     
-    # Se não foi forçada, verificar atividade normal
+    # Verificar atividade normal (jogou nos últimos 30 dias)
     result = conn.execute('''
         SELECT COUNT(*) as count FROM challenges 
         WHERE (challenger_id = ? OR challenged_id = ?)
@@ -7294,7 +7250,7 @@ def check_player_activity(conn, player_id):
     ''', (player_id, player_id)).fetchone()
     
     is_active = result['count'] > 0
-    return is_active, False
+    return is_active, False, False
 
 
 
@@ -8493,6 +8449,121 @@ EVOLUTION_API_URL = "http://159.89.35.66:8080"
 EVOLUTION_API_KEY = "liga-golf-api-key-2024"
 EVOLUTION_INSTANCE = "liga-golf"
 WHATSAPP_GRUPO_LIGA = "120363403838797386@g.us"
+
+
+@app.route('/criar-coluna-tipo-membro')
+@login_required
+def criar_coluna_tipo_membro():
+    """Cria a coluna para diferenciar jogadores de membros VIP"""
+    if not session.get('is_admin', False):
+        flash('Acesso restrito.', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    try:
+        columns = conn.execute("PRAGMA table_info(players)").fetchall()
+        column_names = [col[1] for col in columns]
+        
+        if 'tipo_membro' not in column_names:
+            conn.execute("ALTER TABLE players ADD COLUMN tipo_membro TEXT DEFAULT 'jogador'")
+            conn.commit()
+            flash('✅ Coluna tipo_membro criada com sucesso!', 'success')
+        else:
+            flash('ℹ️ Coluna já existe.', 'info')
+    except Exception as e:
+        flash(f'❌ Erro: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/toggle-tipo-membro/<int:player_id>', methods=['POST'])
+@login_required
+def toggle_tipo_membro(player_id):
+    """Alterna entre jogador e membro VIP"""
+    if not session.get('is_admin', False):
+        flash('Acesso restrito.', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    try:
+        player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+        
+        if not player:
+            flash('Membro não encontrado.', 'error')
+            conn.close()
+            return redirect(url_for('index'))
+        
+        if player['tipo_membro'] == 'vip':
+            # Converter VIP para Jogador
+            sexo = player['sexo'] or 'masculino'
+            
+            # Buscar última posição
+            if sexo == 'feminino':
+                last_pos = conn.execute('''
+                    SELECT MAX(position) as max_pos FROM players 
+                    WHERE active = 1 AND sexo = 'feminino'
+                    AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+                ''').fetchone()
+            else:
+                last_pos = conn.execute('''
+                    SELECT MAX(position) as max_pos FROM players 
+                    WHERE active = 1 AND (sexo != 'feminino' OR sexo IS NULL)
+                    AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+                ''').fetchone()
+            
+            new_position = (last_pos['max_pos'] or 0) + 1
+            new_tier = get_tier_from_position(new_position)
+            
+            conn.execute('''
+                UPDATE players 
+                SET tipo_membro = 'jogador', position = ?, tier = ?
+                WHERE id = ?
+            ''', (new_position, new_tier, player_id))
+            
+            flash(f'✅ {player["name"]} convertido para JOGADOR na posição {new_position}.', 'success')
+        else:
+            # Converter Jogador para VIP
+            old_position = player['position']
+            
+            # Remover do ranking
+            conn.execute('''
+                UPDATE players 
+                SET tipo_membro = 'vip', position = NULL, tier = NULL
+                WHERE id = ?
+            ''', (player_id,))
+            
+            # Reajustar posições dos outros jogadores
+            sexo = player['sexo'] or 'masculino'
+            if sexo == 'feminino':
+                conn.execute('''
+                    UPDATE players SET position = position - 1
+                    WHERE active = 1 AND sexo = 'feminino' AND position > ?
+                    AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+                ''', (old_position,))
+            else:
+                conn.execute('''
+                    UPDATE players SET position = position - 1
+                    WHERE active = 1 AND (sexo != 'feminino' OR sexo IS NULL) AND position > ?
+                    AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+                ''', (old_position,))
+            
+            # Atualizar tiers
+            update_all_tiers(conn)
+            
+            flash(f'⭐ {player["name"]} convertido para MEMBRO VIP.', 'success')
+        
+        conn.commit()
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('player_detail', player_id=player_id))
+
 
 
 if __name__ == '__main__':
