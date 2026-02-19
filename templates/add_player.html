@@ -124,6 +124,19 @@
     </div>
 </div>
 
+<!-- Tipo de Membro -->
+<div class="mb-3">
+    <label for="tipo_membro" class="form-label">Tipo de Membro</label>
+    <select class="form-select" id="tipo_membro" name="tipo_membro">
+        <option value="jogador" selected>🏌️ Jogador (participa do ranking)</option>
+        <option value="vip">⭐ Membro VIP (apenas carteirinha)</option>
+    </select>
+    <small class="text-muted">
+        Membros VIP têm acesso à carteirinha mas não participam do ranking.
+    </small>
+</div>
+
+
 <script>
 function updateRankingInfo() {
     const sexoSelect = document.getElementById('sexo');

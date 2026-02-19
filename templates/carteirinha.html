@@ -1,763 +1,506 @@
 {% extends 'base.html' %}
 
-{% block title %}Minha Carteirinha{% endblock %}
+{% block title %}Carteirinha Digital - {{ player.name }}{% endblock %}
 
-{% block content %}
-<div class="container py-4">
-    <div class="row justify-content-center">
-        <div class="col-lg-8 col-xl-7">
-            
-            <!-- Acesso Rápido ao Liga Affinity Club -->
-            <div class="card border-0 shadow-sm mb-4 affinity-card-section" style="border-radius: 15px; overflow: hidden;">
-                <div class="affinity-header-mini" onclick="toggleAffinityPartners()">
-                    <div class="d-flex align-items-center">
-                        <div class="affinity-icon-mini">
-                            <i class="fas fa-crown"></i>
-                        </div>
-                        <div>
-                            <h6 class="mb-0 text-white fw-bold">LIGA AFFINITY CLUB</h6>
-                            <small class="text-white-50">Onde usar sua carteirinha</small>
-                        </div>
-                    </div>
-                    <div class="d-flex align-items-center">
-                        <span class="badge bg-white text-success me-2" id="affinityCountBadge">0</span>
-                        <i class="fas fa-chevron-down text-white affinity-chevron" id="affinityChevron"></i>
-                    </div>
-                </div>
-                
-                <div class="affinity-partners-list" id="affinityPartnersList">
-                    <div class="text-center py-3">
-                        <div class="spinner-border spinner-border-sm text-success" role="status">
-                            <span class="visually-hidden">Carregando...</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card-footer bg-transparent border-0 text-center py-2">
-                    <a href="{{ url_for('golf_business') }}" class="btn btn-sm btn-outline-success">
-                        <i class="fas fa-store me-1"></i> Ver Todos os Parceiros
-                    </a>
-                </div>
-            </div>
-            
-            <!-- Carteirinha Frente -->
-            <div class="carteirinha-container mb-4" id="carteirinhaFrente">
-                <div class="carteirinha-card">
-                    <!-- Fundo com imagem de campo de golfe -->
-                    <div class="carteirinha-bg">
-                        <!-- Faixa dourada decorativa -->
-                        <div class="faixa-dourada"></div>
-                        
-                        <!-- Logo no canto superior esquerdo -->
-                        <div class="logo-area">
-                            <div class="logo-icon">
-                                <svg viewBox="0 0 60 60" width="50" height="50">
-                                    <circle cx="30" cy="15" r="6" fill="none" stroke="#d4af37" stroke-width="2"/>
-                                    <circle cx="18" cy="35" r="6" fill="none" stroke="#d4af37" stroke-width="2"/>
-                                    <circle cx="42" cy="35" r="6" fill="none" stroke="#d4af37" stroke-width="2"/>
-                                    <line x1="30" y1="21" x2="24" y2="29" stroke="#d4af37" stroke-width="2"/>
-                                    <line x1="30" y1="21" x2="36" y2="29" stroke="#d4af37" stroke-width="2"/>
-                                    <line x1="24" y1="35" x2="36" y2="35" stroke="#d4af37" stroke-width="2"/>
-                                </svg>
-                            </div>
-                            <div class="logo-text">
-                                <span class="liga-nome">Liga Olímpica de Golfe</span>
-                                <span class="liga-subtitulo">GOLFE & AMIGOS</span>
-                            </div>
-                        </div>
-                        
-                        <!-- Foto do Jogador no canto superior direito -->
-                        <div class="foto-area">
-                            {% if player.profile_photo %}
-                                <img src="{{ url_for('static', filename='profile_photos/' + player.profile_photo) }}" 
-                                     alt="{{ player.name }}" 
-                                     class="foto-jogador">
-                            {% else %}
-                                <div class="foto-placeholder">
-                                    <i class="fas fa-user"></i>
-                                </div>
-                            {% endif %}
-                        </div>
-                        
-                        <!-- Nome do Jogador centralizado -->
-                        <div class="nome-area">
-                            <h1 class="nome-jogador">{{ player.name|upper }}</h1>
-                        </div>
-                        
-                        <!-- Código do Jogador centralizado -->
-                        <div class="codigo-area">
-                            <span class="codigo-label">CÓD. JOGADOR:</span>
-                            <span class="codigo-numero">{{ player.player_code }}</span>
-                        </div>
-                        
-                        <!-- Bola de golfe - canto inferior esquerdo -->
-                        <div class="bola-golfe">
-                            <svg viewBox="0 0 100 100" width="80" height="80">
-                                <defs>
-                                    <radialGradient id="ballGradient" cx="30%" cy="30%">
-                                        <stop offset="0%" style="stop-color:#ffffff"/>
-                                        <stop offset="100%" style="stop-color:#e0e0e0"/>
-                                    </radialGradient>
-                                </defs>
-                                <circle cx="50" cy="50" r="45" fill="url(#ballGradient)"/>
-                                <circle cx="35" cy="35" r="3" fill="#d0d0d0"/>
-                                <circle cx="50" cy="30" r="3" fill="#d0d0d0"/>
-                                <circle cx="65" cy="35" r="3" fill="#d0d0d0"/>
-                                <circle cx="30" cy="50" r="3" fill="#d0d0d0"/>
-                                <circle cx="45" cy="45" r="3" fill="#d0d0d0"/>
-                                <circle cx="60" cy="50" r="3" fill="#d0d0d0"/>
-                                <circle cx="35" cy="65" r="3" fill="#d0d0d0"/>
-                                <circle cx="50" cy="60" r="3" fill="#d0d0d0"/>
-                                <circle cx="65" cy="65" r="3" fill="#d0d0d0"/>
-                            </svg>
-                        </div>
-                        
-                        <!-- Campo com buraco e bandeira -->
-                        <div class="campo-area">
-                            <div class="campo-verde"></div>
-                            <div class="buraco-bandeira">
-                                <div class="mastro"></div>
-                                <div class="bandeira"></div>
-                                <div class="buraco"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Badge de Status ATIVO/INATIVO -->
-            <div class="text-center mb-4">
-                {% if is_card_active %}
-                <span class="status-badge-card ativo">
-                    <i class="fas fa-check-circle me-2"></i> CARTEIRINHA ATIVA
-                </span>
-                {% if is_vip %}
-                <span class="badge bg-warning text-dark ms-2 px-3 py-2" style="font-size: 0.9rem;">
-                    <i class="fas fa-crown me-1"></i> VIP
-                </span>
-                {% endif %}
-                {% else %}
-                <span class="status-badge-card inativo">
-                    <i class="fas fa-times-circle me-2"></i> CARTEIRINHA INATIVA
-                </span>
-                {% endif %}
-            </div>
-            
-            <!-- AVISO DE CARTEIRINHA INATIVA -->
-            {% if not is_card_active %}
-            <div class="alert alert-danger border-0 shadow-sm mb-4" style="border-radius: 15px;">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <i class="fas fa-exclamation-triangle fa-2x text-danger"></i>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <h5 class="alert-heading mb-1">
-                            <i class="fas fa-ban me-1"></i> CARTEIRINHA INATIVA
-                        </h5>
-                        <p class="mb-1">
-                            Você não jogou nenhum desafio nos últimos 30 dias.
-                        </p>
-                        <small class="text-muted">
-                            {% if last_game_date %}
-                                <i class="fas fa-calendar-alt me-1"></i> Último jogo: {{ last_game_date }}
-                            {% else %}
-                                <i class="fas fa-calendar-times me-1"></i> Nenhum jogo registrado.
-                            {% endif %}
-                        </small>
-                        <hr class="my-2">
-                        <p class="mb-0 small">
-                            <i class="fas fa-info-circle me-1"></i>
-                            Para reativar sua carteirinha, complete um desafio.
-                            <a href="{{ url_for('dashboard') }}" class="alert-link">Ir para o Dashboard</a>
-                        </p>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-            
-            <!-- Seção do QR Code -->
-            <div class="card shadow-sm border-0 mb-4 {% if not is_card_active %}opacity-75{% endif %}" style="border-radius: 15px;">
-                <div class="card-body text-center p-4">
-                    <h5 class="mb-3">
-                        <i class="fas fa-qrcode me-2 text-success"></i>
-                        QR Code de Verificação
-                    </h5>
-                    
-                    {% if is_card_active %}
-                    <p class="text-muted mb-3">
-                        Apresente este QR Code no estabelecimento parceiro para validar sua carteirinha.
-                    </p>
-                    {% else %}
-                    <p class="text-danger mb-3">
-                        <i class="fas fa-exclamation-circle me-1"></i>
-                        <strong>QR Code inativo</strong> - Jogue um desafio para reativar sua carteirinha
-                    </p>
-                    {% endif %}
-                    
-                    <!-- QR Code -->
-                    <div id="qrcode" class="d-inline-block p-3 bg-white rounded shadow-sm mb-3"></div>
-                    
-                    <!-- Timer -->
-                    <div class="alert alert-warning py-2 mb-3" id="timerAlert">
-                        <small>
-                            <i class="fas fa-clock me-1"></i>
-                            QR válido por: <strong id="countdown">10:00</strong>
-                        </small>
-                    </div>
-                    
-                    <!-- Botão Renovar -->
-                    <button type="button" class="btn btn-outline-success" id="btnRenovar" onclick="renovarToken()">
-                        <i class="fas fa-sync-alt me-1"></i> Renovar QR Code
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Instruções -->
-            <div class="card border-0 shadow-sm" style="border-radius: 15px;">
-                <div class="card-body">
-                    <h6 class="card-title">
-                        <i class="fas fa-info-circle text-info me-2"></i>
-                        Como usar sua carteirinha
-                    </h6>
-                    <ol class="mb-0 small">
-                        <li>Apresente o QR Code ao estabelecimento parceiro</li>
-                        <li>O funcionário irá escanear para verificar sua identidade</li>
-                        <li>O QR Code é válido por 10 minutos por segurança</li>
-                        <li>Clique em "Renovar QR Code" se precisar de mais tempo</li>
-                    </ol>
-                </div>
-            </div>
-            
-        </div>
-    </div>
-</div>
-
-<!-- QRCode.js Library -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
-<script>
-    // Variáveis globais
-    let countdownInterval;
-    let totalSecondsRemaining = {{ seconds_remaining }};
-    let expiresAt = new Date(Date.now() + totalSecondsRemaining * 1000);
-    let verificationUrl = "{{ verification_url }}";
-    let affinityExpanded = false;
-    
-    // Gerar QR Code
-    function generateQRCode(url) {
-        const qrcodeDiv = document.getElementById('qrcode');
-        qrcodeDiv.innerHTML = '';
-        
-        new QRCode(qrcodeDiv, {
-            text: url,
-            width: 180,
-            height: 180,
-            colorDark: "#1a5f2a",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.H
-        });
-    }
-    
-    // Atualizar countdown
-    function updateCountdown() {
-        const now = new Date();
-        const diff = expiresAt - now;
-        
-        if (diff <= 0) {
-            document.getElementById('countdown').textContent = 'EXPIRADO';
-            document.getElementById('timerAlert').classList.remove('alert-warning');
-            document.getElementById('timerAlert').classList.add('alert-danger');
-            clearInterval(countdownInterval);
-            return;
-        }
-        
-        const minutes = Math.floor(diff / 60000);
-        const seconds = Math.floor((diff % 60000) / 1000);
-        
-        document.getElementById('countdown').textContent = 
-            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        
-        if (diff < 60000) {
-            document.getElementById('timerAlert').classList.remove('alert-warning');
-            document.getElementById('timerAlert').classList.add('alert-danger');
-        }
-    }
-    
-    // Renovar token
-    async function renovarToken() {
-        const btn = document.getElementById('btnRenovar');
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Renovando...';
-        
-        try {
-            const response = await fetch('/carteirinha/renovar', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error('Erro ao renovar');
-            }
-            
-            const data = await response.json();
-            
-            totalSecondsRemaining = data.seconds_remaining || 600;
-            expiresAt = new Date(Date.now() + totalSecondsRemaining * 1000);
-            verificationUrl = data.verification_url;
-            
-            generateQRCode(verificationUrl);
-            
-            document.getElementById('timerAlert').classList.remove('alert-danger');
-            document.getElementById('timerAlert').classList.add('alert-warning');
-            
-            clearInterval(countdownInterval);
-            countdownInterval = setInterval(updateCountdown, 1000);
-            updateCountdown();
-            
-        } catch (error) {
-            alert('Erro ao renovar o QR Code. Tente novamente.');
-            console.error(error);
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Renovar QR Code';
-        }
-    }
-    
-    // Toggle lista de parceiros Affinity
-    function toggleAffinityPartners() {
-        const list = document.getElementById('affinityPartnersList');
-        const chevron = document.getElementById('affinityChevron');
-        
-        affinityExpanded = !affinityExpanded;
-        
-        if (affinityExpanded) {
-            list.style.maxHeight = list.scrollHeight + 'px';
-            chevron.style.transform = 'rotate(180deg)';
-        } else {
-            list.style.maxHeight = '0';
-            chevron.style.transform = 'rotate(0deg)';
-        }
-    }
-    
-    // Carregar parceiros Affinity
-    async function loadAffinityPartners() {
-        try {
-            const response = await fetch('/api/businesses?filter=affinity');
-            const data = await response.json();
-            const partners = data.businesses || [];
-            
-            document.getElementById('affinityCountBadge').textContent = partners.length;
-            
-            const list = document.getElementById('affinityPartnersList');
-            
-            if (partners.length === 0) {
-                list.innerHTML = `
-                    <div class="text-center py-3 text-muted">
-                        <i class="fas fa-store-slash mb-2"></i>
-                        <p class="mb-0 small">Em breve novos parceiros!</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            let html = '<div class="list-group list-group-flush">';
-            
-            partners.forEach(partner => {
-                html += `
-                    <div class="list-group-item border-0 px-3 py-2">
-                        <div class="d-flex align-items-center">
-                            <div class="partner-thumb me-3" style="background-image: url('${partner.image_path || ''}')"></div>
-                            <div class="flex-grow-1">
-                                <h6 class="mb-0 small fw-bold">${partner.name}</h6>
-                                <small class="text-success">
-                                    <i class="fas fa-percent me-1"></i> Desconto para membros
-                                </small>
-                            </div>
-                            <i class="fas fa-chevron-right text-muted"></i>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            html += '</div>';
-            list.innerHTML = html;
-            
-        } catch (error) {
-            console.error('Erro ao carregar parceiros:', error);
-            document.getElementById('affinityPartnersList').innerHTML = `
-                <div class="text-center py-3 text-muted">
-                    <small>Erro ao carregar parceiros</small>
-                </div>
-            `;
-        }
-    }
-    
-    // Inicialização
-    document.addEventListener('DOMContentLoaded', function() {
-        generateQRCode(verificationUrl);
-        updateCountdown();
-        countdownInterval = setInterval(updateCountdown, 1000);
-        loadAffinityPartners();
-    });
-</script>
-
+{% block head %}
 <style>
     .carteirinha-container {
+        max-width: 450px;
+        margin: 0 auto;
         perspective: 1000px;
     }
     
-    .carteirinha-card {
+    .carteirinha {
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
         position: relative;
-        width: 100%;
-        max-width: 550px;
-        aspect-ratio: 1.586;
-        margin: 0 auto;
-        border-radius: 20px;
-        overflow: hidden;
-        box-shadow: 0 15px 35px rgba(0,0,0,0.3);
     }
     
-    .carteirinha-bg {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(160deg, #1a5f2a 0%, #0d3d1a 40%, #1a5f2a 70%, #2d8a3e 100%);
+    /* Carteirinha Ativa */
+    .carteirinha.active {
+        background: linear-gradient(135deg, #1a5d1a 0%, #28a745 50%, #1a5d1a 100%);
     }
     
-    /* Faixa dourada */
-    .faixa-dourada {
-        position: absolute;
-        top: 25%;
-        left: -10%;
-        width: 120%;
-        height: 50px;
-        background: linear-gradient(90deg, transparent, #d4af37 20%, #f4d03f 50%, #d4af37 80%, transparent);
-        transform: rotate(-5deg);
-        opacity: 0.7;
+    /* Carteirinha VIP */
+    .carteirinha.vip {
+        background: linear-gradient(135deg, #b8860b 0%, #ffd700 50%, #b8860b 100%);
     }
     
-    /* Logo no canto superior esquerdo */
-    .logo-area {
-        position: absolute;
-        top: 15px;
-        left: 20px;
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
+    /* Carteirinha Inativa */
+    .carteirinha.inactive {
+        background: linear-gradient(135deg, #6c757d 0%, #adb5bd 50%, #6c757d 100%);
     }
     
-    .logo-icon {
-        flex-shrink: 0;
-    }
-    
-    .logo-text {
-        display: flex;
-        flex-direction: column;
-        color: #d4af37;
-    }
-    
-    .liga-nome {
-        font-size: 1.1rem;
-        font-weight: 600;
-        line-height: 1.2;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-        white-space: nowrap;
-    }
-    
-    .liga-subtitulo {
-        font-size: 0.7rem;
-        letter-spacing: 2px;
-        margin-top: 2px;
-        opacity: 0.9;
-    }
-    
-    /* Foto do jogador no canto superior direito */
-    .foto-area {
-        position: absolute;
-        top: 10px;
-        right: 15px;
-        width: 150px;
-        height: 180px;
-        border: 3px solid white;
-        border-radius: 5px;
-        overflow: hidden;
-        background: white;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-    
-    .foto-jogador {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-    
-    .foto-placeholder {
-        width: 100%;
-        height: 100%;
-        background: #e9ecef;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #6c757d;
-        font-size: 2.5rem;
-    }
-    
-    /* Nome do jogador centralizado */
-    .nome-area {
-        position: absolute;
-        top: 42%;
-        left: 20px;
-        right: 180px;
+    .carteirinha-header {
+        padding: 15px 20px;
         text-align: center;
-        z-index: 10;
+        border-bottom: 2px solid rgba(255,255,255,0.2);
     }
     
-    .nome-jogador {
-        font-size: clamp(1.2rem, 4vw, 1.8rem);
-        font-weight: 700;
-        color: #ffffff;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-        letter-spacing: 1px;
+    .carteirinha-header h2 {
+        color: white;
         margin: 0;
-        word-wrap: break-word;
-    }
-    
-    /* Código centralizado */
-    .codigo-area {
-        position: absolute;
-        top: 58%;
-        left: 20px;
-        right: 180px;
-        text-align: center;
-        z-index: 10;
-    }
-    
-    .codigo-label {
-        font-size: 0.9rem;
-        color: #7cb87c;
-        font-weight: 500;
-    }
-    
-    .codigo-numero {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #d4af37;
+        font-size: 1.3rem;
+        font-weight: bold;
         text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-        letter-spacing: 3px;
-        display: block;
-        margin-top: 5px;
     }
     
-    /* Badge de Status ATIVO/INATIVO (abaixo da carteirinha) */
-    .status-badge-card {
-        display: inline-flex;
-        align-items: center;
-        padding: 12px 30px;
-        border-radius: 30px;
-        font-size: 1rem;
-        font-weight: 700;
+    .carteirinha.vip .carteirinha-header h2 {
+        color: #333;
+        text-shadow: none;
+    }
+    
+    .carteirinha-header .subtitle {
+        color: rgba(255,255,255,0.9);
+        font-size: 0.85rem;
+        margin-top: 3px;
+    }
+    
+    .carteirinha.vip .carteirinha-header .subtitle {
+        color: rgba(0,0,0,0.7);
+    }
+    
+    .carteirinha-body {
+        padding: 20px;
+        color: white;
+    }
+    
+    .carteirinha.vip .carteirinha-body {
+        color: #333;
+    }
+    
+    .player-info {
+        text-align: center;
+        margin-bottom: 15px;
+    }
+    
+    .player-name {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 5px;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    }
+    
+    .carteirinha.vip .player-name {
+        text-shadow: none;
+    }
+    
+    .player-code {
+        display: inline-block;
+        background: rgba(255,255,255,0.2);
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 1.1rem;
+        font-weight: bold;
         letter-spacing: 1px;
+    }
+    
+    .carteirinha.vip .player-code {
+        background: rgba(0,0,0,0.15);
+    }
+    
+    .player-details {
+        display: flex;
+        justify-content: space-around;
+        margin: 15px 0;
+        padding: 10px 0;
+        border-top: 1px solid rgba(255,255,255,0.2);
+        border-bottom: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .carteirinha.vip .player-details {
+        border-top-color: rgba(0,0,0,0.1);
+        border-bottom-color: rgba(0,0,0,0.1);
+    }
+    
+    .detail-item {
+        text-align: center;
+    }
+    
+    .detail-label {
+        font-size: 0.75rem;
+        opacity: 0.8;
         text-transform: uppercase;
     }
     
-    .status-badge-card.ativo {
-        background: linear-gradient(135deg, #28a745, #20c997);
-        color: white;
-        box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
-    }
-    
-    .status-badge-card.inativo {
-        background: linear-gradient(135deg, #dc3545, #c82333);
-        color: white;
-        box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4);
-    }
-    
-    /* Bola de golfe */
-    .bola-golfe {
-        position: absolute;
-        bottom: 5%;
-        left: 5%;
-        opacity: 0.9;
-        z-index: 2;
-    }
-    
-    /* Campo com buraco */
-    .campo-area {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 22%;
-        overflow: hidden;
-        z-index: 1;
-    }
-    
-    .campo-verde {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 100%;
-        background: linear-gradient(180deg, transparent 0%, rgba(34, 139, 34, 0.3) 30%, rgba(34, 139, 34, 0.6) 100%);
-        border-radius: 50% 50% 0 0 / 30% 30% 0 0;
-    }
-    
-    .buraco-bandeira {
-        position: absolute;
-        bottom: 10px;
-        right: 60px;
-    }
-    
-    .mastro {
-        position: absolute;
-        bottom: 0;
-        left: 50%;
-        width: 3px;
-        height: 60px;
-        background: #333;
-        transform: translateX(-50%);
-    }
-    
-    .bandeira {
-        position: absolute;
-        bottom: 45px;
-        left: 3px;
-        width: 0;
-        height: 0;
-        border-top: 12px solid transparent;
-        border-bottom: 12px solid transparent;
-        border-left: 25px solid #dc3545;
-    }
-    
-    .buraco {
-        position: absolute;
-        bottom: -3px;
-        left: 50%;
-        width: 20px;
-        height: 8px;
-        background: #1a1a1a;
-        border-radius: 50%;
-        transform: translateX(-50%);
-    }
-    
-    /* Estilos do Affinity Club Mini */
-    .affinity-card-section {
-        background: #fff;
-    }
-    
-    .affinity-header-mini {
-        background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 50%, #d4af37 100%);
-        padding: 15px;
-        cursor: pointer;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        transition: opacity 0.3s;
-    }
-    
-    .affinity-header-mini:hover {
-        opacity: 0.95;
-    }
-    
-    .affinity-icon-mini {
-        width: 40px;
-        height: 40px;
-        background: white;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-right: 12px;
-    }
-    
-    .affinity-icon-mini i {
-        color: #d4af37;
+    .detail-value {
         font-size: 1.1rem;
+        font-weight: bold;
     }
     
-    .affinity-chevron {
-        transition: transform 0.3s;
+    /* Badge VIP */
+    .vip-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, #333, #555);
+        color: #ffd700;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 0.9rem;
+        margin: 10px 0;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     }
     
-    .affinity-partners-list {
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.3s ease-out;
+    .vip-badge i {
+        margin-right: 5px;
     }
     
-    .partner-thumb {
-        width: 45px;
-        height: 45px;
-        border-radius: 8px;
-        background-size: cover;
-        background-position: center;
-        background-color: #e9ecef;
-        flex-shrink: 0;
+    /* Status da Carteirinha */
+    .status-section {
+        text-align: center;
+        padding: 15px;
+        margin: 15px 0;
+        border-radius: 10px;
     }
     
-    .list-group-item:hover {
-        background-color: #f8f9fa;
+    .status-active {
+        background: rgba(255,255,255,0.15);
     }
     
-    /* Responsividade */
+    .status-vip {
+        background: rgba(0,0,0,0.15);
+    }
+    
+    .status-inactive {
+        background: rgba(220, 53, 69, 0.3);
+    }
+    
+    .status-icon {
+        font-size: 2rem;
+        margin-bottom: 5px;
+    }
+    
+    .status-text {
+        font-weight: bold;
+        font-size: 1rem;
+    }
+    
+    .status-subtext {
+        font-size: 0.8rem;
+        opacity: 0.9;
+    }
+    
+    /* QR Code */
+    .qr-section {
+        text-align: center;
+        padding: 15px;
+        background: white;
+        border-radius: 10px;
+        margin: 15px 0;
+    }
+    
+    .qr-section img {
+        max-width: 180px;
+        margin-bottom: 10px;
+    }
+    
+    .qr-timer {
+        color: #333;
+        font-size: 0.9rem;
+    }
+    
+    .qr-timer .time {
+        font-weight: bold;
+        color: #28a745;
+        font-size: 1.2rem;
+    }
+    
+    .qr-timer.expired {
+        color: #dc3545;
+    }
+    
+    /* Rodapé */
+    .carteirinha-footer {
+        padding: 15px 20px;
+        text-align: center;
+        border-top: 2px solid rgba(255,255,255,0.2);
+    }
+    
+    .carteirinha.vip .carteirinha-footer {
+        border-top-color: rgba(0,0,0,0.1);
+    }
+    
+    .carteirinha-footer .logo {
+        max-height: 40px;
+        margin-bottom: 5px;
+    }
+    
+    .carteirinha-footer .website {
+        font-size: 0.8rem;
+        opacity: 0.8;
+    }
+    
+    /* Última atividade */
+    .last-activity {
+        font-size: 0.75rem;
+        opacity: 0.8;
+        text-align: center;
+        margin-top: 10px;
+    }
+    
+    /* Animação de pulso para inativo */
+    @keyframes pulse-inactive {
+        0% { opacity: 1; }
+        50% { opacity: 0.7; }
+        100% { opacity: 1; }
+    }
+    
+    .carteirinha.inactive .status-section {
+        animation: pulse-inactive 2s infinite;
+    }
+    
+    /* Responsivo */
     @media (max-width: 576px) {
-        .foto-area {
-            width: 105px;
-            height: 128px;
-            top: 55px;
+        .carteirinha-container {
+            padding: 0 10px;
         }
         
-        .nome-area {
-            right: 120px;
-            top: 38%;
+        .player-name {
+            font-size: 1.3rem;
         }
         
-        .codigo-area {
-            right: 120px;
-            top: 52%;
+        .player-details {
+            flex-wrap: wrap;
         }
         
-        .status-badge-card {
-            padding: 10px 20px;
-            font-size: 0.85rem;
-        }
-        
-        .logo-icon svg {
-            width: 35px;
-            height: 35px;
-        }
-        
-        .liga-nome {
-            font-size: 0.9rem;
-        }
-        
-        .liga-subtitulo {
-            font-size: 0.6rem;
-        }
-        
-        .codigo-numero {
-            font-size: 1.4rem;
-        }
-        
-        .bola-golfe svg {
-            width: 50px;
-            height: 50px;
+        .detail-item {
+            width: 50%;
+            margin-bottom: 10px;
         }
     }
     
-    @media print {
-        .btn, .alert, .card:last-child, .affinity-card-section {
-            display: none !important;
-        }
-        
-        .carteirinha-card {
-            box-shadow: none;
-            border: 1px solid #ccc;
-        }
+    /* Botões */
+    .action-buttons {
+        margin-top: 20px;
+        text-align: center;
+    }
+    
+    .action-buttons .btn {
+        margin: 5px;
     }
 </style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    
+    <div class="carteirinha-container">
+        
+        <!-- Carteirinha Principal -->
+        <div class="carteirinha {% if is_vip %}vip{% elif is_card_active %}active{% else %}inactive{% endif %}">
+            
+            <!-- Cabeçalho -->
+            <div class="carteirinha-header">
+                <h2>
+                    <i class="fas fa-golf-ball me-2"></i>
+                    LIGA OLÍMPICA DE GOLFE
+                </h2>
+                <div class="subtitle">Carteirinha Digital de Membro</div>
+            </div>
+            
+            <!-- Corpo -->
+            <div class="carteirinha-body">
+                
+                <!-- Informações do Jogador -->
+                <div class="player-info">
+                    {% if player.country %}
+                    <img src="https://flagcdn.com/32x24/{{ player.country|country_code }}.png" 
+                         alt="{{ player.country }}" class="mb-2">
+                    {% endif %}
+                    
+                    <div class="player-name">{{ player.name }}</div>
+                    
+                    <div class="player-code">{{ player.player_code }}</div>
+                    
+                    {% if is_vip %}
+                    <div class="vip-badge">
+                        <i class="fas fa-star"></i> MEMBRO VIP
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Detalhes -->
+                <div class="player-details">
+                    {% if not is_vip %}
+                    <div class="detail-item">
+                        <div class="detail-label">Posição</div>
+                        <div class="detail-value">{{ player.position }}º</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Linha</div>
+                        <div class="detail-value">{{ player.tier or '-' }}</div>
+                    </div>
+                    {% endif %}
+                    <div class="detail-item">
+                        <div class="detail-label">Sexo</div>
+                        <div class="detail-value">
+                            {% if player.sexo == 'feminino' %}
+                            <i class="fas fa-venus"></i> F
+                            {% else %}
+                            <i class="fas fa-mars"></i> M
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Tipo</div>
+                        <div class="detail-value">
+                            {% if is_vip %}
+                            <i class="fas fa-crown text-warning"></i> VIP
+                            {% else %}
+                            <i class="fas fa-golf-ball"></i> Jogador
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Status da Carteirinha -->
+                <div class="status-section {% if is_vip %}status-vip{% elif is_card_active %}status-active{% else %}status-inactive{% endif %}">
+                    {% if is_vip %}
+                    <div class="status-icon">
+                        <i class="fas fa-crown"></i>
+                    </div>
+                    <div class="status-text">MEMBRO VIP</div>
+                    <div class="status-subtext">Carteirinha sempre ativa</div>
+                    {% elif is_card_active %}
+                    <div class="status-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="status-text">CARTEIRINHA ATIVA</div>
+                    <div class="status-subtext">
+                        {% if is_forced %}
+                        Ativada pelo administrador
+                        {% else %}
+                        Atividade nos últimos 30 dias
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="status-icon">
+                        <i class="fas fa-times-circle"></i>
+                    </div>
+                    <div class="status-text">CARTEIRINHA INATIVA</div>
+                    <div class="status-subtext">Jogue um desafio para ativar</div>
+                    {% endif %}
+                </div>
+                
+                <!-- Último jogo (apenas para jogadores normais) -->
+                {% if not is_vip and last_game_date %}
+                <div class="last-activity">
+                    <i class="fas fa-calendar-check me-1"></i>
+                    Último jogo: {{ last_game_date|datetime('%d/%m/%Y') }}
+                </div>
+                {% endif %}
+                
+                <!-- QR Code de Verificação -->
+                <div class="qr-section">
+                    <div class="mb-2">
+                        <strong style="color: #333;">Código de Verificação</strong>
+                    </div>
+                    
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={{ verification_url }}" 
+                         alt="QR Code de Verificação" id="qrCode">
+                    
+                    <div class="qr-timer" id="qrTimer">
+                        Válido por: <span class="time" id="timerDisplay">{{ '%02d:%02d'|format(seconds_remaining // 60, seconds_remaining % 60) }}</span>
+                    </div>
+                    
+                    <div id="qrExpired" style="display: none; color: #dc3545;">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        QR Code expirado
+                        <br>
+                        <button class="btn btn-sm btn-danger mt-2" onclick="location.reload()">
+                            <i class="fas fa-sync me-1"></i> Gerar Novo
+                        </button>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <!-- Rodapé -->
+            <div class="carteirinha-footer">
+                <img src="{{ url_for('static', filename='images/olympic-rings.png') }}" 
+                     alt="Logo Liga" class="logo" onerror="this.style.display='none'">
+                <div class="website">www.ligaolimpicadegolfe.com.br</div>
+            </div>
+            
+        </div>
+        
+        <!-- Botões de Ação -->
+        <div class="action-buttons">
+            <a href="{{ url_for('player_detail', player_id=player.id) }}" class="btn btn-outline-primary">
+                <i class="fas fa-user me-1"></i> Meu Perfil
+            </a>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-home me-1"></i> Início
+            </a>
+            {% if not is_vip %}
+            <a href="{{ url_for('pyramid') }}" class="btn btn-outline-success">
+                <i class="fas fa-sitemap me-1"></i> Pirâmide
+            </a>
+            {% endif %}
+        </div>
+        
+        <!-- Instruções -->
+        <div class="card mt-4">
+            <div class="card-body">
+                <h6><i class="fas fa-info-circle me-1 text-primary"></i> Como usar sua carteirinha</h6>
+                <ul class="small text-muted mb-0">
+                    <li>Apresente o QR Code para verificação em eventos da Liga</li>
+                    <li>O código é renovado a cada 10 minutos por segurança</li>
+                    <li>A página atualiza automaticamente quando o código expira</li>
+                    {% if not is_vip %}
+                    <li>Mantenha sua carteirinha ativa jogando pelo menos 1 desafio a cada 30 dias</li>
+                    {% else %}
+                    <li>Como membro VIP, sua carteirinha está sempre ativa</li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+        
+    </div>
+    
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let secondsRemaining = {{ seconds_remaining }};
+    const timerDisplay = document.getElementById('timerDisplay');
+    const qrTimer = document.getElementById('qrTimer');
+    const qrExpired = document.getElementById('qrExpired');
+    const qrCode = document.getElementById('qrCode');
+    
+    function updateTimer() {
+        if (secondsRemaining <= 0) {
+            qrTimer.style.display = 'none';
+            qrExpired.style.display = 'block';
+            qrCode.style.opacity = '0.3';
+            return;
+        }
+        
+        const minutes = Math.floor(secondsRemaining / 60);
+        const seconds = secondsRemaining % 60;
+        timerDisplay.textContent = 
+            String(minutes).padStart(2, '0') + ':' + 
+            String(seconds).padStart(2, '0');
+        
+        // Mudar cor quando estiver acabando
+        if (secondsRemaining <= 60) {
+            timerDisplay.style.color = '#dc3545';
+        } else if (secondsRemaining <= 180) {
+            timerDisplay.style.color = '#ffc107';
+        }
+        
+        secondsRemaining--;
+    }
+    
+    // Atualizar a cada segundo
+    updateTimer();
+    setInterval(updateTimer, 1000);
+    
+    // Auto-reload quando expirar
+    setTimeout(function() {
+        location.reload();
+    }, ({{ seconds_remaining }} + 5) * 1000);
+});
+</script>
 {% endblock %}
