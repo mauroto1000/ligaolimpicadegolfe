@@ -708,9 +708,8 @@
                                                     <br><small>{{ player.bloqueio_motivo or 'Indisponível' }}</small>
                                                     {% endif %}
                                                     <br>
-                                                    Posição: #{{ position_counter[0] }}<br>
-                                                    Linha: {{ tier_letter }}<br>
-                                                    {% if player.hcp_index is not none %}HCP: {{ player.hcp_index }}{% endif %}
+                                                    Posição: #{{ position_counter[0] }}
+                                                    {% if player.country %}<br>{{ player.country }}{% endif %}
                                                 </div>
                                                 
                                                 <span class="player-name">{{ player.name }}</span>
