@@ -230,54 +230,48 @@
                 <!-- ============================================================ -->
                 <!-- WHATSAPP PARA NOTIFICAÇÕES -->
                 <!-- ============================================================ -->
-                {% if is_own_profile or is_admin %}
-                <div class="row mb-3">
-                    <div class="col-12">
-                        <div class="card border-success">
-                            <div class="card-header bg-success text-white py-2">
-                                <h6 class="mb-0">
-                                    <i class="fab fa-whatsapp me-2"></i>WhatsApp para Notificações
-                                </h6>
+                <!-- WhatsApp para Notificações -->
+                {% if is_own_profile or session.is_admin %}
+                <div class="card mb-3 border-success">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="fab fa-whatsapp me-2"></i>WhatsApp para Notificações</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="small text-muted mb-2">
+                            Cadastre seu WhatsApp para receber notificações de desafios e interagir com o bot da Liga.
+                        </p>
+                        
+                        <form action="{{ url_for('update_player_whatsapp', player_id=player.id) }}" method="POST">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fab fa-whatsapp"></i></span>
+                                <input type="text" 
+                                    name="new_whatsapp" 
+                                    class="form-control" 
+                                    placeholder="Ex: 21999998888"
+                                    value="{{ player.telefone or '' }}"
+                                    pattern="[0-9]*"
+                                    inputmode="numeric"
+                                    maxlength="11">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save me-1"></i>Salvar
+                                </button>
                             </div>
-                            <div class="card-body py-3">
-                                <p class="d-flex align-items-center mb-2">
-                                    <span id="playerWhatsAppDisplay">
-                                        {% if player['telefone'] %}
-                                            <i class="fab fa-whatsapp text-success me-1"></i>
-                                            {{ player['telefone'] }}
-                                            <span class="badge bg-success ms-2">Ativo</span>
-                                        {% else %}
-                                            <span class="text-muted">Não cadastrado</span>
-                                        {% endif %}
-                                    </span>
-                                    <button type="button" class="btn btn-sm text-success border-0 px-1" 
-                                            onclick="toggleEditWhatsApp()" title="Editar WhatsApp">
-                                        <i class="fas fa-pencil-alt fa-sm"></i>
-                                    </button>
-                                </p>
-                                
-                                <form id="editWhatsAppForm" action="{{ url_for('update_player_whatsapp', player_id=player.id) }}" 
-                                    method="post" class="d-none mb-2">
-                                    <div class="input-group">
-                                        <span class="input-group-text"><i class="fab fa-whatsapp"></i></span>
-                                        <input type="text" class="form-control" name="new_whatsapp" 
-                                               value="{{ player['telefone'] or '' }}"
-                                               placeholder="21999998888"
-                                               pattern="[0-9]{10,11}"
-                                               title="Digite DDD + número (ex: 21999998888)">
-                                        <button type="submit" class="btn btn-success">Salvar</button>
-                                        <button type="button" class="btn btn-secondary" 
-                                                onclick="toggleEditWhatsApp()">Cancelar</button>
-                                    </div>
-                                    <small class="text-muted">Digite apenas números: DDD + celular (ex: 21999998888)</small>
-                                </form>
-                                
-                                <small class="text-muted d-block mt-2">
-                                    <i class="fas fa-info-circle me-1"></i>
-                                    Cadastre seu WhatsApp para receber notificações quando for desafiado.
-                                </small>
-                            </div>
+                            <small class="text-muted">Digite apenas números: DDD + número (ex: 21999998888)</small>
+                        </form>
+                        
+                        {% if player.telefone %}
+                        <div class="mt-2">
+                            <span class="badge bg-success">
+                                <i class="fas fa-check me-1"></i>Cadastrado: {{ player.telefone }}
+                            </span>
                         </div>
+                        {% else %}
+                        <div class="mt-2">
+                            <span class="badge bg-secondary">
+                                <i class="fas fa-times me-1"></i>Não cadastrado
+                            </span>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 {% endif %}
