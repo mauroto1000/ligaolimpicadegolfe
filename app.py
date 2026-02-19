@@ -7811,7 +7811,7 @@ def update_player_whatsapp(player_id):
     """Atualiza o WhatsApp do jogador para notificações"""
     
     # Verificar permissão (próprio jogador ou admin)
-    if session.get('player_id') != player_id and not session.get('is_admin'):
+    if session.get('user_id') != player_id and not session.get('is_admin'):
         flash('Você não tem permissão para editar este perfil.', 'danger')
         return redirect(url_for('player_detail', player_id=player_id))
     
