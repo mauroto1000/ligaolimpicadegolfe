@@ -8139,9 +8139,21 @@ Seu número de WhatsApp não está vinculado a nenhum jogador da Liga.
 Para cadastrar, acesse seu perfil no site e adicione seu número no campo "WhatsApp para Notificações"."""
     
     # ---------------------------------------------------------
-    # COMANDO: Meus desafiados / Quem posso desafiar
+    # COMANDO: Minha posição / Ranking [1]
     # ---------------------------------------------------------
-    if any(palavra in msg for palavra in ['desafiado', 'desafiar', 'quem posso', 'possiveis']):
+    if msg == '1' or any(palavra in msg for palavra in ['posição', 'posicao', 'ranking', 'colocação', 'colocacao']):
+        return f"""📊 *Sua Posição no Ranking*
+
+Olá, {jogador['name']}!
+
+Você está atualmente na posição *{jogador['position']}º* no ranking da Liga Olímpica de Golfe.
+
+_Digite *0* para voltar ao menu._"""
+    
+    # ---------------------------------------------------------
+    # COMANDO: Meus desafiados / Quem posso desafiar [2]
+    # ---------------------------------------------------------
+    if msg == '2' or any(palavra in msg for palavra in ['desafiado', 'desafiar', 'quem posso', 'possiveis']):
         possiveis = get_possiveis_desafiados(jogador['id'])
         
         if not possiveis:
@@ -8152,9 +8164,11 @@ Olá, {jogador['name']}!
 Você está na posição *{jogador['position']}º*.
 
 No momento não há jogadores disponíveis para desafio. Isso pode ocorrer porque:
-• Você já tem um desafio ativo
-• Os jogadores acima estão com desafios pendentes
-• Os jogadores acima estão bloqueados"""
+- Você já tem um desafio ativo
+- Os jogadores acima estão com desafios pendentes
+- Os jogadores acima estão bloqueados
+
+_Digite *0* para voltar ao menu._"""
         
         lista = "\n".join([f"   {p['position']}º - {p['name']}" for p in possiveis])
         
@@ -8166,138 +8180,14 @@ Você está na posição *{jogador['position']}º*.
 Você pode desafiar:
 {lista}
 
-📱 Para criar um desafio, acesse o site da Liga."""
+📱 Para criar um desafio, acesse o site da Liga.
+
+_Digite *0* para voltar ao menu._"""
     
     # ---------------------------------------------------------
-    # COMANDO: Minha posição / Ranking
+    # COMANDO: Meus desafios [3]
     # ---------------------------------------------------------
-    if any(palavra in msg for palavra in ['posição', 'posicao', 'ranking', 'colocação', 'colocacao']):
-        return f"""📊 *Sua Posição no Ranking*
-
-Olá, {jogador['name']}!
-
-Você está atualmente na posição *{jogador['position']}º* no ranking da Liga Olímpica de Golfe."""
-    
-    # ---------------------------------------------------------
-    # COMANDO: Aceitar desafio
-    # ---------------------------------------------------------
-    if 'aceitar' in msg or 'aceito' in msg:
-        # Extrair número do desafio se fornecido
-        numeros = re.findall(r'\d+', msg)
-        
-        desafios_pendentes = get_desafios_pendentes(jogador['id'])
-        
-        if not desafios_pendentes:
-            return """✅ *Aceitar Desafio*
-
-Você não tem nenhum desafio pendente para aceitar."""
-        
-        # Se tem só um desafio pendente e não especificou número
-        if len(desafios_pendentes) == 1 and not numeros:
-            desafio = desafios_pendentes[0]
-            sucesso, mensagem_retorno = aceitar_desafio(desafio['id'], jogador['id'])
-            
-            if sucesso:
-                # Notificar no grupo
-                try:
-                    notificar_desafio_aceito_bot(desafio['id'])
-                except:
-                    pass
-                
-                return f"""✅ *Desafio Aceito!*
-
-Você aceitou o desafio de *{desafio['challenger_name']}* (posição {desafio['challenger_position']}º).
-
-📅 Data agendada: {desafio['scheduled_date']}
-
-Boa sorte! 🏌️"""
-            else:
-                return f"❌ {mensagem_retorno}"
-        
-        # Se especificou número do desafio
-        if numeros:
-            challenge_id = int(numeros[0])
-            sucesso, mensagem_retorno = aceitar_desafio(challenge_id, jogador['id'])
-            
-            if sucesso:
-                try:
-                    notificar_desafio_aceito_bot(challenge_id)
-                except:
-                    pass
-                return f"✅ *Desafio #{challenge_id} aceito com sucesso!*"
-            else:
-                return f"❌ {mensagem_retorno}"
-        
-        # Múltiplos desafios - pedir para especificar
-        lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} (posição {d['challenger_position']}º)" for d in desafios_pendentes])
-        return f"""✅ *Aceitar Desafio*
-
-Você tem {len(desafios_pendentes)} desafios pendentes:
-{lista}
-
-Para aceitar, digite:
-*aceitar #[número]*
-
-Exemplo: aceitar #123"""
-    
-    # ---------------------------------------------------------
-    # COMANDO: Rejeitar desafio
-    # ---------------------------------------------------------
-    if any(palavra in msg for palavra in ['rejeitar', 'rejeito', 'recusar', 'recuso', 'negar', 'nego']):
-        # Extrair número do desafio se fornecido
-        numeros = re.findall(r'\d+', msg)
-        
-        desafios_pendentes = get_desafios_pendentes(jogador['id'])
-        
-        if not desafios_pendentes:
-            return """❌ *Rejeitar Desafio*
-
-Você não tem nenhum desafio pendente para rejeitar."""
-        
-        # Se tem só um desafio pendente e não especificou número
-        if len(desafios_pendentes) == 1 and not numeros:
-            desafio = desafios_pendentes[0]
-            sucesso, mensagem_retorno = rejeitar_desafio(desafio['id'], jogador['id'])
-            
-            if sucesso:
-                return f"""⚠️ *Desafio Rejeitado*
-
-Você rejeitou o desafio de *{desafio['challenger_name']}*.
-
-Como consequência, foi aplicado WO:
-• {desafio['challenger_name']} assumiu sua posição
-• Você desceu para a posição {desafio['challenger_position']}º"""
-            else:
-                return f"❌ {mensagem_retorno}"
-        
-        # Se especificou número do desafio
-        if numeros:
-            challenge_id = int(numeros[0])
-            sucesso, mensagem_retorno = rejeitar_desafio(challenge_id, jogador['id'])
-            
-            if sucesso:
-                return f"⚠️ *Desafio #{challenge_id} rejeitado.* WO aplicado."
-            else:
-                return f"❌ {mensagem_retorno}"
-        
-        # Múltiplos desafios - pedir para especificar
-        lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} (posição {d['challenger_position']}º)" for d in desafios_pendentes])
-        return f"""❌ *Rejeitar Desafio*
-
-⚠️ *ATENÇÃO*: Rejeitar um desafio resulta em WO (você perde a posição)!
-
-Seus desafios pendentes:
-{lista}
-
-Para rejeitar, digite:
-*rejeitar #[número]*
-
-Exemplo: rejeitar #123"""
-    
-    # ---------------------------------------------------------
-    # COMANDO: Meus desafios
-    # ---------------------------------------------------------
-    if 'desafio' in msg or 'pendente' in msg:
+    if msg == '3' or any(palavra in msg for palavra in ['desafio', 'pendente']):
         desafios = get_meus_desafios(jogador['id'])
         
         if not desafios:
@@ -8305,7 +8195,9 @@ Exemplo: rejeitar #123"""
 
 Olá, {jogador['name']}!
 
-Você não tem desafios ativos no momento."""
+Você não tem desafios ativos no momento.
+
+_Digite *0* para voltar ao menu._"""
         
         linhas = []
         for d in desafios:
@@ -8326,77 +8218,176 @@ Você não tem desafios ativos no momento."""
         
         dica = ""
         if pendentes_para_responder:
-            dica = "\n\n💡 *Dica*: Para responder desafios pendentes, digite:\n• *aceitar* ou *aceitar #123*\n• *rejeitar* ou *rejeitar #123*"
+            dica = "\n\n💡 Para responder, digite *4* (aceitar) ou *5* (rejeitar)"
         
         return f"""📋 *Meus Desafios*
 
 Olá, {jogador['name']}!
 
 Seus desafios ativos:
-{lista}{dica}"""
+{lista}{dica}
+
+_Digite *0* para voltar ao menu._"""
     
     # ---------------------------------------------------------
-    # COMANDO: Ajuda / Menu
+    # COMANDO: Aceitar desafio [4]
     # ---------------------------------------------------------
-    return f"""🏌️ *Bot Liga Olímpica de Golfe*
-
-Olá, {jogador['name']}! (Posição: {jogador['position']}º)
-
-*Comandos disponíveis:*
-
-📊 *"minha posição"*
-   Ver sua posição atual no ranking
-
-🎯 *"meus desafiados"*
-   Ver quem você pode desafiar
-
-📋 *"meus desafios"*
-   Ver seus desafios ativos
-
-✅ *"aceitar"* ou *"aceitar #123"*
-   Aceitar um desafio pendente
-
-❌ *"rejeitar"* ou *"rejeitar #123"*
-   Rejeitar um desafio (aplica WO)
-
-Digite qualquer comando para começar!"""
-
-
-# ============================================================
-# NOTIFICAÇÃO DE DESAFIO ACEITO (VIA BOT)
-# ============================================================
-
-def notificar_desafio_aceito_bot(challenge_id):
-    """Envia notificação ao grupo quando desafio é aceito via bot"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        SELECT 
-            challenger.name as challenger_name,
-            challenger.position as challenger_position,
-            challenged.name as challenged_name,
-            challenged.position as challenged_position,
-            c.scheduled_date
-        FROM challenges c
-        JOIN players challenger ON c.challenger_id = challenger.id
-        JOIN players challenged ON c.challenged_id = challenged.id
-        WHERE c.id = ?
-    """, (challenge_id,))
-    
-    challenge = cursor.fetchone()
-    conn.close()
-    
-    if challenge:
-        mensagem = f"""✅ *Desafio Aceito!*
-
-{challenge['challenged_name']} ({challenge['challenged_position']}º) aceitou o desafio de {challenge['challenger_name']} ({challenge['challenger_position']}º)!
-
-📅 Data: {challenge['scheduled_date']}
-
-Boa sorte aos jogadores! 🏌️"""
+    if msg == '4' or 'aceitar' in msg or 'aceito' in msg:
+        # Extrair número do desafio se fornecido
+        numeros = re.findall(r'\d+', msg)
+        # Remover o "4" se for apenas o comando
+        if numeros and numeros[0] == '4' and len(msg) <= 2:
+            numeros = []
         
-        enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, mensagem)
+        desafios_pendentes = get_desafios_pendentes(jogador['id'])
+        
+        if not desafios_pendentes:
+            return """✅ *Aceitar Desafio*
+
+Você não tem nenhum desafio pendente para aceitar.
+
+_Digite *0* para voltar ao menu._"""
+        
+        # Se tem só um desafio pendente e não especificou número
+        if len(desafios_pendentes) == 1 and not numeros:
+            desafio = desafios_pendentes[0]
+            sucesso, mensagem_retorno = aceitar_desafio(desafio['id'], jogador['id'])
+            
+            if sucesso:
+                # Notificar no grupo
+                try:
+                    notificar_desafio_aceito_bot(desafio['id'])
+                except:
+                    pass
+                
+                return f"""✅ *Desafio Aceito!*
+
+Você aceitou o desafio de *{desafio['challenger_name']}* (posição {desafio['challenger_position']}º).
+
+📅 Data agendada: {desafio['scheduled_date']}
+
+Boa sorte! 🏌️
+
+_Digite *0* para voltar ao menu._"""
+            else:
+                return f"❌ {mensagem_retorno}"
+        
+        # Se especificou número do desafio
+        if numeros:
+            challenge_id = int(numeros[0])
+            sucesso, mensagem_retorno = aceitar_desafio(challenge_id, jogador['id'])
+            
+            if sucesso:
+                try:
+                    notificar_desafio_aceito_bot(challenge_id)
+                except:
+                    pass
+                return f"""✅ *Desafio #{challenge_id} aceito com sucesso!*
+
+_Digite *0* para voltar ao menu._"""
+            else:
+                return f"❌ {mensagem_retorno}"
+        
+        # Múltiplos desafios - pedir para especificar
+        lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} (posição {d['challenger_position']}º)" for d in desafios_pendentes])
+        return f"""✅ *Aceitar Desafio*
+
+Você tem {len(desafios_pendentes)} desafios pendentes:
+{lista}
+
+Para aceitar, digite:
+*4 [número]* ou *aceitar #[número]*
+
+Exemplo: *4 123* ou *aceitar #123*
+
+_Digite *0* para voltar ao menu._"""
+    
+    # ---------------------------------------------------------
+    # COMANDO: Rejeitar desafio [5]
+    # ---------------------------------------------------------
+    if msg == '5' or any(palavra in msg for palavra in ['rejeitar', 'rejeito', 'recusar', 'recuso', 'negar', 'nego']):
+        # Extrair número do desafio se fornecido
+        numeros = re.findall(r'\d+', msg)
+        # Remover o "5" se for apenas o comando
+        if numeros and numeros[0] == '5' and len(msg) <= 2:
+            numeros = []
+        
+        desafios_pendentes = get_desafios_pendentes(jogador['id'])
+        
+        if not desafios_pendentes:
+            return """❌ *Rejeitar Desafio*
+
+Você não tem nenhum desafio pendente para rejeitar.
+
+_Digite *0* para voltar ao menu._"""
+        
+        # Se tem só um desafio pendente e não especificou número
+        if len(desafios_pendentes) == 1 and not numeros:
+            desafio = desafios_pendentes[0]
+            sucesso, mensagem_retorno = rejeitar_desafio(desafio['id'], jogador['id'])
+            
+            if sucesso:
+                return f"""⚠️ *Desafio Rejeitado*
+
+Você rejeitou o desafio de *{desafio['challenger_name']}*.
+
+Como consequência, foi aplicado WO:
+- {desafio['challenger_name']} assumiu sua posição
+- Você desceu para a posição {desafio['challenger_position']}º
+
+_Digite *0* para voltar ao menu._"""
+            else:
+                return f"❌ {mensagem_retorno}"
+        
+        # Se especificou número do desafio
+        if numeros:
+            challenge_id = int(numeros[0])
+            sucesso, mensagem_retorno = rejeitar_desafio(challenge_id, jogador['id'])
+            
+            if sucesso:
+                return f"""⚠️ *Desafio #{challenge_id} rejeitado.* WO aplicado.
+
+_Digite *0* para voltar ao menu._"""
+            else:
+                return f"❌ {mensagem_retorno}"
+        
+        # Múltiplos desafios - pedir para especificar
+        lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} (posição {d['challenger_position']}º)" for d in desafios_pendentes])
+        return f"""❌ *Rejeitar Desafio*
+
+⚠️ *ATENÇÃO*: Rejeitar um desafio resulta em WO (você perde a posição)!
+
+Seus desafios pendentes:
+{lista}
+
+Para rejeitar, digite:
+*5 [número]* ou *rejeitar #[número]*
+
+Exemplo: *5 123* ou *rejeitar #123*
+
+_Digite *0* para voltar ao menu._"""
+    
+    # ---------------------------------------------------------
+    # COMANDO: Menu / Ajuda [0]
+    # ---------------------------------------------------------
+    return f"""🏌️ *Liga Olímpica de Golfe*
+
+Olá, *{jogador['name']}*!
+📊 Posição atual: *{jogador['position']}º*
+
+━━━━━━━━━━━━━━━━━━━━━
+*MENU DE OPÇÕES*
+━━━━━━━━━━━━━━━━━━━━━
+
+*[1]* 📊 Minha posição
+*[2]* 🎯 Quem posso desafiar
+*[3]* 📋 Meus desafios
+*[4]* ✅ Aceitar desafio
+*[5]* ❌ Rejeitar desafio
+
+━━━━━━━━━━━━━━━━━━━━━
+
+_Digite o número da opção desejada._"""
 
 
 # ============================================================
