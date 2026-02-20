@@ -16,6 +16,10 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Sessão válid
 
 DATABASE = 'golf_league.db'
 
+CHAT_STATES = {}
+CHAT_STATE_TIMEOUT = 10
+
+
 # Função para obter conexão com o banco de dados
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
@@ -7844,6 +7848,303 @@ from flask import request, jsonify
 # FUNÇÕES AUXILIARES
 # ============================================================
 
+# ============================================================
+# CHATBOT WHATSAPP - Funções de Estado da Conversa
+# ============================================================
+
+def get_chat_state(telefone):
+    """Retorna o estado atual da conversa do usuário"""
+    telefone_norm = normalizar_telefone(telefone)
+    
+    if telefone_norm not in CHAT_STATES:
+        return None
+    
+    state = CHAT_STATES[telefone_norm]
+    
+    # Verificar se expirou
+    if datetime.now() > state.get('expira', datetime.now()):
+        del CHAT_STATES[telefone_norm]
+        return None
+    
+    return state
+
+
+def set_chat_state(telefone, estado, dados=None):
+    """Define o estado da conversa do usuário"""
+    telefone_norm = normalizar_telefone(telefone)
+    
+    CHAT_STATES[telefone_norm] = {
+        'estado': estado,
+        'dados': dados or {},
+        'expira': datetime.now() + timedelta(minutes=CHAT_STATE_TIMEOUT)
+    }
+
+
+def clear_chat_state(telefone):
+    """Limpa o estado da conversa do usuário"""
+    telefone_norm = normalizar_telefone(telefone)
+    
+    if telefone_norm in CHAT_STATES:
+        del CHAT_STATES[telefone_norm]
+
+
+def criar_desafio_via_whatsapp(challenger_id, challenged_id, scheduled_date):
+    """
+    Cria um desafio via WhatsApp.
+    Retorna: (sucesso: bool, mensagem: str, challenge_id: int ou None)
+    """
+    conn = get_db_connection()
+    
+    try:
+        # Buscar dados dos jogadores
+        challenger = conn.execute(
+            'SELECT * FROM players WHERE id = ? AND active = 1', 
+            (challenger_id,)
+        ).fetchone()
+        
+        challenged = conn.execute(
+            'SELECT * FROM players WHERE id = ? AND active = 1', 
+            (challenged_id,)
+        ).fetchone()
+        
+        if not challenger or not challenged:
+            conn.close()
+            return False, "Jogador não encontrado ou inativo.", None
+        
+        # Verificar se desafiado está bloqueado
+        if challenged['bloqueado'] == 1:
+            motivo = challenged['bloqueio_motivo'] or 'indisponível'
+            conn.close()
+            return False, f"{challenged['name']} está bloqueado ({motivo}).", None
+        
+        # Verificar se já existe desafio pendente entre eles
+        existing = conn.execute('''
+            SELECT id FROM challenges 
+            WHERE ((challenger_id = ? AND challenged_id = ?) 
+                   OR (challenger_id = ? AND challenged_id = ?))
+            AND status IN ('pending', 'accepted')
+        ''', (challenger_id, challenged_id, challenged_id, challenger_id)).fetchone()
+        
+        if existing:
+            conn.close()
+            return False, "Já existe um desafio pendente entre vocês.", None
+        
+        # Verificar se algum dos dois já tem desafio ativo
+        challenger_busy = conn.execute('''
+            SELECT id FROM challenges 
+            WHERE (challenger_id = ? OR challenged_id = ?)
+            AND status IN ('pending', 'accepted')
+        ''', (challenger_id, challenger_id)).fetchone()
+        
+        if challenger_busy:
+            conn.close()
+            return False, "Você já tem um desafio ativo. Conclua-o primeiro.", None
+        
+        challenged_busy = conn.execute('''
+            SELECT id FROM challenges 
+            WHERE (challenger_id = ? OR challenged_id = ?)
+            AND status IN ('pending', 'accepted')
+        ''', (challenged_id, challenged_id)).fetchone()
+        
+        if challenged_busy:
+            conn.close()
+            return False, f"{challenged['name']} já está em um desafio ativo.", None
+        
+        # Validar posições (desafiante deve estar abaixo do desafiado)
+        if challenger['position'] <= challenged['position']:
+            conn.close()
+            return False, "Você só pode desafiar jogadores acima de você no ranking.", None
+        
+        # Validar distância máxima de 8 posições
+        if challenger['position'] - challenged['position'] > 8:
+            conn.close()
+            return False, "Você só pode desafiar jogadores até 8 posições acima.", None
+        
+        # Criar o desafio
+        current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        response_deadline = (datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        conn.execute('''
+            INSERT INTO challenges (
+                challenger_id, 
+                challenged_id, 
+                status, 
+                scheduled_date, 
+                created_at, 
+                response_deadline,
+                challenger_position_at_creation,
+                challenged_position_at_creation
+            )
+            VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)
+        ''', (
+            challenger_id, 
+            challenged_id, 
+            scheduled_date, 
+            current_datetime, 
+            response_deadline,
+            challenger['position'],
+            challenged['position']
+        ))
+        
+        challenge_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        
+        # Registrar no log
+        try:
+            conn.execute('''
+                INSERT INTO challenge_logs 
+                (challenge_id, user_id, modified_by, old_status, new_status, notes, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                challenge_id, 
+                str(challenger_id),
+                "WhatsApp Bot",
+                None, 
+                'pending', 
+                f"Desafio criado via WhatsApp. Jogo: {scheduled_date}. Prazo resposta: 2 dias.",
+                current_datetime
+            ))
+        except Exception as e:
+            print(f"Erro ao registrar log: {e}")
+        
+        conn.commit()
+        conn.close()
+        
+        return True, "Desafio criado com sucesso!", challenge_id
+        
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return False, f"Erro ao criar desafio: {str(e)}", None
+
+
+def get_player_phone(player_id):
+    """Busca o telefone de um jogador"""
+    conn = get_db_connection()
+    player = conn.execute('SELECT telefone FROM players WHERE id = ?', (player_id,)).fetchone()
+    conn.close()
+    
+    if player and player['telefone']:
+        return normalizar_telefone(player['telefone'])
+    return None
+
+
+def notificar_desafio_criado_whatsapp(challenge_id):
+    """Notifica no grupo do WhatsApp sobre o novo desafio"""
+    try:
+        conn = get_db_connection()
+        
+        challenge = conn.execute('''
+            SELECT c.*, 
+                   challenger.name as challenger_name,
+                   challenger.position as challenger_pos,
+                   challenged.name as challenged_name,
+                   challenged.position as challenged_pos
+            FROM challenges c
+            JOIN players challenger ON c.challenger_id = challenger.id
+            JOIN players challenged ON c.challenged_id = challenged.id
+            WHERE c.id = ?
+        ''', (challenge_id,)).fetchone()
+        
+        conn.close()
+        
+        if not challenge:
+            return
+        
+        # Formatar data
+        data_jogo = challenge['scheduled_date']
+        try:
+            data_obj = datetime.strptime(data_jogo, '%Y-%m-%d')
+            data_formatada = data_obj.strftime('%d/%m/%Y')
+        except:
+            data_formatada = data_jogo
+        
+        mensagem = f"""🎯 *NOVO DESAFIO CRIADO*
+
+🏌️ *{challenge['challenger_name']}* ({challenge['challenger_pos']}º)
+      ⚔️ desafia ⚔️
+🏌️ *{challenge['challenged_name']}* ({challenge['challenged_pos']}º)
+
+📅 Data proposta: *{data_formatada}*
+⏳ Prazo para resposta: *2 dias*
+
+_Desafio criado via WhatsApp_"""
+
+        # Enviar para o grupo
+        enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, mensagem)
+        
+        # Notificar o desafiado (se tiver WhatsApp cadastrado)
+        challenged_phone = get_player_phone(challenge['challenged_id'])
+        if challenged_phone:
+            msg_privada = f"""📩 *Você foi desafiado!*
+
+{challenge['challenger_name']} ({challenge['challenger_pos']}º) está desafiando você para um jogo.
+
+📅 Data proposta: *{data_formatada}*
+⏳ Você tem *2 dias* para responder.
+
+Digite:
+*4* - Aceitar desafio
+*5* - Rejeitar desafio
+
+_Responda aqui mesmo pelo WhatsApp!_"""
+            
+            # Formatar número para envio
+            jid = f"55{challenged_phone}@s.whatsapp.net"
+            enviar_mensagem_whatsapp(jid, msg_privada)
+            
+    except Exception as e:
+        print(f"Erro ao notificar desafio: {e}")
+
+
+def notificar_desafio_aceito_bot(challenge_id):
+    """Notifica no grupo que um desafio foi aceito"""
+    try:
+        conn = get_db_connection()
+        
+        challenge = conn.execute('''
+            SELECT c.*, 
+                   challenger.name as challenger_name,
+                   challenger.position as challenger_pos,
+                   challenged.name as challenged_name,
+                   challenged.position as challenged_pos
+            FROM challenges c
+            JOIN players challenger ON c.challenger_id = challenger.id
+            JOIN players challenged ON c.challenged_id = challenged.id
+            WHERE c.id = ?
+        ''', (challenge_id,)).fetchone()
+        
+        conn.close()
+        
+        if not challenge:
+            return
+        
+        # Formatar data
+        data_jogo = challenge['scheduled_date']
+        try:
+            data_obj = datetime.strptime(data_jogo, '%Y-%m-%d')
+            data_formatada = data_obj.strftime('%d/%m/%Y')
+        except:
+            data_formatada = data_jogo
+        
+        mensagem = f"""✅ *DESAFIO ACEITO!*
+
+🏌️ *{challenge['challenger_name']}* ({challenge['challenger_pos']}º)
+      ⚔️ vs ⚔️
+🏌️ *{challenge['challenged_name']}* ({challenge['challenged_pos']}º)
+
+📅 Data do jogo: *{data_formatada}*
+
+Boa sorte aos dois! 🏆"""
+
+        enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, mensagem)
+        
+    except Exception as e:
+        print(f"Erro ao notificar desafio aceito: {e}")
+
+
+
+
+
 def normalizar_telefone(telefone):
     """Remove caracteres não numéricos e padroniza o telefone"""
     if not telefone:
@@ -8099,6 +8400,7 @@ def processar_comando_whatsapp(mensagem, telefone):
     
     # Normalizar mensagem
     msg = mensagem.lower().strip()
+    telefone_normalizado = normalizar_telefone(telefone)
     
     # Buscar jogador pelo telefone
     jogador = get_player_by_phone(telefone)
@@ -8111,8 +8413,175 @@ Seu número de WhatsApp não está vinculado a nenhum jogador da Liga.
 Para cadastrar, acesse seu perfil no site e adicione seu número no campo "WhatsApp para Notificações"."""
     
     # ---------------------------------------------------------
-    # COMANDO: Minha posição / Ranking [1]
+    # VERIFICAR SE HÁ ESTADO PENDENTE (conversa em andamento)
     # ---------------------------------------------------------
+    estado_atual = get_chat_state(telefone_normalizado)
+    
+    if estado_atual:
+        estado = estado_atual['estado']
+        dados = estado_atual['dados']
+        
+        # ---------------------------------------------------------
+        # ESTADO: Selecionando oponente para desafio
+        # ---------------------------------------------------------
+        if estado == 'selecionando_oponente':
+            # Verificar se digitou "0" para cancelar
+            if msg == '0' or 'cancelar' in msg:
+                clear_chat_state(telefone_normalizado)
+                return "❌ Criação de desafio cancelada.\n\n_Digite *0* para ver o menu._"
+            
+            # Tentar interpretar como número da lista
+            try:
+                opcao = int(msg)
+                possiveis = dados.get('possiveis', [])
+                
+                if opcao < 1 or opcao > len(possiveis):
+                    return f"""⚠️ Opção inválida!
+
+Digite um número de *1* a *{len(possiveis)}* para selecionar o oponente.
+
+Ou digite *0* para cancelar."""
+                
+                # Oponente selecionado
+                oponente = possiveis[opcao - 1]
+                
+                # Atualizar estado para pedir a data
+                set_chat_state(telefone_normalizado, 'informando_data', {
+                    'oponente_id': oponente['id'],
+                    'oponente_nome': oponente['name'],
+                    'oponente_posicao': oponente['position']
+                })
+                
+                # Calcular data máxima (7 dias)
+                hoje = datetime.now()
+                data_max = hoje + timedelta(days=7)
+                
+                return f"""✅ Oponente selecionado: *{oponente['name']}* ({oponente['position']}º)
+
+📅 *Qual a data do jogo?*
+
+Digite no formato *DD/MM* (ex: {data_max.strftime('%d/%m')})
+
+A data deve ser nos próximos *7 dias*.
+(até {data_max.strftime('%d/%m/%Y')})
+
+_Digite *0* para cancelar._"""
+                
+            except ValueError:
+                return """⚠️ Digite apenas o *número* do oponente.
+
+Exemplo: *1* ou *2* ou *3*
+
+_Digite *0* para cancelar._"""
+        
+        # ---------------------------------------------------------
+        # ESTADO: Informando data do jogo
+        # ---------------------------------------------------------
+        elif estado == 'informando_data':
+            # Verificar se digitou "0" para cancelar
+            if msg == '0' or 'cancelar' in msg:
+                clear_chat_state(telefone_normalizado)
+                return "❌ Criação de desafio cancelada.\n\n_Digite *0* para ver o menu._"
+            
+            # Tentar interpretar a data
+            data_jogo = None
+            hoje = datetime.now().date()
+            ano_atual = hoje.year
+            
+            # Formatos aceitos: DD/MM, DD-MM, DD.MM, DD/MM/YYYY
+            formatos = [
+                (r'^(\d{1,2})[/\-.](\d{1,2})$', '%d/%m'),
+                (r'^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$', '%d/%m/%Y'),
+                (r'^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2})$', '%d/%m/%y'),
+            ]
+            
+            for pattern, fmt in formatos:
+                match = re.match(pattern, msg.strip())
+                if match:
+                    try:
+                        if len(match.groups()) == 2:
+                            dia, mes = match.groups()
+                            data_str = f"{dia}/{mes}/{ano_atual}"
+                            data_jogo = datetime.strptime(data_str, '%d/%m/%Y').date()
+                            
+                            if data_jogo < hoje:
+                                data_jogo = datetime.strptime(f"{dia}/{mes}/{ano_atual + 1}", '%d/%m/%Y').date()
+                        else:
+                            data_str = msg.strip().replace('-', '/').replace('.', '/')
+                            data_jogo = datetime.strptime(data_str, fmt).date()
+                        break
+                    except ValueError:
+                        continue
+            
+            if not data_jogo:
+                return """⚠️ Formato de data inválido!
+
+Digite no formato *DD/MM* (ex: 25/02)
+
+_Digite *0* para cancelar._"""
+            
+            # Validar data
+            if data_jogo < hoje:
+                return """⚠️ A data não pode ser no passado!
+
+Digite uma data a partir de hoje.
+
+_Digite *0* para cancelar._"""
+            
+            data_max = hoje + timedelta(days=7)
+            if data_jogo > data_max:
+                return f"""⚠️ A data não pode ser superior a 7 dias!
+
+Data máxima permitida: *{data_max.strftime('%d/%m/%Y')}*
+
+_Digite *0* para cancelar._"""
+            
+            # CRIAR O DESAFIO!
+            oponente_id = dados['oponente_id']
+            oponente_nome = dados['oponente_nome']
+            oponente_posicao = dados['oponente_posicao']
+            data_formatada = data_jogo.strftime('%Y-%m-%d')
+            
+            sucesso, mensagem_retorno, challenge_id = criar_desafio_via_whatsapp(
+                jogador['id'], 
+                oponente_id, 
+                data_formatada
+            )
+            
+            # Limpar estado da conversa
+            clear_chat_state(telefone_normalizado)
+            
+            if sucesso:
+                # Notificar no grupo e para o desafiado
+                try:
+                    notificar_desafio_criado_whatsapp(challenge_id)
+                except Exception as e:
+                    print(f"Erro ao notificar: {e}")
+                
+                return f"""🎉 *DESAFIO CRIADO COM SUCESSO!*
+
+Você desafiou *{oponente_nome}* ({oponente_posicao}º)
+
+📅 Data do jogo: *{data_jogo.strftime('%d/%m/%Y')}*
+⏳ Prazo para resposta: *2 dias*
+
+O desafiado será notificado e deve aceitar ou rejeitar o desafio.
+
+Boa sorte! 🏌️
+
+_Digite *0* para voltar ao menu._"""
+            else:
+                return f"""❌ *Erro ao criar desafio*
+
+{mensagem_retorno}
+
+_Digite *0* para voltar ao menu._"""
+    
+    # ---------------------------------------------------------
+    # COMANDOS NORMAIS (sem estado pendente)
+    # ---------------------------------------------------------
+    
+    # COMANDO [1]: Minha posição
     if msg == '1' or any(palavra in msg for palavra in ['posição', 'posicao', 'ranking', 'colocação', 'colocacao']):
         return f"""📊 *Sua Posição no Ranking*
 
@@ -8122,23 +8591,17 @@ Você está atualmente na posição *{jogador['position']}º* no ranking da Liga
 
 _Digite *0* para voltar ao menu._"""
     
-    # ---------------------------------------------------------
-    # COMANDO: Meus desafiados / Quem posso desafiar [2]
-    # ---------------------------------------------------------
-    if msg == '2' or any(palavra in msg for palavra in ['desafiado', 'desafiar', 'quem posso', 'possiveis']):
+    # COMANDO [2]: Quem posso desafiar
+    if msg == '2' or any(palavra in msg for palavra in ['desafiado', 'quem posso', 'possiveis', 'possíveis']):
         possiveis = get_possiveis_desafiados(jogador['id'])
         
         if not possiveis:
             return f"""🎯 *Possíveis Desafiados*
 
 Olá, {jogador['name']}!
-
 Você está na posição *{jogador['position']}º*.
 
-No momento não há jogadores disponíveis para desafio. Isso pode ocorrer porque:
-- Você já tem um desafio ativo
-- Os jogadores acima estão com desafios pendentes
-- Os jogadores acima estão bloqueados
+No momento não há jogadores disponíveis para desafio.
 
 _Digite *0* para voltar ao menu._"""
         
@@ -8152,14 +8615,12 @@ Você está na posição *{jogador['position']}º*.
 Você pode desafiar:
 {lista}
 
-📱 Para criar um desafio, acesse o site da Liga.
+📱 Para criar um desafio, digite *6*
 
 _Digite *0* para voltar ao menu._"""
     
-    # ---------------------------------------------------------
-    # COMANDO: Meus desafios [3]
-    # ---------------------------------------------------------
-    if msg == '3' or any(palavra in msg for palavra in ['desafio', 'pendente']):
+    # COMANDO [3]: Meus desafios
+    if msg == '3' or (any(palavra in msg for palavra in ['meus desafio', 'meu desafio']) and 'criar' not in msg):
         desafios = get_meus_desafios(jogador['id'])
         
         if not desafios:
@@ -8177,15 +8638,12 @@ _Digite *0* para voltar ao menu._"""
             status_texto = "Pendente" if d['status'] == 'pending' else "Aceito"
             
             if d['challenger_id'] == jogador['id']:
-                # Sou o desafiante
                 linhas.append(f"   {status_emoji} #{d['id']} - Você → {d['challenged_name']} ({d['challenged_position']}º) [{status_texto}]")
             else:
-                # Sou o desafiado
                 linhas.append(f"   {status_emoji} #{d['id']} - {d['challenger_name']} ({d['challenger_position']}º) → Você [{status_texto}]")
         
         lista = "\n".join(linhas)
         
-        # Verificar se tem pendentes para responder
         pendentes_para_responder = [d for d in desafios if d['status'] == 'pending' and d['challenged_id'] == jogador['id']]
         
         dica = ""
@@ -8201,13 +8659,9 @@ Seus desafios ativos:
 
 _Digite *0* para voltar ao menu._"""
     
-    # ---------------------------------------------------------
-    # COMANDO: Aceitar desafio [4]
-    # ---------------------------------------------------------
+    # COMANDO [4]: Aceitar desafio
     if msg == '4' or 'aceitar' in msg or 'aceito' in msg:
-        # Extrair número do desafio se fornecido
         numeros = re.findall(r'\d+', msg)
-        # Remover o "4" se for apenas o comando
         if numeros and numeros[0] == '4' and len(msg) <= 2:
             numeros = []
         
@@ -8220,13 +8674,11 @@ Você não tem nenhum desafio pendente para aceitar.
 
 _Digite *0* para voltar ao menu._"""
         
-        # Se tem só um desafio pendente e não especificou número
         if len(desafios_pendentes) == 1 and not numeros:
             desafio = desafios_pendentes[0]
             sucesso, mensagem_retorno = aceitar_desafio(desafio['id'], jogador['id'])
             
             if sucesso:
-                # Notificar no grupo
                 try:
                     notificar_desafio_aceito_bot(desafio['id'])
                 except:
@@ -8244,7 +8696,6 @@ _Digite *0* para voltar ao menu._"""
             else:
                 return f"❌ {mensagem_retorno}"
         
-        # Se especificou número do desafio
         if numeros:
             challenge_id = int(numeros[0])
             sucesso, mensagem_retorno = aceitar_desafio(challenge_id, jogador['id'])
@@ -8260,27 +8711,20 @@ _Digite *0* para voltar ao menu._"""
             else:
                 return f"❌ {mensagem_retorno}"
         
-        # Múltiplos desafios - pedir para especificar
         lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} (posição {d['challenger_position']}º)" for d in desafios_pendentes])
         return f"""✅ *Aceitar Desafio*
 
 Você tem {len(desafios_pendentes)} desafios pendentes:
 {lista}
 
-Para aceitar, digite:
-*4 [número]* ou *aceitar #[número]*
-
-Exemplo: *4 123* ou *aceitar #123*
+Para aceitar, digite: *4 [número]*
+Exemplo: *4 123*
 
 _Digite *0* para voltar ao menu._"""
     
-    # ---------------------------------------------------------
-    # COMANDO: Rejeitar desafio [5]
-    # ---------------------------------------------------------
-    if msg == '5' or any(palavra in msg for palavra in ['rejeitar', 'rejeito', 'recusar', 'recuso', 'negar', 'nego']):
-        # Extrair número do desafio se fornecido
+    # COMANDO [5]: Rejeitar desafio
+    if msg == '5' or any(palavra in msg for palavra in ['rejeitar', 'rejeito', 'recusar', 'recuso']):
         numeros = re.findall(r'\d+', msg)
-        # Remover o "5" se for apenas o comando
         if numeros and numeros[0] == '5' and len(msg) <= 2:
             numeros = []
         
@@ -8293,7 +8737,6 @@ Você não tem nenhum desafio pendente para rejeitar.
 
 _Digite *0* para voltar ao menu._"""
         
-        # Se tem só um desafio pendente e não especificou número
         if len(desafios_pendentes) == 1 and not numeros:
             desafio = desafios_pendentes[0]
             sucesso, mensagem_retorno = rejeitar_desafio(desafio['id'], jogador['id'])
@@ -8303,15 +8746,12 @@ _Digite *0* para voltar ao menu._"""
 
 Você rejeitou o desafio de *{desafio['challenger_name']}*.
 
-Como consequência, foi aplicado WO:
-- {desafio['challenger_name']} assumiu sua posição
-- Você desceu para a posição {desafio['challenger_position']}º
+WO aplicado - você perdeu a posição.
 
 _Digite *0* para voltar ao menu._"""
             else:
                 return f"❌ {mensagem_retorno}"
         
-        # Se especificou número do desafio
         if numeros:
             challenge_id = int(numeros[0])
             sucesso, mensagem_retorno = rejeitar_desafio(challenge_id, jogador['id'])
@@ -8323,25 +8763,65 @@ _Digite *0* para voltar ao menu._"""
             else:
                 return f"❌ {mensagem_retorno}"
         
-        # Múltiplos desafios - pedir para especificar
         lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} (posição {d['challenger_position']}º)" for d in desafios_pendentes])
         return f"""❌ *Rejeitar Desafio*
 
-⚠️ *ATENÇÃO*: Rejeitar um desafio resulta em WO (você perde a posição)!
+⚠️ *ATENÇÃO*: Rejeitar resulta em WO!
 
 Seus desafios pendentes:
 {lista}
 
-Para rejeitar, digite:
-*5 [número]* ou *rejeitar #[número]*
-
-Exemplo: *5 123* ou *rejeitar #123*
+Para rejeitar, digite: *5 [número]*
+Exemplo: *5 123*
 
 _Digite *0* para voltar ao menu._"""
     
-    # ---------------------------------------------------------
-    # COMANDO: Menu / Ajuda [0]
-    # ---------------------------------------------------------
+    # COMANDO [6]: Criar desafio - NOVO!
+    if msg == '6' or any(palavra in msg for palavra in ['criar desafio', 'desafiar', 'novo desafio', 'quero desafiar']):
+        if tem_desafio_ativo(jogador['id']):
+            return """⚠️ *Você já tem um desafio ativo!*
+
+Conclua seu desafio atual antes de criar um novo.
+
+Digite *3* para ver seus desafios.
+
+_Digite *0* para voltar ao menu._"""
+        
+        possiveis = get_possiveis_desafiados(jogador['id'])
+        
+        if not possiveis:
+            return f"""🎯 *Criar Desafio*
+
+Olá, {jogador['name']}!
+Você está na posição *{jogador['position']}º*.
+
+❌ No momento não há jogadores disponíveis para desafio.
+
+_Digite *0* para voltar ao menu._"""
+        
+        linhas = []
+        for i, p in enumerate(possiveis, 1):
+            linhas.append(f"   *{i}* - {p['name']} ({p['position']}º)")
+        
+        lista = "\n".join(linhas)
+        
+        set_chat_state(telefone_normalizado, 'selecionando_oponente', {
+            'possiveis': possiveis
+        })
+        
+        return f"""🎯 *Criar Desafio*
+
+Olá, {jogador['name']}!
+Você está na posição *{jogador['position']}º*.
+
+Selecione quem você quer desafiar:
+{lista}
+
+Digite o *número* do oponente (ex: *1*)
+
+_Digite *0* para cancelar._"""
+    
+    # MENU PRINCIPAL [0]
     return f"""🏌️ *Liga Olímpica de Golfe*
 
 Olá, *{jogador['name']}*!
@@ -8356,77 +8836,11 @@ Olá, *{jogador['name']}*!
 *[3]* 📋 Meus desafios
 *[4]* ✅ Aceitar desafio
 *[5]* ❌ Rejeitar desafio
+*[6]* ⚔️ *Criar desafio*
 
 ━━━━━━━━━━━━━━━━━━━━━
 
 _Digite o número da opção desejada._"""
-
-
-# ============================================================
-# ROTA DO WEBHOOK
-# ============================================================
-
-@app.route('/webhook/whatsapp', methods=['POST'])
-def webhook_whatsapp():
-    """Recebe mensagens do WhatsApp via Evolution API"""
-    try:
-        data = request.json
-        
-        # Log para debug (remover em produção)
-        app.logger.info(f"Webhook recebido: {data}")
-        
-        # Verificar se é uma mensagem válida
-        if not data:
-            return jsonify({'status': 'no data'}), 200
-        
-        # Extrair dados da mensagem
-        event = data.get('event')
-        
-        # Só processar mensagens recebidas
-        if event != 'messages.upsert':
-            return jsonify({'status': 'ignored', 'reason': 'not a message event'}), 200
-        
-        message_data = data.get('data', {})
-        key = message_data.get('key', {})
-        
-        # Ignorar mensagens enviadas por nós mesmos
-        if key.get('fromMe', False):
-            return jsonify({'status': 'ignored', 'reason': 'own message'}), 200
-        
-        # Ignorar mensagens de grupo (só processar mensagens privadas)
-        remote_jid = key.get('remoteJid', '')
-        if '@g.us' in remote_jid:
-            return jsonify({'status': 'ignored', 'reason': 'group message'}), 200
-        
-        # Extrair texto da mensagem
-        message = message_data.get('message', {})
-        texto = (
-            message.get('conversation') or 
-            message.get('extendedTextMessage', {}).get('text') or
-            ''
-        )
-        
-        if not texto:
-            return jsonify({'status': 'ignored', 'reason': 'no text'}), 200
-        
-        # Extrair telefone do remetente
-        telefone = extrair_telefone_do_jid(remote_jid)
-        
-        if not telefone:
-            return jsonify({'status': 'error', 'reason': 'invalid phone'}), 200
-        
-        # Processar comando
-        resposta = processar_comando_whatsapp(texto, telefone)
-        
-        # Enviar resposta
-        if resposta:
-            enviar_mensagem_whatsapp(remote_jid, resposta)
-        
-        return jsonify({'status': 'ok'}), 200
-        
-    except Exception as e:
-        app.logger.error(f"Erro no webhook WhatsApp: {str(e)}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 # ============================================================
