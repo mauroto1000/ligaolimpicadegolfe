@@ -5,53 +5,62 @@
 {% block content %}
 <div class="card">
     <div class="card-header bg-primary text-white">
-        <h2>Detalhes do Desafio #{{ challenge.id }}</h2>
+        <h2><i class="fas fa-trophy"></i> Detalhes do Desafio #{{ challenge.id }}</h2>
     </div>
     <div class="card-body">
+        
+        <!-- ============================================================ -->
+        <!-- JOGADORES DO DESAFIO -->
+        <!-- ============================================================ -->
         <div class="row">
             <div class="col-md-6">
-                <h3>Desafiante</h3>
-                <div class="card mb-3">
+                <h4><i class="fas fa-user"></i> Desafiante</h4>
+                <div class="card mb-3 border-primary">
                     <div class="card-body">
-                        <h4>
-                            <a href="{{ url_for('player_detail', player_id=challenge.challenger_id) }}">
+                        <h5>
+                            <a href="{{ url_for('player_detail', player_id=challenge.challenger_id) }}" class="text-decoration-none">
                                 {{ challenge.challenger_position }}. {{ challenge.challenger_name }}
                             </a>
-                        </h4>
+                        </h5>
                     </div>
                 </div>
             </div>
             <div class="col-md-6">
-                <h3>Desafiado</h3>
-                <div class="card mb-3">
+                <h4><i class="fas fa-user-shield"></i> Desafiado</h4>
+                <div class="card mb-3 border-warning">
                     <div class="card-body">
-                        <h4>
-                            <a href="{{ url_for('player_detail', player_id=challenge.challenged_id) }}">
+                        <h5>
+                            <a href="{{ url_for('player_detail', player_id=challenge.challenged_id) }}" class="text-decoration-none">
                                 {{ challenge.challenged_position }}. {{ challenge.challenged_name }}
                             </a>
-                        </h4>
+                        </h5>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- ============================================================ -->
+        <!-- INFORMAÇÕES E AÇÕES -->
+        <!-- ============================================================ -->
         <div class="row mt-3">
+            
+            <!-- COLUNA: Informações do Desafio -->
             <div class="col-md-6">
-                <h4>Informações do Desafio</h4>
-                <table class="table">
+                <h4><i class="fas fa-info-circle"></i> Informações do Desafio</h4>
+                <table class="table table-bordered">
                     <tr>
-                        <th>Status:</th>
+                        <th style="width: 40%;">Status:</th>
                         <td>
                             {% if challenge.status == 'pending' %}
-                                <span class="badge bg-warning">Pendente</span>
+                                <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Pendente</span>
                             {% elif challenge.status == 'accepted' %}
-                                <span class="badge bg-info">Aceito</span>
+                                <span class="badge bg-info"><i class="fas fa-handshake"></i> Aceito</span>
                             {% elif challenge.status == 'completed' %}
-                                <span class="badge bg-success">Concluído</span>
+                                <span class="badge bg-success"><i class="fas fa-check-circle"></i> Concluído</span>
                             {% elif challenge.status == 'completed_pending' %}
-                                <span class="badge bg-secondary">Concluído (pendente)</span>
+                                <span class="badge bg-secondary"><i class="fas fa-hourglass-half"></i> Concluído (com pendência)</span>
                             {% elif challenge.status == 'cancelled' %}
-                                <span class="badge bg-danger">Cancelado</span>
+                                <span class="badge bg-danger"><i class="fas fa-times-circle"></i> Cancelado</span>
                             {% else %}
                                 <span class="badge bg-secondary">{{ challenge.status }}</span>
                             {% endif %}
@@ -63,61 +72,85 @@
                     </tr>
                     <tr>
                         <th>Criado em:</th>
-                        <td>{{ challenge.created_at|datetime('%d/%m/%Y') }}</td>
+                        <td>{{ challenge.created_at|datetime('%d/%m/%Y %H:%M') }}</td>
                     </tr>
-                    {% if challenge.result %}
-                        <tr>
-                            <th>Resultado:</th>
-                            <td>
-                                {% if challenge.result == 'challenger_win' %}
-                                    <span class="text-success fw-bold">Vitória do Desafiante</span>
-                                {% elif challenge.result == 'challenged_win' %}
-                                    <span class="text-success fw-bold">Vitória do Desafiado</span>
+                    
+                    {% if challenge.response_deadline and challenge.status == 'pending' %}
+                    <tr>
+                        <th>Prazo para resposta:</th>
+                        <td>
+                            <span class="{% if expired %}text-danger fw-bold{% else %}text-warning{% endif %}">
+                                {{ challenge.response_deadline|datetime('%d/%m/%Y %H:%M') }}
+                                {% if expired %}
+                                    <br><i class="fas fa-exclamation-triangle"></i> EXPIRADO
+                                {% elif days_remaining == 0 %}
+                                    <br><i class="fas fa-exclamation-circle"></i> Vence hoje!
+                                {% elif days_remaining == 1 %}
+                                    <br><i class="fas fa-clock"></i> Vence amanhã!
                                 {% else %}
-                                    {{ challenge.result }}
+                                    <br><i class="fas fa-calendar"></i> Restam {{ days_remaining }} dias
                                 {% endif %}
-                                
-                                {# NOVO: Exibir badge de WO se aplicável #}
-                                {% if challenge.result_type and challenge.result_type != 'normal' %}
-                                    <span class="badge bg-warning text-dark ms-2">
-                                        <i class="fas fa-user-slash"></i> WO
-                                    </span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {# NOVO: Linha adicional com detalhes do WO #}
-                        {% if challenge.result_type and challenge.result_type != 'normal' %}
-                        <tr>
-                            <th>Tipo:</th>
-                            <td>
-                                {% if challenge.result_type == 'wo_challenger' %}
-                                    <span class="text-warning">
-                                        <i class="fas fa-user-slash"></i> WO - Desafiado não compareceu
-                                    </span>
-                                {% elif challenge.result_type == 'wo_challenged' %}
-                                    <span class="text-warning">
-                                        <i class="fas fa-user-slash"></i> WO - Desafiante não compareceu
-                                    </span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endif %}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    
+                    {% if challenge.result %}
+                    <tr>
+                        <th>Resultado:</th>
+                        <td>
+                            {% if challenge.result == 'challenger_win' %}
+                                <span class="text-success fw-bold">
+                                    <i class="fas fa-trophy"></i> Vitória do Desafiante ({{ challenge.challenger_name }})
+                                </span>
+                            {% elif challenge.result == 'challenged_win' %}
+                                <span class="text-success fw-bold">
+                                    <i class="fas fa-trophy"></i> Vitória do Desafiado ({{ challenge.challenged_name }})
+                                </span>
+                            {% else %}
+                                {{ challenge.result }}
+                            {% endif %}
+                            
+                            {% if challenge.result_type and challenge.result_type != 'normal' %}
+                                <span class="badge bg-warning text-dark ms-2">
+                                    <i class="fas fa-user-slash"></i> WO
+                                </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                    
+                    {% if challenge.result_type and challenge.result_type != 'normal' %}
+                    <tr>
+                        <th>Tipo:</th>
+                        <td>
+                            {% if challenge.result_type == 'wo_challenger' %}
+                                <span class="text-warning">
+                                    <i class="fas fa-user-slash"></i> WO - Desafiado não compareceu
+                                </span>
+                            {% elif challenge.result_type == 'wo_challenged' %}
+                                <span class="text-warning">
+                                    <i class="fas fa-user-slash"></i> WO - Desafiante não compareceu
+                                </span>
+                            {% endif %}
+                        </td>
+                    </tr>
                     {% endif %}
                 </table>
             </div>
+            
+            <!-- COLUNA: Ações -->
             <div class="col-md-6">
                 {% if 'user_id' in session %}
-                    <h4>Ações</h4>
+                    <h4><i class="fas fa-cogs"></i> Ações</h4>
                     
                     {% set is_admin = session.get('is_admin', False) %}
                     {% set is_challenger = challenge.challenger_id|int == session.user_id|int %}
                     {% set is_challenged = challenge.challenged_id|int == session.user_id|int %}
                     {% set is_participant = is_challenger or is_challenged %}
-                    
-                    {# NOVA LÓGICA: Verificar se jogadores podem submeter resultados #}
                     {% set can_submit_result = is_admin or (players_can_submit and is_participant) %}
                     
-                    {# Aviso quando jogadores não podem submeter resultados #}
+                    <!-- Aviso quando jogadores não podem submeter resultados -->
                     {% if not players_can_submit and not is_admin and is_participant and challenge.status in ['pending', 'accepted'] %}
                         <div class="alert alert-warning">
                             <i class="fas fa-exclamation-triangle"></i> 
@@ -126,124 +159,135 @@
                         </div>
                     {% endif %}
                     
-                    {% if challenge.status in ['pending', 'accepted'] %}
-                        {# Verifica se o usuário pode realizar ações #}
-                        {% if can_submit_result %}
-                            <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post" class="mb-2" id="challengeForm">
+                    <!-- ============================================================ -->
+                    <!-- FORMULÁRIO DE AÇÕES (Admin ou Participante com permissão) -->
+                    <!-- ============================================================ -->
+                    {% if challenge.status in ['pending', 'accepted'] and can_submit_result %}
+                        <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post" class="mb-3" id="challengeForm">
+                            
+                            <!-- Select de Ação/Status -->
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Ação:</label>
+                                <select name="status" class="form-select" required id="statusSelect">
+                                    <option value="">-- Selecione uma ação --</option>
+                                    
+                                    <!-- Opções para o DESAFIADO (pendente) -->
+                                    {% if challenge.status == 'pending' and is_challenged %}
+                                        <option value="accepted">✅ Aceitar Desafio</option>
+                                        <option value="cancelled">❌ Rejeitar/Cancelar Desafio</option>
+                                    {% endif %}
+                                    
+                                    <!-- Opções para ADMIN quando não é o desafiado -->
+                                    {% if is_admin and challenge.status == 'pending' and not is_challenged %}
+                                        <option value="accepted">✅ Aceitar Desafio (Admin)</option>
+                                        <option value="cancelled">❌ Cancelar Desafio (Admin)</option>
+                                    {% endif %}
+                                    
+                                    <!-- ============================================================ -->
+                                    <!-- OPÇÕES DE CONCLUSÃO (para participantes ou admin) -->
+                                    <!-- ============================================================ -->
+                                    {% if challenge.status in ['pending', 'accepted'] %}
+                                        <option value="completed">🏆 Marcar como Concluído</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                            
+                            <!-- ============================================================ -->
+                            <!-- OPÇÕES DE RESULTADO (aparece quando status é completed) -->
+                            <!-- ============================================================ -->
+                            <div id="resultOptions" style="display: none;">
+                                
+                                <!-- Quem venceu -->
                                 <div class="mb-3">
-                                    <label class="form-label fw-bold">Ação:</label>
-                                    <select name="status" class="form-select" required id="statusSelect">
-                                        <option value="">-- Selecione uma ação --</option>
-                                        {% if challenge.status == 'pending' and is_challenged %}
-                                            <option value="accepted">Aceitar Desafio</option>
-                                            <option value="cancelled">Rejeitar/Cancelar Desafio</option>
-                                        {% endif %}
-                                        
-                                        {# Opções disponíveis para participantes (se habilitado) ou admin #}
-                                        {% if challenge.status in ['pending', 'accepted'] and can_submit_result %}
-                                            <option value="completed">Marcar como Concluído</option>
-                                            <option value="completed_pending">Concluído (com pendência)</option>
-                                        {% endif %}
-                                        
-                                        {# Para admins, mostrar todas as opções #}
-                                        {% if is_admin %}
-                                            {% if challenge.status == 'pending' and not is_challenged %}
-                                                <option value="accepted">Aceitar Desafio</option>
-                                                <option value="cancelled">Rejeitar/Cancelar Desafio</option>
-                                            {% endif %}
-                                        {% endif %}
+                                    <label class="form-label fw-bold">Quem venceu?</label>
+                                    <select name="result" class="form-select" id="resultSelect">
+                                        <option value="">-- Selecione o vencedor --</option>
+                                        <option value="challenger_win">🏆 {{ challenge.challenger_name }} (Desafiante)</option>
+                                        <option value="challenged_win">🏆 {{ challenge.challenged_name }} (Desafiado)</option>
                                     </select>
                                 </div>
                                 
-                                {# Opções de resultado - aparecem quando status é completed #}
-                                <div id="resultOptions" style="display: none;">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Quem venceu?</label>
-                                        <select name="result" class="form-select" id="resultSelect">
-                                            <option value="">-- Selecione o vencedor --</option>
-                                            <option value="challenger_win">{{ challenge.challenger_name }} (Desafiante)</option>
-                                            <option value="challenged_win">{{ challenge.challenged_name }} (Desafiado)</option>
-                                        </select>
-                                    </div>
-                                    
-                                    {# NOVO: Tipo de resultado (Normal ou WO) #}
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Tipo de Resultado:</label>
-                                        <select name="result_type" class="form-select" id="resultTypeSelect">
-                                            <option value="normal">Jogo Normal</option>
-                                            <option value="wo_challenger">WO - Desafiado não compareceu</option>
-                                            <option value="wo_challenged">WO - Desafiante não compareceu</option>
-                                        </select>
-                                        <small class="text-muted">
-                                            <i class="fas fa-info-circle"></i> 
-                                            WO (Walkover): Vitória por ausência do adversário
-                                        </small>
-                                    </div>
+                                <!-- Tipo de Resultado (Normal ou WO) -->
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Tipo de Resultado:</label>
+                                    <select name="result_type" class="form-select" id="resultTypeSelect">
+                                        <option value="normal">⚽ Jogo Normal</option>
+                                        <option value="wo_challenger">🚫 WO - Desafiado não compareceu</option>
+                                        <option value="wo_challenged">🚫 WO - Desafiante não compareceu</option>
+                                    </select>
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle"></i> 
+                                        WO (Walkover): Vitória por ausência do adversário
+                                    </small>
                                 </div>
-                                
-                                {# Campo para observações do administrador #}
-                                {% if is_admin %}
-                                <div id="adminNotesDiv" style="display: none;">
-                                    <div class="mb-3">
-                                        <label class="form-label">Observações (opcional):</label>
-                                        <input type="text" name="admin_notes" class="form-control" placeholder="Observações sobre o resultado...">
-                                    </div>
+                            </div>
+                            
+                            <!-- Observações do administrador -->
+                            {% if is_admin %}
+                            <div id="adminNotesDiv" style="display: none;">
+                                <div class="mb-3">
+                                    <label class="form-label">Observações (opcional):</label>
+                                    <input type="text" name="admin_notes" class="form-control" placeholder="Observações sobre o resultado...">
                                 </div>
-                                <input type="hidden" name="modified_by_admin" value="true">
-                                {% endif %}
-                                
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-check"></i> Executar
-                                </button>
-                            </form>
-                        {% endif %}
+                            </div>
+                            <input type="hidden" name="modified_by_admin" value="true">
+                            {% endif %}
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-check"></i> Executar Ação
+                            </button>
+                        </form>
                     {% endif %}
                     
+                    <!-- Botões de Admin -->
+                    {% if is_admin %}
                     <div class="btn-group mb-3">
-                        {% if is_admin %}
-                        <a href="{{ url_for('edit_challenge', challenge_id=challenge.id) }}" class="btn btn-outline-primary">Editar Desafio</a>
-                        {# Botão de exclusão disponível apenas para administradores #}
+                        <a href="{{ url_for('edit_challenge', challenge_id=challenge.id) }}" class="btn btn-outline-primary">
+                            <i class="fas fa-edit"></i> Editar Desafio
+                        </a>
                         <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
-                            Excluir Desafio
+                            <i class="fas fa-trash"></i> Excluir Desafio
                         </button>
-                        {% endif %}
                     </div>
+                    {% endif %}
+                    
                 {% endif %}
             </div>
         </div>
         
-        {# Seção de prazo para resposta #}
-        {% if challenge.status == 'pending' %}
-            <div class="alert {% if expired %}alert-danger{% else %}alert-warning{% endif %} mt-3">
-                <h5>Prazo para resposta:</h5>
-                <p class="text-danger">
-                    O desafiado tem até <strong>{{ challenge.response_deadline|datetime('%d/%m/%Y') }}</strong> para aceitar, 
+        <!-- ============================================================ -->
+        <!-- ALERTA DE PRAZO PARA RESPOSTA (quando pendente) -->
+        <!-- ============================================================ -->
+        {% if challenge.status == 'pending' and challenge.response_deadline %}
+            <div class="alert {% if expired %}alert-danger{% else %}alert-warning{% endif %} mt-4">
+                <h5><i class="fas fa-clock"></i> Prazo para Resposta</h5>
+                <p class="mb-0">
+                    O desafiado tem até <strong>{{ challenge.response_deadline|datetime('%d/%m/%Y às %H:%M') }}</strong> para aceitar, 
                     propor outra data ou rejeitar este desafio.
                     {% if expired %}
-                        <br><span class="fw-bold">Prazo para resposta expirado!</span>
+                        <br><span class="fw-bold text-danger"><i class="fas fa-exclamation-triangle"></i> PRAZO EXPIRADO!</span>
+                    {% elif days_remaining == 0 %}
+                        <br><span class="fw-bold text-warning"><i class="fas fa-exclamation-circle"></i> Vence HOJE!</span>
+                    {% elif days_remaining == 1 %}
+                        <br><span class="text-warning"><i class="fas fa-clock"></i> Vence amanhã!</span>
                     {% else %}
-                        {% if days_remaining == 0 %}
-                            <br>Vence hoje!
-                        {% elif days_remaining == 1 %}
-                            <br>Vence amanhã!
-                        {% else %}
-                            <br>Restam {{ days_remaining }} dias para responder.
-                        {% endif %}
+                        <br><i class="fas fa-calendar"></i> Restam <strong>{{ days_remaining }} dias</strong> para responder.
                     {% endif %}
                 </p>
             </div>
         {% endif %}
         
-        {# Bloco para ações do desafiado - MODIFICADO COM VERIFICAÇÃO DE PERMISSÃO #}
+        <!-- ============================================================ -->
+        <!-- BLOCO DE RESPOSTA PARA O DESAFIADO -->
+        <!-- ============================================================ -->
         {% if challenge.status == 'pending' and challenge.challenged_id|int == session.user_id|int %}
-        <div class="card mb-4 border-warning">
-            <div class="card-header bg-warning text-white">
-                <h5 class="mb-0">Responder ao Desafio</h5>
+        <div class="card mb-4 border-warning mt-4">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-reply"></i> Responder ao Desafio</h5>
             </div>
             <div class="card-body">
                 {% if not players_can_submit and not session.get('is_admin', False) %}
-                    {# Se jogadores não podem submeter e não é admin #}
-                    <div class="alert alert-info">
+                    <div class="alert alert-info mb-0">
                         <i class="fas fa-info-circle"></i> 
                         <strong>Atenção:</strong> A resposta a desafios está temporariamente desabilitada. 
                         Entre em contato com um administrador para responder a este desafio.
@@ -252,51 +296,80 @@
                     <p>Você foi desafiado por <strong>{{ challenge.challenger_name }}</strong>. Selecione uma das opções abaixo:</p>
                     
                     <div class="row mt-3">
-                        <div class="col-md-4">
+                        <!-- Aceitar -->
+                        <div class="col-md-4 mb-2">
                             <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post">
                                 <input type="hidden" name="status" value="accepted">
-                                <button type="submit" class="btn btn-success w-100">Aceitar Desafio</button>
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="fas fa-check"></i> Aceitar Desafio
+                                </button>
                             </form>
                         </div>
-                        <div class="col-md-4">
-                            <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post" onsubmit="return confirm('Tem certeza que deseja rejeitar o desafio? Isto será considerado uma vitória para o desafiante.');">
+                        
+                        <!-- Rejeitar (WO) -->
+                        <div class="col-md-4 mb-2">
+                            <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post" 
+                                  onsubmit="return confirm('Tem certeza que deseja rejeitar o desafio?\n\nIsto será considerado uma DERROTA por WO (ausência) para você.');">
                                 <input type="hidden" name="status" value="completed">
                                 <input type="hidden" name="result" value="challenger_win">
                                 <input type="hidden" name="result_type" value="wo_challenged">
-                                <button type="submit" class="btn btn-danger w-100">Rejeitar Desafio</button>
+                                <button type="submit" class="btn btn-danger w-100">
+                                    <i class="fas fa-times"></i> Rejeitar Desafio
+                                </button>
                             </form>
                         </div>
-                        <div class="col-md-4">
+                        
+                        <!-- Propor Nova Data -->
+                        <div class="col-md-4 mb-2">
                             <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#proposeDateModal">
-                                Propor Nova Data
+                                <i class="fas fa-calendar-alt"></i> Propor Nova Data
                             </button>
                         </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3 mb-0">
+                        <small>
+                            <i class="fas fa-info-circle"></i> 
+                            <strong>Atenção:</strong> Se você rejeitar o desafio, será considerada uma derrota por WO (ausência) 
+                            e você perderá sua posição no ranking.
+                        </small>
                     </div>
                 {% endif %}
             </div>
         </div>
         
-        {# Modal para propor nova data #}
+        <!-- ============================================================ -->
+        <!-- MODAL: Propor Nova Data -->
+        <!-- ============================================================ -->
         <div class="modal fade" id="proposeDateModal" tabindex="-1" aria-labelledby="proposeDateModalLabel" aria-hidden="true">
             <div class="modal-dialog">
                 <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="proposeDateModalLabel">Propor Nova Data para o Desafio</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title" id="proposeDateModalLabel">
+                            <i class="fas fa-calendar-alt"></i> Propor Nova Data
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <form action="{{ url_for('edit_challenge', challenge_id=challenge.id) }}" method="post">
                         <div class="modal-body">
                             <div class="mb-3">
-                                <label for="new_scheduled_date" class="form-label">Nova Data do Desafio</label>
+                                <label for="new_scheduled_date" class="form-label fw-bold">Nova Data do Desafio:</label>
                                 <input type="date" class="form-control" id="new_scheduled_date" name="scheduled_date" required>
-                                <div class="form-text">A nova data deve estar dentro dos próximos 2 dias a partir de hoje.</div>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle"></i> 
+                                    A nova data deve estar dentro dos próximos <strong>7 dias</strong> a partir de hoje.
+                                </div>
                                 <div id="modal-date-error" class="text-danger mt-1"></div>
                             </div>
                             <input type="hidden" name="status" value="pending">
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="submit" class="btn btn-primary">Propor Data</button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="fas fa-times"></i> Cancelar
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane"></i> Propor Data
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -304,27 +377,41 @@
         </div>
         {% endif %}
         
-        {# NOVA SEÇÃO: Informativo para jogadores quando está desabilitado e desafio está aceito #}
+        <!-- ============================================================ -->
+        <!-- INFORMATIVO: Desafio aceito mas jogadores não podem submeter -->
+        <!-- ============================================================ -->
         {% if challenge.status == 'accepted' and not players_can_submit and not session.get('is_admin', False) %}
             {% if is_challenger or is_challenged %}
-            <div class="alert alert-info mt-3">
+            <div class="alert alert-info mt-4">
                 <i class="fas fa-info-circle"></i> 
                 <strong>Informação:</strong> A submissão de resultados por jogadores está temporariamente desabilitada. 
                 Quando o jogo for realizado, entre em contato com um administrador para registrar o resultado.
             </div>
             {% endif %}
         {% endif %}
+        
+        <!-- Botão Voltar -->
+        <div class="mt-4">
+            <a href="{{ url_for('challenges_calendar') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Voltar ao Calendário
+            </a>
+        </div>
+        
     </div>
 </div>
 
-{# Modal de exclusão - disponível apenas para administradores #}
+<!-- ============================================================ -->
+<!-- MODAL: Exclusão (Admin apenas) -->
+<!-- ============================================================ -->
 {% if session.get('is_admin', False) %}
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="deleteModalLabel">Confirmar Exclusão</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="deleteModalLabel">
+                    <i class="fas fa-exclamation-triangle"></i> Confirmar Exclusão
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <p>Tem certeza que deseja excluir este desafio?</p>
@@ -332,6 +419,7 @@
                 
                 {% if challenge.status == 'completed' and challenge.result %}
                     <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
                         <strong>Aviso!</strong> Este desafio já foi concluído e pode ter afetado o ranking. 
                         A exclusão tentará reverter as alterações no ranking, mas recomenda-se cautela.
                     </div>
@@ -339,178 +427,198 @@
                 
                 <form id="deleteForm" action="{{ url_for('delete_challenge', challenge_id=challenge.id) }}" method="post">
                     <div class="mb-3">
-                        <label for="admin_delete_reason" class="form-label">Motivo da Exclusão:</label>
-                        <textarea class="form-control" id="admin_delete_reason" name="admin_delete_reason" rows="2" required placeholder="Explique o motivo da exclusão deste desafio"></textarea>
+                        <label for="admin_delete_reason" class="form-label fw-bold">Motivo da Exclusão:</label>
+                        <textarea class="form-control" id="admin_delete_reason" name="admin_delete_reason" rows="2" required 
+                                  placeholder="Explique o motivo da exclusão deste desafio"></textarea>
                     </div>
                     <input type="hidden" name="admin_action" value="true">
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="submit" form="deleteForm" class="btn btn-danger">Excluir</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="submit" form="deleteForm" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Excluir Desafio
+                </button>
             </div>
         </div>
     </div>
 </div>
 {% endif %}
 
+<!-- ============================================================ -->
+<!-- JAVASCRIPT -->
+<!-- ============================================================ -->
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const statusSelect = document.getElementById('statusSelect');
-        const resultOptions = document.getElementById('resultOptions');
-        const adminNotesDiv = document.getElementById('adminNotesDiv');
-        const resultSelect = document.getElementById('resultSelect');
-        const resultTypeSelect = document.getElementById('resultTypeSelect');
-        
-        // Mostrar/ocultar opções de resultado baseado no status
-        if (statusSelect) {
-            statusSelect.addEventListener('change', function() {
-                if (this.value === 'completed' || this.value === 'completed_pending') {
-                    resultOptions.style.display = 'block';
-                    if (adminNotesDiv) {
-                        adminNotesDiv.style.display = 'block';
-                    }
-                } else {
-                    resultOptions.style.display = 'none';
-                    if (adminNotesDiv) {
-                        adminNotesDiv.style.display = 'none';
-                    }
+document.addEventListener('DOMContentLoaded', function() {
+    const statusSelect = document.getElementById('statusSelect');
+    const resultOptions = document.getElementById('resultOptions');
+    const adminNotesDiv = document.getElementById('adminNotesDiv');
+    const resultSelect = document.getElementById('resultSelect');
+    const resultTypeSelect = document.getElementById('resultTypeSelect');
+    
+    // ============================================================
+    // Mostrar/ocultar opções de resultado baseado no status
+    // ============================================================
+    if (statusSelect) {
+        statusSelect.addEventListener('change', function() {
+            // Mostrar opções de resultado quando for "completed"
+            if (this.value === 'completed') {
+                resultOptions.style.display = 'block';
+                if (adminNotesDiv) {
+                    adminNotesDiv.style.display = 'block';
                 }
-            });
-        }
-        
-        // NOVO: Auto-selecionar vencedor quando escolher WO
-        if (resultTypeSelect) {
-            resultTypeSelect.addEventListener('change', function() {
-                if (this.value === 'wo_challenger') {
-                    // Desafiado não compareceu = Desafiante vence
-                    resultSelect.value = 'challenger_win';
-                } else if (this.value === 'wo_challenged') {
-                    // Desafiante não compareceu = Desafiado vence
-                    resultSelect.value = 'challenged_win';
+            } else {
+                resultOptions.style.display = 'none';
+                if (adminNotesDiv) {
+                    adminNotesDiv.style.display = 'none';
                 }
-            });
-        }
-        
-        // NOVO: Validação do formulário
-        const challengeForm = document.getElementById('challengeForm');
-        if (challengeForm) {
-            challengeForm.addEventListener('submit', function(e) {
-                const status = statusSelect.value;
+            }
+        });
+    }
+    
+    // ============================================================
+    // Auto-selecionar vencedor quando escolher WO
+    // ============================================================
+    if (resultTypeSelect) {
+        resultTypeSelect.addEventListener('change', function() {
+            if (this.value === 'wo_challenger') {
+                // Desafiado não compareceu = Desafiante vence
+                resultSelect.value = 'challenger_win';
+            } else if (this.value === 'wo_challenged') {
+                // Desafiante não compareceu = Desafiado vence
+                resultSelect.value = 'challenged_win';
+            }
+        });
+    }
+    
+    // ============================================================
+    // Validação do formulário principal
+    // ============================================================
+    const challengeForm = document.getElementById('challengeForm');
+    if (challengeForm) {
+        challengeForm.addEventListener('submit', function(e) {
+            const status = statusSelect.value;
+            
+            if (status === 'completed') {
+                const result = resultSelect.value;
+                const resultType = resultTypeSelect.value;
                 
-                if (status === 'completed' || status === 'completed_pending') {
-                    const result = resultSelect.value;
-                    const resultType = resultTypeSelect.value;
-                    
-                    // Validar se selecionou vencedor
-                    if (!result) {
-                        e.preventDefault();
-                        alert('Por favor, selecione quem venceu o desafio.');
-                        return false;
-                    }
-                    
-                    // Validar consistência WO
-                    if (resultType === 'wo_challenger' && result !== 'challenger_win') {
-                        e.preventDefault();
-                        alert('Se o desafiado não compareceu (WO), o vencedor deve ser o desafiante.');
-                        return false;
-                    }
-                    
-                    if (resultType === 'wo_challenged' && result !== 'challenged_win') {
-                        e.preventDefault();
-                        alert('Se o desafiante não compareceu (WO), o vencedor deve ser o desafiado.');
-                        return false;
-                    }
-                    
-                    // Confirmação para WO
-                    if (resultType !== 'normal') {
-                        if (!confirm('Você está registrando uma vitória por WO (ausência). Confirma?')) {
-                            e.preventDefault();
-                            return false;
-                        }
-                    }
+                // Validar se selecionou vencedor
+                if (!result) {
+                    e.preventDefault();
+                    alert('Por favor, selecione quem venceu o desafio.');
+                    return false;
                 }
                 
-                return true;
-            });
-        }
+                // Validar consistência WO
+                if (resultType === 'wo_challenger' && result !== 'challenger_win') {
+                    e.preventDefault();
+                    alert('Se o desafiado não compareceu (WO), o vencedor deve ser o desafiante.');
+                    return false;
+                }
+                
+                if (resultType === 'wo_challenged' && result !== 'challenged_win') {
+                    e.preventDefault();
+                    alert('Se o desafiante não compareceu (WO), o vencedor deve ser o desafiado.');
+                    return false;
+                }
+                
+                // Confirmação para WO
+                if (resultType !== 'normal') {
+                    if (!confirm('Você está registrando uma vitória por WO (ausência). Confirma?')) {
+                        e.preventDefault();
+                        return false;
+                    }
+                }
+            }
+            
+            return true;
+        });
+    }
+    
+    // ============================================================
+    // Validação da data para o modal de propor nova data
+    // Data máxima: 7 DIAS (prazo para realizar o jogo)
+    // ============================================================
+    const newDateField = document.getElementById('new_scheduled_date');
+    if (newDateField) {
         
-        // Validação da data para o modal de propor nova data
-        const newDateField = document.getElementById('new_scheduled_date');
-        if (newDateField) {
-            // Função para calcular a data máxima (hoje + 2 dias)
-            function getMaxDate() {
-                const today = new Date();
-                const maxDate = new Date();
-                maxDate.setDate(today.getDate() + 2);
-                return maxDate;
-            }
-            
-            // Formatar data para o formato yyyy-mm-dd (usado em inputs date)
-            function formatDateForInput(date) {
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            }
-            
-            // Definir a data máxima (2 dias a partir de hoje)
-            const maxDate = getMaxDate();
-            newDateField.max = formatDateForInput(maxDate);
-            
-            // Definir a data mínima (hoje)
+        // Função para calcular a data máxima (hoje + 7 dias)
+        function getMaxDate() {
             const today = new Date();
-            newDateField.min = formatDateForInput(today);
+            const maxDate = new Date();
+            maxDate.setDate(today.getDate() + 7);  // 7 dias para realizar o jogo
+            return maxDate;
+        }
+        
+        // Formatar data para o formato yyyy-mm-dd
+        function formatDateForInput(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        
+        // Definir a data máxima (7 dias a partir de hoje)
+        const maxDate = getMaxDate();
+        newDateField.max = formatDateForInput(maxDate);
+        
+        // Definir a data mínima (hoje)
+        const today = new Date();
+        newDateField.min = formatDateForInput(today);
+        
+        // Definir valor inicial (amanhã)
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        newDateField.value = formatDateForInput(tomorrow);
+        
+        // Função para validar a data
+        function validateDate() {
+            const selectedDate = new Date(newDateField.value);
+            selectedDate.setHours(0, 0, 0, 0);
             
-            // Definir valor inicial (amanhã)
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            newDateField.value = formatDateForInput(tomorrow);
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
             
-            // Função para validar a data
-            function validateDate() {
-                const selectedDate = new Date(newDateField.value);
-                selectedDate.setHours(0, 0, 0, 0);
-                
-                today.setHours(0, 0, 0, 0);
-                
-                const maxDateObj = getMaxDate();
-                maxDateObj.setHours(23, 59, 59, 0);
-                
-                const errorElement = document.getElementById('modal-date-error');
-                
-                if (selectedDate < today) {
-                    errorElement.textContent = "A data não pode ser anterior à data atual.";
-                    newDateField.setCustomValidity("Data inválida");
-                    return false;
-                } else if (selectedDate > maxDateObj) {
-                    errorElement.textContent = "A data deve ser no máximo 2 dias a partir de hoje.";
-                    newDateField.setCustomValidity("Data inválida");
-                    return false;
-                } else {
-                    errorElement.textContent = "";
-                    newDateField.setCustomValidity("");
-                    return true;
-                }
-            }
+            const maxDateObj = getMaxDate();
+            maxDateObj.setHours(23, 59, 59, 0);
             
-            // Adicionar eventos de validação
-            newDateField.addEventListener('change', validateDate);
-            newDateField.addEventListener('input', validateDate);
+            const errorElement = document.getElementById('modal-date-error');
             
-            // Validar data inicial
-            validateDate();
-            
-            // Validar ao enviar o formulário
-            const form = newDateField.closest('form');
-            if (form) {
-                form.addEventListener('submit', function(event) {
-                    if (!validateDate()) {
-                        event.preventDefault();
-                    }
-                });
+            if (selectedDate < todayStart) {
+                errorElement.textContent = "A data não pode ser anterior à data atual.";
+                newDateField.setCustomValidity("Data inválida");
+                return false;
+            } else if (selectedDate > maxDateObj) {
+                errorElement.textContent = "A data deve ser no máximo 7 dias a partir de hoje.";
+                newDateField.setCustomValidity("Data inválida");
+                return false;
+            } else {
+                errorElement.textContent = "";
+                newDateField.setCustomValidity("");
+                return true;
             }
         }
-    });
+        
+        // Adicionar eventos de validação
+        newDateField.addEventListener('change', validateDate);
+        newDateField.addEventListener('input', validateDate);
+        
+        // Validar data inicial
+        validateDate();
+        
+        // Validar ao enviar o formulário
+        const form = newDateField.closest('form');
+        if (form) {
+            form.addEventListener('submit', function(event) {
+                if (!validateDate()) {
+                    event.preventDefault();
+                }
+            });
+        }
+    }
+});
 </script>
 {% endblock %}
