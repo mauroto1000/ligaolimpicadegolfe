@@ -671,8 +671,10 @@ def reset_password(token):
     conn.close()
     return render_template('reset_password.html', token=token)
 
-# Dashboard do jogador
-# 2. Modificação na rota dashboard para melhorar os alertas para desafiados
+# ============================================================
+# ROTA DASHBOARD - CORRIGIDA COM ALERTAS DE 2 DIAS
+# ============================================================
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -691,7 +693,7 @@ def dashboard():
         flash('Sua conta não foi encontrada. Por favor, faça login novamente.', 'error')
         return redirect(url_for('login'))
     
-    # Buscar desafios pendentes
+    # Buscar desafios pendentes como desafiante
     challenges_as_challenger = conn.execute('''
         SELECT c.*, p.name as opponent_name, p.position as opponent_position
         FROM challenges c
@@ -715,15 +717,12 @@ def dashboard():
         challenge_dict = dict(challenge)
         if challenge_dict['status'] == 'pending' and challenge_dict['response_deadline']:
             try:
-                # Extrair apenas a data (sem o horário)
                 deadline_obj = datetime.strptime(challenge_dict['response_deadline'], '%Y-%m-%d %H:%M:%S')
                 deadline_date = deadline_obj.date()
                 today_date = datetime.now().date()
                 
-                # Calcular diferença em dias
                 days_remaining = (deadline_date - today_date).days
                 
-                # Adicionar ao dicionário
                 challenge_dict['days_remaining'] = days_remaining
                 challenge_dict['deadline_date'] = deadline_date.strftime('%Y-%m-%d')
             except Exception as e:
@@ -749,11 +748,8 @@ def dashboard():
     # Buscar jogadores que podem ser desafiados
     potential_challenges = []
     if player['active'] == 1 and player['position']:
-        # Calcular o tier anterior (um nível acima)
         tier = player['tier']
         prev_tier = chr(ord(tier) - 1) if ord(tier) > ord('A') else tier
-        
-        # Calcular posição mínima (limite de 8 posições acima)
         min_position = max(1, player['position'] - 8)
 
         potential_challenges = conn.execute('''
@@ -775,23 +771,30 @@ def dashboard():
     
     conn.close()
     
-    # Adicionar verificação para desafios pendentes e mostrar alertas
+    # ============================================================
+    # ALERTAS DE DESAFIOS PENDENTES - PRAZO DE 2 DIAS
+    # ============================================================
     for challenge in challenges_as_challenged_list:
         if challenge['status'] == 'pending' and 'days_remaining' in challenge:
             days_remaining = challenge['days_remaining']
             if days_remaining is not None:
+                link = url_for("challenge_detail", challenge_id=challenge["id"])
+                
                 if days_remaining < 0:
                     # Prazo expirado
-                    flash(f'ATENÇÃO: Você foi desafiado por {challenge["opponent_name"]}. O prazo para aceitar, rejeitar ou propor nova data EXPIROU! Acesse <a href="{url_for("challenge_detail", challenge_id=challenge["id"])}">aqui</a> para responder.', 'danger')
+                    flash(f'⚠️ ATENÇÃO: Você foi desafiado por {challenge["opponent_name"]}. O prazo para responder EXPIROU há {abs(days_remaining)} dia(s)! <a href="{link}">Responder agora</a>.', 'danger')
+                
                 elif days_remaining == 0:
                     # Vence hoje
-                    flash(f'ATENÇÃO: Você foi desafiado por {challenge["opponent_name"]}! O prazo para aceitar, rejeitar ou propor nova data vence HOJE. Acesse <a href="{url_for("challenge_detail", challenge_id=challenge["id"])}">aqui</a> para responder.', 'warning')
-                elif days_remaining <= 2:
-                    # Próximo do vencimento (2 dias ou menos)
-                    flash(f'ATENÇÃO: Você foi desafiado por {challenge["opponent_name"]}! Você tem {days_remaining} dias para aceitar, rejeitar ou propor nova data dentro de 7 dias a partir de hoje. Acesse <a href="{url_for("challenge_detail", challenge_id=challenge["id"])}">aqui</a> para responder.', 'warning')
+                    flash(f'⏰ URGENTE: Você foi desafiado por {challenge["opponent_name"]}! O prazo para responder vence HOJE. <a href="{link}">Responder agora</a>.', 'warning')
+                
+                elif days_remaining == 1:
+                    # Vence amanhã
+                    flash(f'⏳ ATENÇÃO: Você foi desafiado por {challenge["opponent_name"]}! Você tem apenas 1 dia para responder. <a href="{link}">Responder agora</a>.', 'warning')
+                
                 else:
-                    # Demais casos, ainda no prazo
-                    flash(f'Você foi desafiado por {challenge["opponent_name"]}! Você tem {days_remaining} dias para aceitar, rejeitar ou propor nova data dentro de 7 dias a partir de hoje. Acesse <a href="{url_for("challenge_detail", challenge_id=challenge["id"])}">aqui</a> para responder.', 'info')
+                    # Ainda no prazo (2 dias ou mais - não deveria acontecer com prazo de 2 dias)
+                    flash(f'📩 Você foi desafiado por {challenge["opponent_name"]}! Você tem {days_remaining} dias para aceitar ou rejeitar. <a href="{link}">Ver desafio</a>.', 'info')
     
     return render_template('dashboard.html', 
                           player=player,
@@ -2640,30 +2643,38 @@ def update_player_sexo(player_id):
     return redirect(url_for('player_detail', player_id=player_id))
 
 
+# ============================================
+# ROTA INDEX COMPLETA - Substitua no app.py
+# ============================================
+
 @app.route('/')
-@login_required 
+@login_required
 def index():
     conn = get_db_connection()
     
-    # Buscar jogadores ativos MASCULINOS (excluir VIPs)
+    # Jogadores masculinos ativos (exclui VIPs com position = 0)
     male_players = conn.execute('''
         SELECT * FROM players 
         WHERE active = 1 
+        AND (tipo_membro = 'jogador' OR tipo_membro IS NULL OR tipo_membro = '')
         AND (sexo = 'masculino' OR sexo IS NULL OR sexo = '')
-        AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+        AND position > 0
         ORDER BY position
     ''').fetchall()
     
-    # Buscar jogadores ativos FEMININOS (excluir VIPs)
+    # Jogadoras femininas ativas (exclui VIPs com position = 0)
     female_players = conn.execute('''
         SELECT * FROM players 
         WHERE active = 1 
+        AND (tipo_membro = 'jogador' OR tipo_membro IS NULL OR tipo_membro = '')
         AND sexo = 'feminino'
-        AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+        AND position > 0
         ORDER BY position
     ''').fetchall()
     
-    # Buscar MEMBROS VIP (nova seção)
+    # ============================================
+    # IMPORTANTE: Query para Membros VIP
+    # ============================================
     vip_members = conn.execute('''
         SELECT * FROM players 
         WHERE active = 1 
@@ -2671,11 +2682,18 @@ def index():
         ORDER BY name
     ''').fetchall()
     
-    # Buscar jogadores inativos
-    inactive_players = conn.execute('SELECT * FROM players WHERE active = 0 ORDER BY name').fetchall()
+    # Jogadores inativos (todos os tipos)
+    inactive_players = conn.execute('''
+        SELECT * FROM players 
+        WHERE active = 0
+        ORDER BY name
+    ''').fetchall()
     
     conn.close()
     
+    # ============================================
+    # IMPORTANTE: Passar vip_members para o template
+    # ============================================
     return render_template('index.html', 
                           male_players=male_players,
                           female_players=female_players,
@@ -2887,18 +2905,32 @@ def challenges_list():
 # 1. Modificação na rota new_challenge para validar a data do desafio (máximo 7 dias)
 # Substitua a rota new_challenge existente por esta versão modificada
 
-# Substitua a rota new_challenge existente por esta versão modificada
+# ============================================================
+# ROTA NEW_CHALLENGE - COMPLETA E CORRIGIDA
+# ============================================================
+# Prazos:
+# - response_deadline (aceitar/rejeitar): 2 DIAS
+# - scheduled_date (data do jogo): máximo 7 DIAS
+# ============================================================
+
+# ============================================================
+# ROTA NEW_CHALLENGE - COMPLETA
+# ============================================================
+# PRAZOS:
+# - response_deadline (aceitar/rejeitar): 2 DIAS
+# - scheduled_date (data do jogo): máximo 7 DIAS
+# ============================================================
+
 @app.route('/new_challenge', methods=['GET', 'POST'])
 @login_required
 def new_challenge():
-    # Verificar se os desafios estão bloqueados
     conn = get_db_connection()
+    
+    # Verificar se os desafios estão bloqueados
     setting = conn.execute('SELECT value FROM system_settings WHERE key = ?', ('challenges_locked',)).fetchone()
     challenges_locked = setting and setting['value'] == 'true'
     
-    # Se os desafios estão bloqueados e o usuário não é admin, bloquear
     is_admin = session.get('is_admin', False)
-    # NOVA VERIFICAÇÃO: Identificar se é o admin principal
     is_main_admin = is_admin and session.get('username') == 'admin'
     
     if challenges_locked and not is_admin:
@@ -2911,7 +2943,9 @@ def new_challenge():
         challenged_id = request.form['challenged_id']
         scheduled_date = request.form['scheduled_date']
         
-        # Validação da data do desafio (não pode ser no passado e deve estar dentro de 7 dias)
+        # ============================================================
+        # VALIDAÇÃO DA DATA DO JOGO: máximo 7 dias
+        # ============================================================
         try:
             scheduled_date_obj = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
             today_date = datetime.now().date()
@@ -2940,9 +2974,7 @@ def new_challenge():
             flash('Um dos jogadores está inativo e não pode participar de desafios.', 'error')
             return redirect(url_for('new_challenge'))
         
-        # =====================================================
-        # VERIFICAÇÃO DE BLOQUEIO (VIAGEM/SAÚDE)
-        # =====================================================
+        # Verificação de bloqueio
         if challenged['bloqueado'] == 1:
             motivo = challenged['bloqueio_motivo'] or 'indisponível'
             conn.close()
@@ -2954,14 +2986,11 @@ def new_challenge():
             conn.close()
             flash(f'❌ Você está temporariamente bloqueado ({motivo}) e não pode criar desafios.', 'error')
             return redirect(url_for('dashboard'))
-        # =====================================================
-        # FIM VERIFICAÇÃO DE BLOQUEIO
-        # =====================================================
         
-        # Regras aplicáveis a todos os usuários, incluindo administradores
+        # Regras de validação
         error = None
         
-        # Verificar se algum dos jogadores já tem desafios pendentes ou aceitos
+        # Verificar desafios pendentes
         pending_challenges = conn.execute('''
             SELECT * FROM challenges 
             WHERE (challenger_id = ? OR challenged_id = ? OR challenger_id = ? OR challenged_id = ?)
@@ -2969,7 +2998,6 @@ def new_challenge():
         ''', (challenger_id, challenger_id, challenged_id, challenged_id)).fetchall()
         
         if pending_challenges:
-            # Verificar se o desafio pendente é entre estes mesmos jogadores
             same_players_challenge = False
             for challenge in pending_challenges:
                 if ((challenge['challenger_id'] == int(challenger_id) and challenge['challenged_id'] == int(challenged_id)) or
@@ -2980,52 +3008,48 @@ def new_challenge():
             if same_players_challenge:
                 error = "Já existe um desafio pendente ou aceito entre estes jogadores."
             else:
-                error = "Um dos jogadores já está envolvido em um desafio pendente ou aceito. Conclua o desafio atual antes de criar um novo."
+                error = "Um dos jogadores já está envolvido em um desafio pendente ou aceito."
         
-        # =====================================================
-        # REGRA: Limite de 8 jogadores ELEGÍVEIS acima
-        # (desconsidera jogadores bloqueados na contagem)
-        # =====================================================
+        # Regra de 8 posições
         if not error and not is_main_admin:
             challenger_position = challenger['position']
             challenged_position = challenged['position']
             challenger_sexo = challenger['sexo'] or 'masculino'
             
-            # Regra 1: Só pode desafiar jogadores em posições melhores (número menor)
             if challenged_position >= challenger_position:
                 error = "Você só pode desafiar jogadores em posições melhores que a sua."
             else:
-                # Buscar os 8 jogadores elegíveis acima (não bloqueados, ativos, mesmo sexo)
                 eligible_above = conn.execute('''
                     SELECT id, position FROM players 
                     WHERE active = 1 
                     AND position < ?
+                    AND position > 0
                     AND (bloqueado = 0 OR bloqueado IS NULL)
                     AND (sexo = ? OR (sexo IS NULL AND ? = 'masculino'))
                     ORDER BY position DESC
                     LIMIT 8
                 ''', (challenger_position, challenger_sexo, challenger_sexo)).fetchall()
                 
-                # Verificar se o desafiado está entre os 8 elegíveis
                 eligible_ids = [p['id'] for p in eligible_above]
                 
                 if int(challenged_id) not in eligible_ids:
-                    error = f"Você só pode desafiar os 8 jogadores elegíveis mais próximos acima da sua posição. Jogadores bloqueados não contam."
-        
-        # Se for admin principal, mostrar uma mensagem informativa no log
-        if is_main_admin and not error:
-            print(f"Admin principal criando desafio sem restrições: {challenger['name']} (Pos {challenger['position']}) vs {challenged['name']} (Pos {challenged['position']})")
+                    error = "Você só pode desafiar os 8 jogadores elegíveis mais próximos acima da sua posição."
         
         if error:
             conn.close()
             flash(error, 'error')
             return redirect(url_for('new_challenge'))
         
-        # Processamento do desafio (tudo em ordem para criar)
+        # ============================================================
+        # CRIAR O DESAFIO
+        # ============================================================
         current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        response_deadline = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
         
-        # Inserir o novo desafio
+        # ============================================================
+        # PRAZO PARA RESPONDER: 2 DIAS
+        # ============================================================
+        response_deadline = (datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
+        
         conn.execute('''
             INSERT INTO challenges (
                 challenger_id, 
@@ -3049,16 +3073,13 @@ def new_challenge():
             challenged['position']
         ))
         
-        # Obter o ID do desafio recém-criado
         challenge_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
         
-        # Registrar a criação do desafio no log
+        # Registrar log
         try:
-            # Verificar se a tabela de logs existe
             table_exists = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='challenge_logs'").fetchone()
             
             if not table_exists:
-                # Criar a tabela se não existir
                 conn.execute('''
                     CREATE TABLE challenge_logs (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3074,34 +3095,17 @@ def new_challenge():
                     )
                 ''')
             
-            # Determinar quem está criando o desafio
             creator_type = "Admin Principal" if is_main_admin else "Admin" if is_admin else "Jogador"
+            notes = f"Desafio criado. Jogo marcado para {scheduled_date}. Prazo para resposta: 2 dias."
             
-            # Adicionar nota especial se for admin principal criando sem restrições
-            notes = f"Desafio criado. Marcado para {scheduled_date}"
-            if is_main_admin:
-                notes += " (Criado pelo admin principal sem restrições)"
-            
-            # Inserir o log de criação
             conn.execute('''
                 INSERT INTO challenge_logs 
                 (challenge_id, user_id, modified_by, old_status, new_status, old_result, new_result, notes, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                challenge_id, 
-                session.get('user_id', 'unknown'),
-                creator_type,
-                None,
-                'pending',
-                None,
-                None,
-                notes,
-                current_datetime
-            ))
+            ''', (challenge_id, session.get('user_id', 'unknown'), creator_type, None, 'pending', None, None, notes, current_datetime))
             
         except Exception as e:
-            print(f"Erro ao registrar log de criação: {e}")
-            # Continuar mesmo se o log falhar
+            print(f"Erro ao registrar log: {e}")
         
         conn.commit()
 
@@ -3115,26 +3119,26 @@ def new_challenge():
             )
         except Exception as e:
             print(f"[WhatsApp] Erro: {e}")
-  
 
         conn.close()
         
-        # Mensagem de sucesso diferenciada para admin principal
+        # ============================================================
+        # MENSAGEM DE SUCESSO
+        # ============================================================
         if is_main_admin:
-            flash('Desafio criado com sucesso pelo administrador principal (sem restrições)! O desafiado terá 7 dias para responder.', 'success')
+            flash('Desafio criado com sucesso! O desafiado terá 2 dias para responder.', 'success')
         else:
-            flash('Desafio criado com sucesso! O desafiado terá 7 dias para responder ou propor uma nova data.', 'success')
+            flash('Desafio criado com sucesso! O desafiado terá 2 dias para aceitar, rejeitar ou propor nova data.', 'success')
         
         return redirect(url_for('challenges_calendar'))
     
-    # =====================================================
-    # Para requisições GET, mostrar formulário
-    # =====================================================
+    # ============================================================
+    # GET - Mostrar formulário
+    # ============================================================
     preselected_challenger_id = None
     all_players = []
     eligible_challenged = []
     
-    # Buscar jogadores com desafios pendentes (usado para filtrar)
     pending_challenges = conn.execute('''
         SELECT challenger_id, challenged_id 
         FROM challenges 
@@ -3146,17 +3150,11 @@ def new_challenge():
         players_with_challenges.add(challenge['challenger_id'])
         players_with_challenges.add(challenge['challenged_id'])
     
-    # =====================================================
-    # Buscar jogadores bloqueados para filtrar da lista
-    # =====================================================
     blocked_players = conn.execute('SELECT id FROM players WHERE bloqueado = 1').fetchall()
     blocked_player_ids = {p['id'] for p in blocked_players}
     
     if is_main_admin:
-        # Admin principal vê TODOS os jogadores ativos como possíveis desafiados
-        all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
-        
-        # Verificar se há um desafiante pré-selecionado na query string
+        all_players = conn.execute('SELECT * FROM players WHERE active = 1 AND position > 0 ORDER BY position').fetchall()
         preselected_challenger_id = request.args.get('challenger_id')
         
         if preselected_challenger_id:
@@ -3166,23 +3164,18 @@ def new_challenge():
                                          (preselected_challenger_id,)).fetchone()
                 
                 if challenger:
-                    # Para admin principal, mostrar TODOS os jogadores ativos exceto o próprio desafiante
                     eligible_challenged = conn.execute('''
                         SELECT * FROM players 
-                        WHERE active = 1
-                        AND id != ?
+                        WHERE active = 1 AND id != ? AND position > 0
                         ORDER BY position
                     ''', (preselected_challenger_id,)).fetchall()
                     
-                    # Verificar se o desafiante já tem desafios pendentes
                     if preselected_challenger_id in players_with_challenges:
                         flash('Este jogador já está envolvido em um desafio pendente ou aceito.', 'warning')
                     
-                    # Verificar se o desafiante está bloqueado
                     if preselected_challenger_id in blocked_player_ids:
                         flash('Este jogador está bloqueado e não pode criar desafios.', 'warning')
                     
-                    # Filtrar jogadores com desafios pendentes E bloqueados
                     eligible_challenged = [player for player in eligible_challenged 
                                           if player['id'] not in players_with_challenges
                                           and player['id'] not in blocked_player_ids]
@@ -3190,9 +3183,7 @@ def new_challenge():
                 preselected_challenger_id = None
                 
     elif is_admin:
-        # Outros admins podem selecionar qualquer jogador como desafiante
-        all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
-        
+        all_players = conn.execute('SELECT * FROM players WHERE active = 1 AND position > 0 ORDER BY position').fetchall()
         preselected_challenger_id = request.args.get('challenger_id')
         
         if preselected_challenger_id:
@@ -3202,34 +3193,30 @@ def new_challenge():
                                          (preselected_challenger_id,)).fetchone()
                 
                 if challenger:
-                    # =====================================================
-                    # REGRA: 8 jogadores ELEGÍVEIS acima (não bloqueados)
-                    # =====================================================
+                    challenger_sexo = challenger['sexo'] or 'masculino'
                     eligible_challenged = conn.execute('''
                         SELECT * FROM players 
                         WHERE active = 1
                         AND position < ?
+                        AND position > 0
                         AND (bloqueado = 0 OR bloqueado IS NULL)
+                        AND (sexo = ? OR (sexo IS NULL AND ? = 'masculino'))
                         AND id != ?
                         ORDER BY position DESC
                         LIMIT 8
-                    ''', (challenger['position'], preselected_challenger_id)).fetchall()
+                    ''', (challenger['position'], challenger_sexo, challenger_sexo, preselected_challenger_id)).fetchall()
                     
-                    # Verificar se o desafiante já tem desafios pendentes
                     if preselected_challenger_id in players_with_challenges:
                         flash('Este jogador já está envolvido em um desafio pendente ou aceito.', 'warning')
                     
-                    # Verificar se o desafiante está bloqueado
                     if preselected_challenger_id in blocked_player_ids:
                         flash('Este jogador está bloqueado e não pode criar desafios.', 'warning')
                     
-                    # Filtrar jogadores com desafios pendentes
                     eligible_challenged = [player for player in eligible_challenged 
                                           if player['id'] not in players_with_challenges]
             except (ValueError, TypeError):
                 preselected_challenger_id = None
     else:
-        # Para jogadores normais
         if 'user_id' in session and not is_admin:
             preselected_challenger_id = session['user_id']
         else:
@@ -3241,7 +3228,6 @@ def new_challenge():
                     preselected_challenger_id = None
         
         if preselected_challenger_id:
-            # Verificar se o jogador está bloqueado
             if preselected_challenger_id in blocked_player_ids:
                 conn.close()
                 flash('Você está temporariamente bloqueado e não pode criar desafios.', 'warning')
@@ -3256,35 +3242,31 @@ def new_challenge():
                                      (preselected_challenger_id,)).fetchone()
             
             if challenger:
-                all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
+                all_players = conn.execute('SELECT * FROM players WHERE active = 1 AND position > 0 ORDER BY position').fetchall()
+                challenger_sexo = challenger['sexo'] or 'masculino'
                 
-                # =====================================================
-                # REGRA: 8 jogadores ELEGÍVEIS acima (não bloqueados)
-                # =====================================================
                 eligible_challenged = conn.execute('''
                     SELECT * FROM players 
                     WHERE active = 1
                     AND position < ?
+                    AND position > 0
                     AND (bloqueado = 0 OR bloqueado IS NULL)
+                    AND (sexo = ? OR (sexo IS NULL AND ? = 'masculino'))
                     AND id != ?
                     ORDER BY position DESC
                     LIMIT 8
-                ''', (challenger['position'], preselected_challenger_id)).fetchall()
+                ''', (challenger['position'], challenger_sexo, challenger_sexo, preselected_challenger_id)).fetchall()
                 
-                # Filtrar jogadores com desafios pendentes
                 eligible_challenged = [player for player in eligible_challenged 
                                       if player['id'] not in players_with_challenges]
         else:
-            all_players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
-            # Filtrar jogadores com desafios pendentes E bloqueados
+            all_players = conn.execute('SELECT * FROM players WHERE active = 1 AND position > 0 ORDER BY position').fetchall()
             all_players = [player for player in all_players 
                           if player['id'] not in players_with_challenges
                           and player['id'] not in blocked_player_ids]
     
-    # Adicionar data atual formatada para o campo de data
     today_date = datetime.now().strftime('%Y-%m-%d')
     
-    # Se temos um desafiante pré-selecionado e informações dele
     challenger_info = None
     if preselected_challenger_id:
         challenger_info = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
@@ -3689,112 +3671,123 @@ def history():
 
 
 
-@app.route('/player/<int:player_id>')
-@login_required 
+# ============================================
+# ROTA PLAYER_DETAIL COMPLETA
+# ============================================
+# Substitua no app.py - inclui queries de desafios
+# ============================================
+
+# ============================================
+# ROTA PLAYER_DETAIL CORRIGIDA
+# ============================================
+# sqlite3.Row usa colchetes, não .get()
+# ============================================
+
+# ============================================================
+# ROTA PLAYER_DETAIL - COMPLETA COM DESAFIOS
+# ============================================================
+# Substitua a rota player_detail no seu app.py por esta versão
+
+@app.route('/jogador/<int:player_id>')
 def player_detail(player_id):
     conn = get_db_connection()
+    
+    # Buscar jogador
     player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
     
     if not player:
         conn.close()
-        flash('Jogador não encontrado!', 'error')
+        flash('Jogador não encontrado.', 'danger')
         return redirect(url_for('index'))
     
-    # Garanta que a posição seja um inteiro válido
-    player_position = player['position'] if player['position'] is not None else 0
-    player_tier = player['tier'] if player['tier'] is not None else 'Z'
-    
-    # Buscar desafios do jogador
-    challenges_as_challenger = conn.execute('''
-        SELECT c.*, p.name as opponent_name, p.position as opponent_position
-        FROM challenges c
-        JOIN players p ON c.challenged_id = p.id
-        WHERE c.challenger_id = ?
-        ORDER BY c.created_at DESC
-    ''', (player_id,)).fetchall()
-    
-    challenges_as_challenged = conn.execute('''
-        SELECT c.*, p.name as opponent_name, p.position as opponent_position
-        FROM challenges c
-        JOIN players p ON c.challenger_id = p.id
-        WHERE c.challenged_id = ?
-        ORDER BY c.created_at DESC
-    ''', (player_id,)).fetchall()
-    
-    # Buscar histórico de ranking
-    history = conn.execute('''
-        SELECT rh.*, c.id as challenge_id
-        FROM ranking_history rh
-        LEFT JOIN challenges c ON rh.challenge_id = c.id
-        WHERE rh.player_id = ?
-        ORDER BY rh.change_date DESC
-    ''', (player_id,)).fetchall()
-    
-    # Buscar possíveis jogadores para desafiar (apenas se o jogador estiver ativo)
-    potential_challenges = []
-    if player['active'] == 1 and player_position > 0:
-        try:
-            # Calcular o tier anterior (um nível acima)
-            prev_tier = chr(ord(player_tier) - 1) if ord(player_tier) > ord('A') else player_tier
-            
-            # Limite de 8 posições acima
-            min_position = max(1, player_position - 8)
-            
-            # Buscar jogadores que podem ser desafiados:
-            # - Posição menor (melhor) que a do jogador
-            # - Até 8 posições acima
-            # - Mesmo tier ou tier anterior
-            # - Ativo
-            # - Sem desafio pendente/aceito entre eles
-            potential_challenges = conn.execute('''
-                SELECT p.*
-                FROM players p
-                WHERE p.position < ? 
-                  AND p.position >= ?
-                  AND (p.tier = ? OR p.tier = ?)
-                  AND p.active = 1
-                  AND p.id NOT IN (
-                      SELECT c.challenged_id FROM challenges c 
-                      WHERE c.challenger_id = ? 
-                        AND c.status IN ('pending', 'accepted')
-                  )
-                  AND p.id NOT IN (
-                      SELECT c.challenger_id FROM challenges c 
-                      WHERE c.challenged_id = ? 
-                        AND c.status IN ('pending', 'accepted')
-                  )
-                ORDER BY p.position DESC
-            ''', (player_position, min_position, player_tier, prev_tier, player_id, player_id)).fetchall()
-        except Exception as e:
-            print(f"Erro ao buscar desafios potenciais: {str(e)}")
-    
-    # Determinar se o usuário está vendo seu próprio perfil
+    # Verificar se é o próprio perfil
     is_own_profile = False
+    if 'user_id' in session and session['user_id'] == player_id:
+        is_own_profile = True
+    
+    # Verificar se é admin
     is_admin = session.get('is_admin', False)
     
+    # ============================================================
+    # DESAFIOS COMO DESAFIANTE (challenger)
+    # ============================================================
+    challenges_as_challenger = conn.execute('''
+        SELECT 
+            c.*,
+            p2.name as opponent_name,
+            p2.position as opponent_position
+        FROM challenges c
+        JOIN players p2 ON c.challenged_id = p2.id
+        WHERE c.challenger_id = ?
+        ORDER BY 
+            CASE c.status 
+                WHEN 'pending' THEN 1 
+                WHEN 'accepted' THEN 2 
+                ELSE 3 
+            END,
+            c.scheduled_date DESC
+    ''', (player_id,)).fetchall()
+    
+    # ============================================================
+    # DESAFIOS COMO DESAFIADO (challenged)
+    # ============================================================
+    challenges_as_challenged = conn.execute('''
+        SELECT 
+            c.*,
+            p1.name as opponent_name,
+            p1.position as opponent_position
+        FROM challenges c
+        JOIN players p1 ON c.challenger_id = p1.id
+        WHERE c.challenged_id = ?
+        ORDER BY 
+            CASE c.status 
+                WHEN 'pending' THEN 1 
+                WHEN 'accepted' THEN 2 
+                ELSE 3 
+            END,
+            c.scheduled_date DESC
+    ''', (player_id,)).fetchall()
+    
+    # ============================================================
+    # JOGADORES DISPONÍVEIS PARA DESAFIAR (potential_challenges)
+    # ============================================================
+    potential_challenges = []
+    
+    # Verificar tipo_membro (sqlite3.Row não tem .get())
     try:
-        user_id = session.get('user_id')
+        tipo_membro = player['tipo_membro']
+    except:
+        tipo_membro = 'jogador'
+    
+    # Só busca se o jogador estiver ativo e não for VIP
+    if player['active'] == 1 and tipo_membro != 'vip':
+        player_position = player['position']
+        player_sexo = player['sexo']
         
-        # Verificar se é um admin (o ID pode ser no formato 'admin_1')
-        if isinstance(user_id, str) and user_id.startswith('admin_'):
-            is_own_profile = False
-        elif isinstance(user_id, int):
-            is_own_profile = user_id == player_id
-        elif isinstance(user_id, str) and user_id.isdigit():
-            is_own_profile = int(user_id) == player_id
-    except (ValueError, TypeError, AttributeError):
-        is_own_profile = False
+        # Buscar jogadores até 8 posições acima, mesmo sexo, ativos, não bloqueados
+        potential_challenges = conn.execute('''
+            SELECT id, name, position, tier
+            FROM players
+            WHERE active = 1
+            AND sexo = ?
+            AND position < ?
+            AND position >= ?
+            AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+            AND position > 0
+            AND (bloqueado = 0 OR bloqueado IS NULL)
+            AND id != ?
+            ORDER BY position DESC
+        ''', (player_sexo, player_position, max(1, player_position - 8), player_id)).fetchall()
     
     conn.close()
     
-    return render_template('player_detail.html', 
-                         player=player, 
-                         challenges_as_challenger=challenges_as_challenger,
-                         challenges_as_challenged=challenges_as_challenged,
-                         history=history,
-                         potential_challenges=potential_challenges,
-                         is_own_profile=is_own_profile,
-                         is_admin=is_admin)
+    return render_template('player_detail.html',
+                          player=player,
+                          is_own_profile=is_own_profile,
+                          is_admin=is_admin,
+                          challenges_as_challenger=challenges_as_challenger,
+                          challenges_as_challenged=challenges_as_challenged,
+                          potential_challenges=potential_challenges)
 
 
 @app.route('/challenge_detail/<int:challenge_id>')
@@ -4648,8 +4641,18 @@ def create_daily_history_table():
     # código existente...
     print("Tabela de histórico diário criada com sucesso.")
 
-# Função para verificar e adicionar a coluna response_deadline na tabela challenges
-# Função para verificar e adicionar a coluna response_deadline na tabela challenges
+# ============================================================
+# FUNÇÃO add_response_deadline_column - CORRIGIDA
+# ============================================================
+# Prazo para RESPONDER: 2 dias
+# ============================================================
+
+# ============================================================
+# FUNÇÃO add_response_deadline_column - CORRIGIDA
+# ============================================================
+# Prazo para RESPONDER: 2 dias
+# ============================================================
+
 def add_response_deadline_column():
     conn = get_db_connection()
     
@@ -4662,18 +4665,31 @@ def add_response_deadline_column():
         conn.execute('ALTER TABLE challenges ADD COLUMN response_deadline DATETIME')
         print("Coluna 'response_deadline' adicionada à tabela challenges.")
         
-        # Definir prazo de resposta para desafios existentes (7 dias após a criação, até 23:59:59)
+        # ============================================================
+        # Definir prazo de resposta para desafios existentes: 2 DIAS
+        # ============================================================
         conn.execute('''
             UPDATE challenges 
-            SET response_deadline = date(created_at, '+7 days') || ' 23:59:59'
+            SET response_deadline = datetime(created_at, '+2 days')
             WHERE status = 'pending' AND response_deadline IS NULL
         ''')
-        print("Prazo de resposta definido para desafios pendentes existentes.")
+        print("Prazo de resposta (2 dias) definido para desafios pendentes existentes.")
     
     conn.commit()
     conn.close()
 
 
+# ============================================================
+# SQL PARA CORRIGIR DESAFIOS EXISTENTES
+# ============================================================
+# Execute este SQL diretamente no banco para corrigir
+# desafios pendentes que foram criados com prazo de 7 dias:
+#
+# UPDATE challenges 
+# SET response_deadline = datetime(created_at, '+2 days')
+# WHERE status = 'pending';
+#
+# ============================================================
 # Adicione esta nova rota ao seu arquivo app.py
 
 @app.route('/admin/challenge_logs')
@@ -8478,91 +8494,397 @@ def criar_coluna_tipo_membro():
     return redirect(url_for('admin_dashboard'))
 
 
+# ============================================
+# ROTA: Toggle Tipo de Membro (Jogador <-> VIP)
+# ============================================
+# Adicionar no app.py
+#
+# O problema: coluna 'position' tem NOT NULL constraint
+# Solução: usar position = 0 para VIPs (ao invés de NULL)
+# ============================================
+
+# ============================================
+# ROTA: Toggle Tipo de Membro (Jogador <-> VIP)
+# ============================================
+# CORRIGIDO: usa position = 0 e tier = '' (string vazia)
+# ao invés de NULL para evitar constraint errors
+# ============================================
+
 @app.route('/admin/toggle-tipo-membro/<int:player_id>', methods=['POST'])
 @login_required
 def toggle_tipo_membro(player_id):
-    """Alterna entre jogador e membro VIP"""
-    if not session.get('is_admin', False):
-        flash('Acesso restrito.', 'error')
+    """Alterna entre Jogador e Membro VIP"""
+    if not session.get('is_admin'):
+        flash('Acesso negado. Apenas administradores.', 'danger')
         return redirect(url_for('index'))
     
     conn = get_db_connection()
+    player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    
+    if not player:
+        conn.close()
+        flash('Jogador não encontrado.', 'danger')
+        return redirect(url_for('index'))
+    
+    tipo_atual = player['tipo_membro'] or 'jogador'
+    sexo = player['sexo'] or 'masculino'
+    
     try:
-        player = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
-        
-        if not player:
-            flash('Membro não encontrado.', 'error')
-            conn.close()
-            return redirect(url_for('index'))
-        
-        if player['tipo_membro'] == 'vip':
-            # Converter VIP para Jogador
-            sexo = player['sexo'] or 'masculino'
+        if tipo_atual == 'jogador':
+            # ===== CONVERTER PARA VIP =====
+            # 1. Guardar posição atual para reordenar
+            posicao_atual = player['position']
             
-            # Buscar última posição
-            if sexo == 'feminino':
-                last_pos = conn.execute('''
-                    SELECT MAX(position) as max_pos FROM players 
-                    WHERE active = 1 AND sexo = 'feminino'
-                    AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
-                ''').fetchone()
-            else:
-                last_pos = conn.execute('''
-                    SELECT MAX(position) as max_pos FROM players 
-                    WHERE active = 1 AND (sexo != 'feminino' OR sexo IS NULL)
-                    AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
-                ''').fetchone()
-            
-            new_position = (last_pos['max_pos'] or 0) + 1
-            new_tier = get_tier_from_position(new_position)
-            
+            # 2. Converter para VIP (position = 0, tier = '' string vazia)
             conn.execute('''
                 UPDATE players 
-                SET tipo_membro = 'jogador', position = ?, tier = ?
-                WHERE id = ?
-            ''', (new_position, new_tier, player_id))
-            
-            flash(f'✅ {player["name"]} convertido para JOGADOR na posição {new_position}.', 'success')
-        else:
-            # Converter Jogador para VIP
-            old_position = player['position']
-            
-            # Remover do ranking
-            conn.execute('''
-                UPDATE players 
-                SET tipo_membro = 'vip', position = NULL, tier = NULL
+                SET tipo_membro = 'vip', 
+                    position = 0,
+                    tier = ''
                 WHERE id = ?
             ''', (player_id,))
             
-            # Reajustar posições dos outros jogadores
-            sexo = player['sexo'] or 'masculino'
-            if sexo == 'feminino':
+            # 3. Reordenar jogadores do mesmo sexo que estavam abaixo
+            if posicao_atual and posicao_atual > 0:
                 conn.execute('''
-                    UPDATE players SET position = position - 1
-                    WHERE active = 1 AND sexo = 'feminino' AND position > ?
+                    UPDATE players 
+                    SET position = position - 1 
+                    WHERE position > ? 
+                    AND (sexo = ? OR (sexo IS NULL AND ? = 'masculino'))
+                    AND active = 1
                     AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
-                ''', (old_position,))
-            else:
-                conn.execute('''
-                    UPDATE players SET position = position - 1
-                    WHERE active = 1 AND (sexo != 'feminino' OR sexo IS NULL) AND position > ?
-                    AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
-                ''', (old_position,))
+                ''', (posicao_atual, sexo, sexo))
+                
+                # 4. Recalcular tiers para o sexo afetado
+                recalcular_tiers_por_sexo(conn, sexo)
             
-            # Atualizar tiers
-            update_all_tiers(conn)
+            conn.commit()
+            flash(f'{player["name"]} convertido para Membro VIP com sucesso!', 'success')
+        
+        else:
+            # ===== CONVERTER PARA JOGADOR =====
+            # 1. Encontrar última posição do ranking do mesmo sexo
+            ultima_pos = conn.execute('''
+                SELECT COALESCE(MAX(position), 0) as max_pos 
+                FROM players 
+                WHERE active = 1 
+                AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+                AND (sexo = ? OR (sexo IS NULL AND ? = 'masculino'))
+                AND position > 0
+            ''', (sexo, sexo)).fetchone()['max_pos']
             
-            flash(f'⭐ {player["name"]} convertido para MEMBRO VIP.', 'success')
-        
-        conn.commit()
-        
+            nova_posicao = ultima_pos + 1
+            
+            # 2. Calcular tier baseado na nova posição
+            novo_tier = calcular_tier(nova_posicao)
+            
+            # 3. Converter para jogador
+            conn.execute('''
+                UPDATE players 
+                SET tipo_membro = 'jogador', 
+                    position = ?,
+                    tier = ?
+                WHERE id = ?
+            ''', (nova_posicao, novo_tier, player_id))
+            
+            conn.commit()
+            flash(f'{player["name"]} convertido para Jogador na posição {nova_posicao}!', 'success')
+    
     except Exception as e:
         conn.rollback()
-        flash(f'Erro: {str(e)}', 'error')
+        flash(f'Erro ao converter tipo de membro: {str(e)}', 'danger')
     finally:
         conn.close()
     
     return redirect(url_for('player_detail', player_id=player_id))
+
+
+def recalcular_tiers_por_sexo(conn, sexo):
+    """Recalcula os tiers de todos os jogadores de um sexo"""
+    jogadores = conn.execute('''
+        SELECT id, position FROM players 
+        WHERE active = 1 
+        AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+        AND (sexo = ? OR (sexo IS NULL AND ? = 'masculino'))
+        AND position > 0
+        ORDER BY position
+    ''', (sexo, sexo)).fetchall()
+    
+    for jogador in jogadores:
+        novo_tier = calcular_tier(jogador['position'])
+        conn.execute('UPDATE players SET tier = ? WHERE id = ?', 
+                    (novo_tier, jogador['id']))
+
+
+def calcular_tier(position):
+    """Calcula o tier baseado na posição (pirâmide 5-7-9-11...)"""
+    if position is None or position <= 0:
+        return ''  # String vazia para VIPs/inativos
+    
+    # Tier A: posições 1-5
+    if position <= 5:
+        return 'A'
+    # Tier B: posições 6-12 (7 jogadores)
+    elif position <= 12:
+        return 'B'
+    # Tier C: posições 13-21 (9 jogadores)
+    elif position <= 21:
+        return 'C'
+    # Tier D: posições 22-32 (11 jogadores)
+    elif position <= 32:
+        return 'D'
+    # Tier E: posições 33-46 (13 jogadores)
+    elif position <= 46:
+        return 'E'
+    # Tier F: posições 47-62 (15 jogadores)
+    elif position <= 62:
+        return 'F'
+    # Tier G: posições 63+ (17 jogadores)
+    else:
+        return 'G'
+
+
+
+# ============================================
+# ROTA ADMIN: Corrigir Banco de Dados VIP
+# ============================================
+# Adicione esta rota no seu app.py
+# Acesse: /admin/corrigir-vip
+# ============================================
+
+@app.route('/admin/corrigir-vip')
+@login_required
+def corrigir_vip():
+    """Corrige problemas no banco relacionados ao sistema VIP"""
+    if not session.get('is_admin'):
+        flash('Acesso negado. Apenas administradores.', 'danger')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    relatorio = []
+    
+    try:
+        # 1. Corrigir VIPs com position inválido
+        cursor = conn.execute('''
+            UPDATE players 
+            SET position = 0 
+            WHERE tipo_membro = 'vip' 
+            AND (position IS NULL OR position != 0)
+        ''')
+        relatorio.append(f"VIPs corrigidos (position → 0): {cursor.rowcount}")
+        
+        # 2. Reordenar ranking masculino
+        jogadores_masc = conn.execute('''
+            SELECT id FROM players
+            WHERE active = 1
+            AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+            AND (sexo = 'masculino' OR sexo IS NULL OR sexo = '')
+            ORDER BY 
+                CASE WHEN position > 0 THEN position ELSE 9999 END,
+                name
+        ''').fetchall()
+        
+        for i, jogador in enumerate(jogadores_masc, 1):
+            conn.execute('UPDATE players SET position = ? WHERE id = ?', (i, jogador['id']))
+        relatorio.append(f"Ranking masculino reordenado: {len(jogadores_masc)} jogadores")
+        
+        # 3. Reordenar ranking feminino
+        jogadoras_fem = conn.execute('''
+            SELECT id FROM players
+            WHERE active = 1
+            AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+            AND sexo = 'feminino'
+            ORDER BY 
+                CASE WHEN position > 0 THEN position ELSE 9999 END,
+                name
+        ''').fetchall()
+        
+        for i, jogadora in enumerate(jogadoras_fem, 1):
+            conn.execute('UPDATE players SET position = ? WHERE id = ?', (i, jogadora['id']))
+        relatorio.append(f"Ranking feminino reordenado: {len(jogadoras_fem)} jogadoras")
+        
+        # 4. Recalcular tiers
+        def calcular_tier(pos):
+            if pos <= 5: return 'A'
+            elif pos <= 12: return 'B'
+            elif pos <= 21: return 'C'
+            elif pos <= 32: return 'D'
+            elif pos <= 46: return 'E'
+            elif pos <= 62: return 'F'
+            else: return 'G'
+        
+        jogadores_ativos = conn.execute('''
+            SELECT id, position FROM players
+            WHERE active = 1
+            AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+            AND position > 0
+        ''').fetchall()
+        
+        for jogador in jogadores_ativos:
+            novo_tier = calcular_tier(jogador['position'])
+            conn.execute('UPDATE players SET tier = ? WHERE id = ?', (novo_tier, jogador['id']))
+        relatorio.append(f"Tiers recalculados: {len(jogadores_ativos)} jogadores")
+        
+        # 5. Limpar tier de VIPs e inativos
+        conn.execute("UPDATE players SET tier = NULL WHERE tipo_membro = 'vip'")
+        conn.execute("UPDATE players SET tier = NULL WHERE active = 0")
+        relatorio.append("Tiers de VIPs e inativos limpos")
+        
+        # 6. Verificar problemas restantes
+        problemas = conn.execute('''
+            SELECT id, name, position, tipo_membro, active
+            FROM players
+            WHERE (
+                (active = 1 AND (tipo_membro = 'jogador' OR tipo_membro IS NULL) AND (position IS NULL OR position <= 0))
+                OR
+                (tipo_membro = 'vip' AND position != 0)
+            )
+        ''').fetchall()
+        
+        if problemas:
+            relatorio.append(f"⚠️ PROBLEMAS RESTANTES: {len(problemas)}")
+            for p in problemas:
+                relatorio.append(f"  - {p['name']} (id={p['id']}, pos={p['position']}, tipo={p['tipo_membro']})")
+        else:
+            relatorio.append("✅ Nenhum problema encontrado!")
+        
+        conn.commit()
+        
+        # Exibir relatório
+        flash('Correção executada com sucesso!', 'success')
+        for linha in relatorio:
+            flash(linha, 'info')
+            
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro durante correção: {str(e)}', 'danger')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('index'))
+
+
+# ============================================
+# ROTA ALTERNATIVA: Ver diagnóstico sem corrigir
+# ============================================
+
+@app.route('/admin/diagnostico-vip')
+@login_required  
+def diagnostico_vip():
+    """Mostra diagnóstico do banco sem fazer alterações"""
+    if not session.get('is_admin'):
+        flash('Acesso negado.', 'danger')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    
+    # Estatísticas
+    stats = {
+        'total_jogadores': conn.execute('SELECT COUNT(*) FROM players').fetchone()[0],
+        'ativos_masc': conn.execute('''
+            SELECT COUNT(*) FROM players 
+            WHERE active = 1 AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+            AND (sexo = 'masculino' OR sexo IS NULL OR sexo = '') AND position > 0
+        ''').fetchone()[0],
+        'ativos_fem': conn.execute('''
+            SELECT COUNT(*) FROM players 
+            WHERE active = 1 AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
+            AND sexo = 'feminino' AND position > 0
+        ''').fetchone()[0],
+        'vips': conn.execute("SELECT COUNT(*) FROM players WHERE tipo_membro = 'vip'").fetchone()[0],
+        'inativos': conn.execute('SELECT COUNT(*) FROM players WHERE active = 0').fetchone()[0],
+    }
+    
+    # Problemas
+    problemas = conn.execute('''
+        SELECT id, name, position, tipo_membro, active, sexo
+        FROM players
+        WHERE (
+            (active = 1 AND (tipo_membro = 'jogador' OR tipo_membro IS NULL) AND (position IS NULL OR position <= 0))
+            OR
+            (tipo_membro = 'vip' AND (position IS NULL OR position != 0))
+        )
+    ''').fetchall()
+    
+    # VIPs atuais
+    vips = conn.execute('''
+        SELECT id, name, position, tipo_membro
+        FROM players WHERE tipo_membro = 'vip'
+        ORDER BY name
+    ''').fetchall()
+    
+    conn.close()
+    
+    # Montar HTML simples
+    html = f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Diagnóstico VIP</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    </head>
+    <body class="container py-4">
+        <h1>🔍 Diagnóstico do Banco de Dados</h1>
+        
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white">📊 Estatísticas</div>
+            <div class="card-body">
+                <ul>
+                    <li>Total de registros: <strong>{stats['total_jogadores']}</strong></li>
+                    <li>Jogadores masculinos ativos: <strong>{stats['ativos_masc']}</strong></li>
+                    <li>Jogadoras femininas ativas: <strong>{stats['ativos_fem']}</strong></li>
+                    <li>Membros VIP: <strong>{stats['vips']}</strong></li>
+                    <li>Inativos: <strong>{stats['inativos']}</strong></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card mb-3">
+            <div class="card-header bg-warning">⚠️ Problemas Encontrados ({len(problemas)})</div>
+            <div class="card-body">
+                {'<p class="text-success">Nenhum problema encontrado! ✅</p>' if not problemas else ''}
+                {'<table class="table table-sm"><thead><tr><th>ID</th><th>Nome</th><th>Position</th><th>Tipo</th><th>Ativo</th></tr></thead><tbody>' + ''.join([f"<tr><td>{p['id']}</td><td>{p['name']}</td><td>{p['position']}</td><td>{p['tipo_membro']}</td><td>{p['active']}</td></tr>" for p in problemas]) + '</tbody></table>' if problemas else ''}
+            </div>
+        </div>
+        
+        <div class="card mb-3">
+            <div class="card-header bg-warning text-dark">⭐ Membros VIP ({len(vips)})</div>
+            <div class="card-body">
+                {'<p class="text-muted">Nenhum VIP cadastrado.</p>' if not vips else ''}
+                {'<table class="table table-sm"><thead><tr><th>ID</th><th>Nome</th><th>Position</th></tr></thead><tbody>' + ''.join([f"<tr><td>{v['id']}</td><td>{v['name']}</td><td>{v['position']}</td></tr>" for v in vips]) + '</tbody></table>' if vips else ''}
+            </div>
+        </div>
+        
+        <div class="d-flex gap-2">
+            <a href="{url_for('corrigir_vip')}" class="btn btn-danger" onclick="return confirm('Executar correção automática?')">
+                🔧 Executar Correção
+            </a>
+            <a href="{url_for('index')}" class="btn btn-secondary">Voltar</a>
+        </div>
+    </body>
+    </html>
+    '''
+    
+    return html
+
+
+@app.route('/admin/corrigir_prazos')
+@login_required
+def corrigir_prazos():
+    if not session.get('is_admin'):
+        return "Acesso negado", 403
+    
+    conn = get_db_connection()
+    conn.execute('''
+        UPDATE challenges 
+        SET response_deadline = datetime(created_at, '+2 days')
+        WHERE status = 'pending'
+    ''')
+    conn.commit()
+    conn.close()
+    
+    flash('Prazos corrigidos para 2 dias!', 'success')
+    return redirect(url_for('admin_dashboard'))
 
 
 
