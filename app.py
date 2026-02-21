@@ -9301,6 +9301,68 @@ def corrigir_prazos():
     return redirect(url_for('admin_dashboard'))
 
 
+# ============================================================
+# WEBHOOK DO WHATSAPP - RECEBE MENSAGENS
+# ============================================================
+
+@app.route('/webhook/whatsapp', methods=['POST'])
+def webhook_whatsapp():
+    """Recebe mensagens do WhatsApp via Evolution API"""
+    try:
+        data = request.json
+        
+        # Log para debug
+        print(f"[Webhook] Dados recebidos: {data}")
+        
+        # Verificar se é uma mensagem recebida
+        if data.get('event') == 'messages.upsert':
+            message_data = data.get('data', {})
+            
+            # Ignorar mensagens enviadas por nós mesmos
+            if message_data.get('key', {}).get('fromMe'):
+                return jsonify({'status': 'ignored', 'reason': 'own_message'})
+            
+            # Ignorar mensagens de grupo
+            remote_jid = message_data.get('key', {}).get('remoteJid', '')
+            if '@g.us' in remote_jid:
+                return jsonify({'status': 'ignored', 'reason': 'group_message'})
+            
+            # Extrair telefone e mensagem
+            telefone = extrair_telefone_do_jid(remote_jid)
+            
+            # Extrair texto da mensagem
+            message_content = message_data.get('message', {})
+            mensagem = (
+                message_content.get('conversation') or 
+                message_content.get('extendedTextMessage', {}).get('text') or
+                ''
+            )
+            
+            if not mensagem or not telefone:
+                return jsonify({'status': 'ignored', 'reason': 'empty_message'})
+            
+            print(f"[Webhook] Mensagem de {telefone}: {mensagem}")
+            
+            # Processar comando e obter resposta
+            resposta = processar_comando_whatsapp(mensagem, telefone)
+            
+            # Enviar resposta
+            if resposta:
+                enviar_mensagem_whatsapp(f"55{telefone}@s.whatsapp.net", resposta)
+            
+            return jsonify({'status': 'processed'})
+        
+        return jsonify({'status': 'ok'})
+        
+    except Exception as e:
+        print(f"[Webhook] Erro: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+
+
 
 if __name__ == '__main__':
     # Verificar se o banco de dados existe, caso contrário, importar dados
@@ -9389,3 +9451,4 @@ if __name__ == '__main__':
     
     # Modificação: adicionado argumento host='0.0.0.0' para permitir acesso externo
     app.run(debug=True, host='0.0.0.0')
+
