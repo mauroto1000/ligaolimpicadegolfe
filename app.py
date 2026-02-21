@@ -9361,7 +9361,857 @@ def webhook_whatsapp():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+# ============================================================
+# SISTEMA DE PROPOSTA DE DATAS ALTERNATIVAS
+# ============================================================
 
+def salvar_proposta_datas(challenge_id, data1, data2, propositor_id):
+    """Salva as datas propostas pelo desafiado"""
+    conn = get_db_connection()
+    
+    conn.execute('''
+        UPDATE challenges 
+        SET status = 'awaiting_date_confirmation',
+            proposed_date_1 = ?,
+            proposed_date_2 = ?,
+            date_proposed_by = ?,
+            date_proposed_at = ?
+        WHERE id = ?
+    ''', (data1, data2, propositor_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), challenge_id))
+    
+    conn.commit()
+    conn.close()
+
+
+def get_proposta_pendente_para_desafiante(player_id):
+    """Busca propostas de data pendentes onde o jogador é o desafiante"""
+    conn = get_db_connection()
+    
+    proposta = conn.execute('''
+        SELECT c.*, 
+               challenged.name as challenged_name,
+               challenged.position as challenged_position
+        FROM challenges c
+        JOIN players challenged ON c.challenged_id = challenged.id
+        WHERE c.challenger_id = ?
+        AND c.status = 'awaiting_date_confirmation'
+    ''', (player_id,)).fetchone()
+    
+    conn.close()
+    return dict(proposta) if proposta else None
+
+
+def aceitar_data_proposta(challenge_id, data_escolhida):
+    """Aceita uma das datas propostas e confirma o desafio"""
+    conn = get_db_connection()
+    
+    conn.execute('''
+        UPDATE challenges 
+        SET status = 'accepted',
+            scheduled_date = ?,
+            updated_at = ?
+        WHERE id = ?
+    ''', (data_escolhida, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), challenge_id))
+    
+    conn.commit()
+    conn.close()
+
+
+def notificar_proposta_datas(challenge_id):
+    """Notifica o desafiante sobre as datas propostas"""
+    conn = get_db_connection()
+    
+    challenge = conn.execute('''
+        SELECT c.*, 
+               challenger.name as challenger_name,
+               challenger.telefone as challenger_telefone,
+               challenged.name as challenged_name,
+               challenged.position as challenged_position
+        FROM challenges c
+        JOIN players challenger ON c.challenger_id = challenger.id
+        JOIN players challenged ON c.challenged_id = challenged.id
+        WHERE c.id = ?
+    ''', (challenge_id,)).fetchone()
+    
+    conn.close()
+    
+    if not challenge:
+        return
+    
+    telefone_desafiante = challenge['challenger_telefone']
+    if not telefone_desafiante:
+        return
+    
+    # Formatar datas
+    try:
+        data1_obj = datetime.strptime(challenge['proposed_date_1'], '%Y-%m-%d')
+        data1_fmt = data1_obj.strftime('%d/%m/%Y')
+    except:
+        data1_fmt = challenge['proposed_date_1']
+    
+    try:
+        data2_obj = datetime.strptime(challenge['proposed_date_2'], '%Y-%m-%d')
+        data2_fmt = data2_obj.strftime('%d/%m/%Y')
+    except:
+        data2_fmt = challenge['proposed_date_2']
+    
+    msg = f"""📅 *PROPOSTA DE NOVAS DATAS*
+
+*{challenge['challenged_name']}* ({challenge['challenged_position']}º) propôs novas datas para o desafio:
+
+*[A]* {data1_fmt}
+*[B]* {data2_fmt}
+
+Digite *A* ou *B* para aceitar uma das datas.
+
+_Você tem 2 dias para responder._"""
+    
+    # Enviar mensagem
+    telefone_normalizado = normalizar_telefone(telefone_desafiante)
+    enviar_mensagem_whatsapp(f"55{telefone_normalizado}@s.whatsapp.net", msg)
+
+
+def notificar_data_confirmada(challenge_id, data_escolhida):
+    """Notifica ambos os jogadores que a data foi confirmada"""
+    conn = get_db_connection()
+    
+    challenge = conn.execute('''
+        SELECT c.*, 
+               challenger.name as challenger_name,
+               challenger.telefone as challenger_telefone,
+               challenged.name as challenged_name,
+               challenged.telefone as challenged_telefone,
+               challenged.position as challenged_position
+        FROM challenges c
+        JOIN players challenger ON c.challenger_id = challenger.id
+        JOIN players challenged ON c.challenged_id = challenged.id
+        WHERE c.id = ?
+    ''', (challenge_id,)).fetchone()
+    
+    conn.close()
+    
+    if not challenge:
+        return
+    
+    # Formatar data
+    try:
+        data_obj = datetime.strptime(data_escolhida, '%Y-%m-%d')
+        data_fmt = data_obj.strftime('%d/%m/%Y')
+    except:
+        data_fmt = data_escolhida
+    
+    msg = f"""✅ *DATA CONFIRMADA!*
+
+O desafio entre *{challenge['challenger_name']}* e *{challenge['challenged_name']}* está confirmado!
+
+📅 Data: *{data_fmt}*
+
+Boa sorte a ambos! 🏌️"""
+    
+    # Notificar desafiado
+    telefone_desafiado = challenge['challenged_telefone']
+    if telefone_desafiado:
+        telefone_norm = normalizar_telefone(telefone_desafiado)
+        enviar_mensagem_whatsapp(f"55{telefone_norm}@s.whatsapp.net", msg)
+    
+    # Notificar no grupo
+    enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg)
+
+
+# ============================================================
+# FUNÇÃO PROCESSAR_COMANDO_WHATSAPP - VERSÃO ATUALIZADA
+# ============================================================
+# SUBSTITUI a função processar_comando_whatsapp existente
+# ============================================================
+
+def processar_comando_whatsapp_v2(mensagem, telefone):
+    """Processa mensagem recebida e retorna resposta - VERSÃO COM PROPOSTA DE DATAS"""
+    
+    # Normalizar mensagem
+    msg = mensagem.lower().strip()
+    telefone_normalizado = normalizar_telefone(telefone)
+    
+    # Buscar jogador pelo telefone
+    jogador = get_player_by_phone(telefone)
+    
+    if not jogador:
+        return """❌ *Número não cadastrado*
+
+Seu número de WhatsApp não está vinculado a nenhum jogador da Liga.
+
+Para cadastrar, acesse seu perfil no site e adicione seu número no campo "WhatsApp para Notificações"."""
+    
+    # ---------------------------------------------------------
+    # VERIFICAR SE HÁ PROPOSTA DE DATA PENDENTE (desafiante)
+    # ---------------------------------------------------------
+    if msg in ['a', 'b']:
+        proposta = get_proposta_pendente_para_desafiante(jogador['id'])
+        
+        if proposta:
+            if msg == 'a':
+                data_escolhida = proposta['proposed_date_1']
+            else:
+                data_escolhida = proposta['proposed_date_2']
+            
+            # Aceitar a data
+            aceitar_data_proposta(proposta['id'], data_escolhida)
+            
+            # Notificar
+            try:
+                notificar_data_confirmada(proposta['id'], data_escolhida)
+            except Exception as e:
+                print(f"Erro ao notificar: {e}")
+            
+            # Formatar data
+            try:
+                data_obj = datetime.strptime(data_escolhida, '%Y-%m-%d')
+                data_fmt = data_obj.strftime('%d/%m/%Y')
+            except:
+                data_fmt = data_escolhida
+            
+            return f"""✅ *DATA CONFIRMADA!*
+
+Você aceitou a data *{data_fmt}* para o desafio contra *{proposta['challenged_name']}*.
+
+O desafio está confirmado! Boa sorte! 🏌️
+
+_Digite *0* para voltar ao menu._"""
+    
+    # ---------------------------------------------------------
+    # VERIFICAR SE HÁ ESTADO PENDENTE (conversa em andamento)
+    # ---------------------------------------------------------
+    estado_atual = get_chat_state(telefone_normalizado)
+    
+    if estado_atual:
+        estado = estado_atual['estado']
+        dados = estado_atual['dados']
+        
+        # ---------------------------------------------------------
+        # ESTADO: Selecionando oponente para desafio
+        # ---------------------------------------------------------
+        if estado == 'selecionando_oponente':
+            if msg == '0' or 'cancelar' in msg:
+                clear_chat_state(telefone_normalizado)
+                return "❌ Criação de desafio cancelada.\n\n_Digite *0* para ver o menu._"
+            
+            try:
+                opcao = int(msg)
+                possiveis = dados.get('possiveis', [])
+                
+                if opcao < 1 or opcao > len(possiveis):
+                    return f"""⚠️ Opção inválida!
+
+Digite um número de *1* a *{len(possiveis)}* para selecionar o oponente.
+
+Ou digite *0* para cancelar."""
+                
+                oponente = possiveis[opcao - 1]
+                
+                set_chat_state(telefone_normalizado, 'informando_data', {
+                    'oponente_id': oponente['id'],
+                    'oponente_nome': oponente['name'],
+                    'oponente_posicao': oponente['position']
+                })
+                
+                hoje = datetime.now()
+                data_max = hoje + timedelta(days=7)
+                
+                return f"""✅ Oponente selecionado: *{oponente['name']}* ({oponente['position']}º)
+
+📅 *Qual a data do jogo?*
+
+Digite no formato *DD/MM* (ex: {data_max.strftime('%d/%m')})
+
+A data deve ser nos próximos *7 dias*.
+(até {data_max.strftime('%d/%m/%Y')})
+
+_Digite *0* para cancelar._"""
+                
+            except ValueError:
+                return """⚠️ Digite apenas o *número* do oponente.
+
+Exemplo: *1* ou *2* ou *3*
+
+_Digite *0* para cancelar._"""
+        
+        # ---------------------------------------------------------
+        # ESTADO: Informando data do jogo (criar desafio)
+        # ---------------------------------------------------------
+        elif estado == 'informando_data':
+            if msg == '0' or 'cancelar' in msg:
+                clear_chat_state(telefone_normalizado)
+                return "❌ Criação de desafio cancelada.\n\n_Digite *0* para ver o menu._"
+            
+            data_jogo = parse_data_input(msg)
+            
+            if not data_jogo:
+                return """⚠️ Formato de data inválido!
+
+Digite no formato *DD/MM* (ex: 25/02)
+
+_Digite *0* para cancelar._"""
+            
+            hoje = datetime.now().date()
+            
+            if data_jogo < hoje:
+                return """⚠️ A data não pode ser no passado!
+
+Digite uma data a partir de hoje.
+
+_Digite *0* para cancelar._"""
+            
+            data_max = hoje + timedelta(days=7)
+            if data_jogo > data_max:
+                return f"""⚠️ A data não pode ser superior a 7 dias!
+
+Data máxima permitida: *{data_max.strftime('%d/%m/%Y')}*
+
+_Digite *0* para cancelar._"""
+            
+            oponente_id = dados['oponente_id']
+            oponente_nome = dados['oponente_nome']
+            oponente_posicao = dados['oponente_posicao']
+            data_formatada = data_jogo.strftime('%Y-%m-%d')
+            
+            sucesso, mensagem_retorno, challenge_id = criar_desafio_via_whatsapp(
+                jogador['id'], 
+                oponente_id, 
+                data_formatada
+            )
+            
+            clear_chat_state(telefone_normalizado)
+            
+            if sucesso:
+                try:
+                    notificar_desafio_criado_whatsapp(challenge_id)
+                except Exception as e:
+                    print(f"Erro ao notificar: {e}")
+                
+                return f"""🎉 *DESAFIO CRIADO COM SUCESSO!*
+
+Você desafiou *{oponente_nome}* ({oponente_posicao}º)
+
+📅 Data do jogo: *{data_jogo.strftime('%d/%m/%Y')}*
+⏳ Prazo para resposta: *2 dias*
+
+O desafiado será notificado e pode:
+- Aceitar a data
+- Rejeitar (perde por WO)
+- Propor 2 novas datas
+
+Boa sorte! 🏌️
+
+_Digite *0* para voltar ao menu._"""
+            else:
+                return f"""❌ *Erro ao criar desafio*
+
+{mensagem_retorno}
+
+_Digite *0* para voltar ao menu._"""
+        
+        # ---------------------------------------------------------
+        # ESTADO: Propondo primeira data alternativa
+        # ---------------------------------------------------------
+        elif estado == 'propondo_data_1':
+            if msg == '0' or 'cancelar' in msg:
+                clear_chat_state(telefone_normalizado)
+                return "❌ Proposta cancelada.\n\n_Digite *0* para ver o menu._"
+            
+            data1 = parse_data_input(msg)
+            
+            if not data1:
+                return """⚠️ Formato de data inválido!
+
+Digite no formato *DD/MM* (ex: 25/02)
+
+_Digite *0* para cancelar._"""
+            
+            hoje = datetime.now().date()
+            
+            if data1 < hoje:
+                return """⚠️ A data não pode ser no passado!
+
+_Digite *0* para cancelar._"""
+            
+            data_max = hoje + timedelta(days=7)
+            if data1 > data_max:
+                return f"""⚠️ A data deve ser em até 7 dias!
+
+Data máxima: *{data_max.strftime('%d/%m/%Y')}*
+
+_Digite *0* para cancelar._"""
+            
+            # Salvar primeira data e pedir segunda
+            set_chat_state(telefone_normalizado, 'propondo_data_2', {
+                'challenge_id': dados['challenge_id'],
+                'challenger_name': dados['challenger_name'],
+                'data_1': data1.strftime('%Y-%m-%d')
+            })
+            
+            return f"""✅ Primeira data: *{data1.strftime('%d/%m/%Y')}*
+
+Agora informe a *segunda opção* de data:
+
+(formato DD/MM, máximo 7 dias)
+
+_Digite *0* para cancelar._"""
+        
+        # ---------------------------------------------------------
+        # ESTADO: Propondo segunda data alternativa
+        # ---------------------------------------------------------
+        elif estado == 'propondo_data_2':
+            if msg == '0' or 'cancelar' in msg:
+                clear_chat_state(telefone_normalizado)
+                return "❌ Proposta cancelada.\n\n_Digite *0* para ver o menu._"
+            
+            data2 = parse_data_input(msg)
+            
+            if not data2:
+                return """⚠️ Formato de data inválido!
+
+Digite no formato *DD/MM* (ex: 27/02)
+
+_Digite *0* para cancelar._"""
+            
+            hoje = datetime.now().date()
+            
+            if data2 < hoje:
+                return """⚠️ A data não pode ser no passado!
+
+_Digite *0* para cancelar._"""
+            
+            data_max = hoje + timedelta(days=7)
+            if data2 > data_max:
+                return f"""⚠️ A data deve ser em até 7 dias!
+
+Data máxima: *{data_max.strftime('%d/%m/%Y')}*
+
+_Digite *0* para cancelar._"""
+            
+            # Salvar ambas as datas
+            challenge_id = dados['challenge_id']
+            data1 = dados['data_1']
+            
+            salvar_proposta_datas(challenge_id, data1, data2.strftime('%Y-%m-%d'), jogador['id'])
+            
+            # Notificar desafiante
+            try:
+                notificar_proposta_datas(challenge_id)
+            except Exception as e:
+                print(f"Erro ao notificar: {e}")
+            
+            clear_chat_state(telefone_normalizado)
+            
+            # Formatar data1
+            try:
+                data1_obj = datetime.strptime(data1, '%Y-%m-%d')
+                data1_fmt = data1_obj.strftime('%d/%m/%Y')
+            except:
+                data1_fmt = data1
+            
+            return f"""✅ *PROPOSTA ENVIADA!*
+
+Você propôs as seguintes datas:
+- *{data1_fmt}*
+- *{data2.strftime('%d/%m/%Y')}*
+
+*{dados['challenger_name']}* será notificado e deve escolher uma das datas.
+
+_Digite *0* para voltar ao menu._"""
+    
+    # ---------------------------------------------------------
+    # COMANDOS NORMAIS (sem estado pendente)
+    # ---------------------------------------------------------
+    
+    # COMANDO [1]: Minha posição
+    if msg == '1' or any(palavra in msg for palavra in ['posição', 'posicao', 'ranking', 'colocação', 'colocacao']):
+        return f"""📊 *Sua Posição no Ranking*
+
+Olá, {jogador['name']}!
+
+Você está atualmente na posição *{jogador['position']}º* no ranking da Liga Olímpica de Golfe.
+
+_Digite *0* para voltar ao menu._"""
+    
+    # COMANDO [2]: Quem posso desafiar
+    if msg == '2' or any(palavra in msg for palavra in ['quem posso', 'possiveis', 'possíveis']):
+        possiveis = get_possiveis_desafiados(jogador['id'])
+        
+        if not possiveis:
+            return f"""🎯 *Possíveis Desafiados*
+
+Olá, {jogador['name']}!
+Você está na posição *{jogador['position']}º*.
+
+No momento não há jogadores disponíveis para desafio.
+
+_Digite *0* para voltar ao menu._"""
+        
+        lista = "\n".join([f"   {p['position']}º - {p['name']}" for p in possiveis])
+        
+        return f"""🎯 *Possíveis Desafiados*
+
+Olá, {jogador['name']}!
+Você está na posição *{jogador['position']}º*.
+
+Você pode desafiar:
+{lista}
+
+📱 Para criar um desafio, digite *6*
+
+_Digite *0* para voltar ao menu._"""
+    
+    # COMANDO [3]: Meus desafios
+    if msg == '3' or (any(palavra in msg for palavra in ['meus desafio', 'meu desafio']) and 'criar' not in msg):
+        desafios = get_meus_desafios(jogador['id'])
+        
+        # Verificar proposta de datas pendente
+        proposta = get_proposta_pendente_para_desafiante(jogador['id'])
+        
+        if not desafios and not proposta:
+            return f"""📋 *Meus Desafios*
+
+Olá, {jogador['name']}!
+
+Você não tem desafios ativos no momento.
+
+_Digite *0* para voltar ao menu._"""
+        
+        linhas = []
+        for d in desafios:
+            if d['status'] == 'pending':
+                status_emoji = "⏳"
+                status_texto = "Aguardando resposta"
+            elif d['status'] == 'accepted':
+                status_emoji = "✅"
+                status_texto = "Aceito"
+            elif d['status'] == 'awaiting_date_confirmation':
+                status_emoji = "📅"
+                status_texto = "Aguardando escolha de data"
+            else:
+                status_emoji = "❓"
+                status_texto = d['status']
+            
+            if d['challenger_id'] == jogador['id']:
+                linhas.append(f"   {status_emoji} #{d['id']} - Você → {d['challenged_name']} ({d['challenged_position']}º) [{status_texto}]")
+            else:
+                linhas.append(f"   {status_emoji} #{d['id']} - {d['challenger_name']} ({d['challenger_position']}º) → Você [{status_texto}]")
+        
+        lista = "\n".join(linhas) if linhas else "   Nenhum desafio ativo."
+        
+        # Adicionar aviso de proposta pendente
+        aviso_proposta = ""
+        if proposta:
+            try:
+                data1_obj = datetime.strptime(proposta['proposed_date_1'], '%Y-%m-%d')
+                data1_fmt = data1_obj.strftime('%d/%m/%Y')
+                data2_obj = datetime.strptime(proposta['proposed_date_2'], '%Y-%m-%d')
+                data2_fmt = data2_obj.strftime('%d/%m/%Y')
+            except:
+                data1_fmt = proposta['proposed_date_1']
+                data2_fmt = proposta['proposed_date_2']
+            
+            aviso_proposta = f"""
+
+📅 *PROPOSTA DE DATAS PENDENTE!*
+{proposta['challenged_name']} propôs:
+*[A]* {data1_fmt}
+*[B]* {data2_fmt}
+
+Digite *A* ou *B* para escolher."""
+        
+        pendentes_para_responder = [d for d in desafios if d['status'] == 'pending' and d['challenged_id'] == jogador['id']]
+        
+        dica = ""
+        if pendentes_para_responder:
+            dica = "\n\n💡 Digite *4* (aceitar), *5* (rejeitar) ou *7* (propor datas)"
+        
+        return f"""📋 *Meus Desafios*
+
+Olá, {jogador['name']}!
+
+Seus desafios ativos:
+{lista}{aviso_proposta}{dica}
+
+_Digite *0* para voltar ao menu._"""
+    
+    # COMANDO [4]: Aceitar desafio
+    if msg == '4' or 'aceitar' in msg or 'aceito' in msg:
+        numeros = re.findall(r'\d+', msg)
+        if numeros and numeros[0] == '4' and len(msg) <= 2:
+            numeros = []
+        
+        desafios_pendentes = get_desafios_pendentes(jogador['id'])
+        
+        if not desafios_pendentes:
+            return """✅ *Aceitar Desafio*
+
+Você não tem nenhum desafio pendente para aceitar.
+
+_Digite *0* para voltar ao menu._"""
+        
+        if len(desafios_pendentes) == 1 and not numeros:
+            desafio = desafios_pendentes[0]
+            sucesso, mensagem_retorno = aceitar_desafio(desafio['id'], jogador['id'])
+            
+            if sucesso:
+                try:
+                    notificar_desafio_aceito_bot(desafio['id'])
+                except:
+                    pass
+                
+                return f"""✅ *Desafio Aceito!*
+
+Você aceitou o desafio de *{desafio['challenger_name']}* (posição {desafio['challenger_position']}º).
+
+📅 Data agendada: {desafio['scheduled_date']}
+
+Boa sorte! 🏌️
+
+_Digite *0* para voltar ao menu._"""
+            else:
+                return f"❌ {mensagem_retorno}"
+        
+        if numeros:
+            challenge_id = int(numeros[0])
+            sucesso, mensagem_retorno = aceitar_desafio(challenge_id, jogador['id'])
+            
+            if sucesso:
+                try:
+                    notificar_desafio_aceito_bot(challenge_id)
+                except:
+                    pass
+                return f"""✅ *Desafio #{challenge_id} aceito com sucesso!*
+
+_Digite *0* para voltar ao menu._"""
+            else:
+                return f"❌ {mensagem_retorno}"
+        
+        lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} (posição {d['challenger_position']}º)" for d in desafios_pendentes])
+        return f"""✅ *Aceitar Desafio*
+
+Você tem {len(desafios_pendentes)} desafios pendentes:
+{lista}
+
+Para aceitar, digite: *4 [número]*
+Exemplo: *4 123*
+
+_Digite *0* para voltar ao menu._"""
+    
+    # COMANDO [5]: Rejeitar desafio
+    if msg == '5' or any(palavra in msg for palavra in ['rejeitar', 'rejeito', 'recusar', 'recuso']):
+        numeros = re.findall(r'\d+', msg)
+        if numeros and numeros[0] == '5' and len(msg) <= 2:
+            numeros = []
+        
+        desafios_pendentes = get_desafios_pendentes(jogador['id'])
+        
+        if not desafios_pendentes:
+            return """❌ *Rejeitar Desafio*
+
+Você não tem nenhum desafio pendente para rejeitar.
+
+_Digite *0* para voltar ao menu._"""
+        
+        if len(desafios_pendentes) == 1 and not numeros:
+            desafio = desafios_pendentes[0]
+            sucesso, mensagem_retorno = rejeitar_desafio(desafio['id'], jogador['id'])
+            
+            if sucesso:
+                return f"""⚠️ *Desafio Rejeitado*
+
+Você rejeitou o desafio de *{desafio['challenger_name']}*.
+
+WO aplicado - você perdeu a posição.
+
+_Digite *0* para voltar ao menu._"""
+            else:
+                return f"❌ {mensagem_retorno}"
+        
+        if numeros:
+            challenge_id = int(numeros[0])
+            sucesso, mensagem_retorno = rejeitar_desafio(challenge_id, jogador['id'])
+            
+            if sucesso:
+                return f"""⚠️ *Desafio #{challenge_id} rejeitado.* WO aplicado.
+
+_Digite *0* para voltar ao menu._"""
+            else:
+                return f"❌ {mensagem_retorno}"
+        
+        lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} (posição {d['challenger_position']}º)" for d in desafios_pendentes])
+        return f"""❌ *Rejeitar Desafio*
+
+⚠️ *ATENÇÃO*: Rejeitar resulta em WO!
+
+Seus desafios pendentes:
+{lista}
+
+Para rejeitar, digite: *5 [número]*
+Exemplo: *5 123*
+
+💡 Prefere propor novas datas? Digite *7*
+
+_Digite *0* para voltar ao menu._"""
+    
+    # COMANDO [6]: Criar desafio
+    if msg == '6' or any(palavra in msg for palavra in ['criar desafio', 'desafiar', 'novo desafio', 'quero desafiar']):
+        if tem_desafio_ativo(jogador['id']):
+            return """⚠️ *Você já tem um desafio ativo!*
+
+Conclua seu desafio atual antes de criar um novo.
+
+Digite *3* para ver seus desafios.
+
+_Digite *0* para voltar ao menu._"""
+        
+        possiveis = get_possiveis_desafiados(jogador['id'])
+        
+        if not possiveis:
+            return f"""🎯 *Criar Desafio*
+
+Olá, {jogador['name']}!
+Você está na posição *{jogador['position']}º*.
+
+❌ No momento não há jogadores disponíveis para desafio.
+
+_Digite *0* para voltar ao menu._"""
+        
+        linhas = []
+        for i, p in enumerate(possiveis, 1):
+            linhas.append(f"   *{i}* - {p['name']} ({p['position']}º)")
+        
+        lista = "\n".join(linhas)
+        
+        set_chat_state(telefone_normalizado, 'selecionando_oponente', {
+            'possiveis': possiveis
+        })
+        
+        return f"""🎯 *Criar Desafio*
+
+Olá, {jogador['name']}!
+Você está na posição *{jogador['position']}º*.
+
+Selecione quem você quer desafiar:
+{lista}
+
+Digite o *número* do oponente (ex: *1*)
+
+_Digite *0* para cancelar._"""
+    
+    # COMANDO [7]: Propor novas datas
+    if msg == '7' or any(palavra in msg for palavra in ['propor data', 'nova data', 'outras datas', 'propor datas']):
+        desafios_pendentes = get_desafios_pendentes(jogador['id'])
+        
+        if not desafios_pendentes:
+            return """📅 *Propor Novas Datas*
+
+Você não tem nenhum desafio pendente para propor novas datas.
+
+_Digite *0* para voltar ao menu._"""
+        
+        # Se tem apenas um desafio pendente, já inicia o fluxo
+        if len(desafios_pendentes) == 1:
+            desafio = desafios_pendentes[0]
+            
+            set_chat_state(telefone_normalizado, 'propondo_data_1', {
+                'challenge_id': desafio['id'],
+                'challenger_name': desafio['challenger_name']
+            })
+            
+            hoje = datetime.now()
+            data_max = hoje + timedelta(days=7)
+            
+            return f"""📅 *Propor Novas Datas*
+
+Você vai propor novas datas para o desafio de *{desafio['challenger_name']}*.
+
+Informe a *primeira opção* de data:
+(formato DD/MM, máximo 7 dias - até {data_max.strftime('%d/%m/%Y')})
+
+_Digite *0* para cancelar._"""
+        
+        # Se tem múltiplos desafios
+        lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} ({d['challenger_position']}º)" for d in desafios_pendentes])
+        return f"""📅 *Propor Novas Datas*
+
+Você tem {len(desafios_pendentes)} desafios pendentes:
+{lista}
+
+Para propor datas, digite: *7 [número]*
+Exemplo: *7 123*
+
+_Digite *0* para voltar ao menu._"""
+    
+    # MENU PRINCIPAL [0]
+    # Verificar se tem proposta de data pendente
+    proposta = get_proposta_pendente_para_desafiante(jogador['id'])
+    aviso_proposta = ""
+    if proposta:
+        aviso_proposta = """
+━━━━━━━━━━━━━━━━━━━━━
+📅 *VOCÊ TEM PROPOSTA DE DATAS!*
+Digite *3* para ver e responder
+━━━━━━━━━━━━━━━━━━━━━
+"""
+    
+    return f"""🏌️ *Liga Olímpica de Golfe*
+
+Olá, *{jogador['name']}*!
+📊 Posição atual: *{jogador['position']}º*
+{aviso_proposta}
+━━━━━━━━━━━━━━━━━━━━━
+*MENU DE OPÇÕES*
+━━━━━━━━━━━━━━━━━━━━━
+
+*[1]* 📊 Minha posição
+*[2]* 🎯 Quem posso desafiar
+*[3]* 📋 Meus desafios
+*[4]* ✅ Aceitar desafio
+*[5]* ❌ Rejeitar desafio
+*[6]* ⚔️ Criar desafio
+*[7]* 📅 Propor novas datas
+
+━━━━━━━━━━━━━━━━━━━━━
+
+_Digite o número da opção desejada._"""
+
+
+def parse_data_input(texto):
+    """Converte texto de data para objeto date"""
+    texto = texto.strip()
+    hoje = datetime.now().date()
+    ano_atual = hoje.year
+    
+    # Formatos aceitos: DD/MM, DD-MM, DD.MM, DD/MM/YYYY
+    formatos = [
+        (r'^(\d{1,2})[/\-.](\d{1,2})$', 'short'),
+        (r'^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$', 'full'),
+        (r'^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2})$', 'short_year'),
+    ]
+    
+    for pattern, fmt_type in formatos:
+        match = re.match(pattern, texto)
+        if match:
+            try:
+                if fmt_type == 'short':
+                    dia, mes = match.groups()
+                    data = datetime(ano_atual, int(mes), int(dia)).date()
+                    # Se a data já passou, assume ano que vem
+                    if data < hoje:
+                        data = datetime(ano_atual + 1, int(mes), int(dia)).date()
+                    return data
+                elif fmt_type == 'full':
+                    dia, mes, ano = match.groups()
+                    return datetime(int(ano), int(mes), int(dia)).date()
+                elif fmt_type == 'short_year':
+                    dia, mes, ano = match.groups()
+                    ano_completo = 2000 + int(ano)
+                    return datetime(ano_completo, int(mes), int(dia)).date()
+            except ValueError:
+                continue
+    
+    return None
 
 
 if __name__ == '__main__':
