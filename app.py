@@ -9337,7 +9337,7 @@ def webhook_whatsapp():
             print(f"[Webhook] Mensagem de {telefone}: {mensagem}")
             
             # Processar comando e obter resposta
-            resposta = processar_comando_whatsapp(mensagem, telefone)
+            resposta = processar_comando_whatsapp_v2(mensagem, telefone)
             
             # Enviar resposta
             if resposta:
