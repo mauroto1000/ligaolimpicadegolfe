@@ -8029,71 +8029,69 @@ def get_player_phone(player_id):
 
 
 def notificar_desafio_criado_whatsapp(challenge_id):
-    """Notifica no grupo do WhatsApp sobre o novo desafio"""
+    """Notifica o desafiado sobre o novo desafio"""
+    conn = get_db_connection()
+    
+    challenge = conn.execute('''
+        SELECT c.*, 
+               challenger.name as challenger_name,
+               challenger.position as challenger_position,
+               challenged.name as challenged_name,
+               challenged.telefone as challenged_telefone
+        FROM challenges c
+        JOIN players challenger ON c.challenger_id = challenger.id
+        JOIN players challenged ON c.challenged_id = challenged.id
+        WHERE c.id = ?
+    ''', (challenge_id,)).fetchone()
+    
+    conn.close()
+    
+    if not challenge:
+        return
+    
+    # Formatar data
     try:
-        conn = get_db_connection()
+        data_obj = datetime.strptime(challenge['scheduled_date'], '%Y-%m-%d')
+        data_fmt = data_obj.strftime('%d/%m/%Y')
+    except:
+        data_fmt = challenge['scheduled_date']
+    
+    # Notificar desafiado
+    telefone_desafiado = challenge['challenged_telefone']
+    if telefone_desafiado:
+        msg = f"""🏌️ *NOVO DESAFIO!*
+
+Você foi desafiado por *{challenge['challenger_name']}* (#{challenge['challenger_position']})
+
+📅 Data proposta: *{data_fmt}*
+
+━━━━━━━━━━━━━━━━━━━━━
+*ESCOLHA UMA OPÇÃO:*
+━━━━━━━━━━━━━━━━━━━━━
+
+*[4]* ✅ Aceitar a data
+*[5]* ❌ Rejeitar (WO - você perde)
+*[7]* 📅 Propor 2 novas datas
+
+━━━━━━━━━━━━━━━━━━━━━
+
+⏰ Prazo para responder: *2 dias*"""
         
-        challenge = conn.execute('''
-            SELECT c.*, 
-                   challenger.name as challenger_name,
-                   challenger.position as challenger_pos,
-                   challenged.name as challenged_name,
-                   challenged.position as challenged_pos
-            FROM challenges c
-            JOIN players challenger ON c.challenger_id = challenger.id
-            JOIN players challenged ON c.challenged_id = challenged.id
-            WHERE c.id = ?
-        ''', (challenge_id,)).fetchone()
-        
-        conn.close()
-        
-        if not challenge:
-            return
-        
-        # Formatar data
-        data_jogo = challenge['scheduled_date']
-        try:
-            data_obj = datetime.strptime(data_jogo, '%Y-%m-%d')
-            data_formatada = data_obj.strftime('%d/%m/%Y')
-        except:
-            data_formatada = data_jogo
-        
-        mensagem = f"""🎯 *NOVO DESAFIO CRIADO*
+        telefone_norm = normalizar_telefone(telefone_desafiado)
+        enviar_mensagem_whatsapp(f"55{telefone_norm}@s.whatsapp.net", msg)
+    
+    # Notificar no grupo
+    msg_grupo = f"""🏆 *NOVO DESAFIO CRIADO*
 
-🏌️ *{challenge['challenger_name']}* ({challenge['challenger_pos']}º)
-      ⚔️ desafia ⚔️
-🏌️ *{challenge['challenged_name']}* ({challenge['challenged_pos']}º)
+⚔️ *{challenge['challenger_name']}* (#{challenge['challenger_position']}) 
+    desafiou 
+    *{challenge['challenged_name']}*
 
-📅 Data proposta: *{data_formatada}*
-⏳ Prazo para resposta: *2 dias*
+📅 Data proposta: {data_fmt}
 
-_Desafio criado via WhatsApp_"""
-
-        # Enviar para o grupo
-        enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, mensagem)
-        
-        # Notificar o desafiado (se tiver WhatsApp cadastrado)
-        challenged_phone = get_player_phone(challenge['challenged_id'])
-        if challenged_phone:
-            msg_privada = f"""📩 *Você foi desafiado!*
-
-{challenge['challenger_name']} ({challenge['challenger_pos']}º) está desafiando você para um jogo.
-
-📅 Data proposta: *{data_formatada}*
-⏳ Você tem *2 dias* para responder.
-
-Digite:
-*4* - Aceitar desafio
-*5* - Rejeitar desafio
-
-_Responda aqui mesmo pelo WhatsApp!_"""
-            
-            # Formatar número para envio
-            jid = f"55{challenged_phone}@s.whatsapp.net"
-            enviar_mensagem_whatsapp(jid, msg_privada)
-            
-    except Exception as e:
-        print(f"Erro ao notificar desafio: {e}")
+Boa sorte! 🍀"""
+    
+    enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
 
 
 def notificar_desafio_aceito_bot(challenge_id):
