@@ -3115,40 +3115,9 @@ def new_challenge():
 
         # Notificação WhatsApp
         try:
-                    notificar_desafio_criado_whatsapp(challenge_id)
-                except Exception as e:
-                    print(f"[WhatsApp] Erro ao notificar: {e}")
-        ```
-
-        ---
-
-        ## No editor do PythonAnywhere:
-
-        1. Abra o `app.py`
-        2. Pressione **Ctrl+G** e vá para a linha **3117**
-        3. Substitua o bloco acima
-        4. **Salve** (Ctrl+S)
-        5. Vá na aba **Web** → **Reload** 🔄
-
-        ---
-
-        ## Depois teste:
-
-        Crie um novo desafio pelo **site** e veja se a mensagem chega com as opções:
-        ```
-        🏌️ NOVO DESAFIO!
-
-        Você foi desafiado por Rory McIlroy (teste) (#110)
-
-        📅 Data proposta: 25/02/2026
-
-        ━━━━━━━━━━━━━━━━━━━━━
-        ESCOLHA UMA OPÇÃO:
-        ━━━━━━━━━━━━━━━━━━━━━
-
-        [4] ✅ Aceitar a data
-        [5] ❌ Rejeitar (WO - você perde)
-        [7] 📅 Propor 2 novas datas
+            notificar_desafio_criado_whatsapp(challenge_id)
+        except Exception as e:
+            print(f"[WhatsApp] Erro ao notificar: {e}")
 
         conn.close()
         
