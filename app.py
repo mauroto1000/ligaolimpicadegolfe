@@ -9430,11 +9430,7 @@ def notificar_proposta_datas(challenge_id):
     conn.close()
     
     if not challenge:
-        return
-    
-    telefone_desafiante = challenge['challenger_telefone']
-    if not telefone_desafiante:
-        return
+        return False
     
     # Formatar datas
     try:
@@ -9449,20 +9445,39 @@ def notificar_proposta_datas(challenge_id):
     except:
         data2_fmt = challenge['proposed_date_2']
     
-    msg = f"""📅 *PROPOSTA DE NOVAS DATAS*
+    # Notificar desafiante via WhatsApp
+    telefone_desafiante = challenge['challenger_telefone']
+    if telefone_desafiante:
+        msg = f"""📅 *PROPOSTA DE NOVAS DATAS*
 
 *{challenge['challenged_name']}* ({challenge['challenged_position']}º) propôs novas datas para o desafio:
 
 *[A]* {data1_fmt}
 *[B]* {data2_fmt}
 
+━━━━━━━━━━━━━━━━━━━━━
 Digite *A* ou *B* para aceitar uma das datas.
 
-_Você tem 2 dias para responder._"""
+⏰ _Você tem 2 dias para responder._"""
+        
+        telefone_normalizado = normalizar_telefone(telefone_desafiante)
+        enviar_mensagem_whatsapp(f"55{telefone_normalizado}@s.whatsapp.net", msg)
     
-    # Enviar mensagem
-    telefone_normalizado = normalizar_telefone(telefone_desafiante)
-    enviar_mensagem_whatsapp(f"55{telefone_normalizado}@s.whatsapp.net", msg)
+    # Notificar no grupo da liga
+    msg_grupo = f"""📅 *PROPOSTA DE NOVAS DATAS*
+
+*{challenge['challenged_name']}* propôs novas datas:
+
+⚔️ *{challenge['challenger_name']}* vs *{challenge['challenged_name']}*
+
+📆 Opção A: {data1_fmt}
+📆 Opção B: {data2_fmt}
+
+Aguardando escolha do desafiante... ⏳"""
+    
+    enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
+    
+    return True
 
 
 def notificar_data_confirmada(challenge_id, data_escolhida):
@@ -9788,28 +9803,41 @@ _Digite *0* para cancelar._"""
             
             salvar_proposta_datas(challenge_id, data1, data2.strftime('%Y-%m-%d'), jogador['id'])
             
-            # Notificar desafiante
-            try:
-                notificar_proposta_datas(challenge_id)
-            except Exception as e:
-                print(f"Erro ao notificar: {e}")
-            
-            clear_chat_state(telefone_normalizado)
-            
-            # Formatar data1
+            # Formatar data1 para exibição
             try:
                 data1_obj = datetime.strptime(data1, '%Y-%m-%d')
                 data1_fmt = data1_obj.strftime('%d/%m/%Y')
             except:
                 data1_fmt = data1
             
-            return f"""✅ *PROPOSTA ENVIADA!*
+            # Notificar desafiante e grupo
+            notificacao_enviada = False
+            try:
+                notificacao_enviada = notificar_proposta_datas(challenge_id)
+            except Exception as e:
+                print(f"Erro ao notificar proposta: {e}")
+            
+            clear_chat_state(telefone_normalizado)
+            
+            # Mensagem de confirmação para o desafiado
+            if notificacao_enviada:
+                status_msg = "✅ *" + dados['challenger_name'] + " foi notificado!*"
+            else:
+                status_msg = "⚠️ Não foi possível notificar automaticamente."
+            
+            return f"""✅ *PROPOSTA DE DATAS ENVIADA!*
 
-Você propôs as seguintes datas:
-- *{data1_fmt}*
-- *{data2.strftime('%d/%m/%Y')}*
+Você propôs as seguintes datas para *{dados['challenger_name']}*:
 
-*{dados['challenger_name']}* será notificado e deve escolher uma das datas.
+📆 *Opção A:* {data1_fmt}
+📆 *Opção B:* {data2.strftime('%d/%m/%Y')}
+
+━━━━━━━━━━━━━━━━━━━━━
+{status_msg}
+
+Ele deve escolher uma das datas em até *2 dias*.
+
+Você será notificado quando a data for confirmada! 🏌️
 
 _Digite *0* para voltar ao menu._"""
     
