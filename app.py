@@ -2726,7 +2726,7 @@ def pyramid_dynamic():
         FROM challenges c
         JOIN players p1 ON c.challenger_id = p1.id
         JOIN players p2 ON c.challenged_id = p2.id
-        WHERE c.status IN ('pending', 'accepted', 'completed_pending')
+        WHERE c.status IN ('pending', 'accepted', 'completed_pending', 'awaiting_date_confirmation')
     ''').fetchall()
     
     # Converter listas para conjuntos para busca eficiente
