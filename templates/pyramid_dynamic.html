@@ -291,6 +291,22 @@
     .challenge-date { background-color: #17a2b8; }
     .pending-date { background-color: #dc3545; }
 
+    /* Datas propostas (aguardando escolha do desafiante) */
+    .proposed-dates {
+        font-size: 8px;
+        font-weight: bold;
+        color: #fff;
+        background-color: #9c27b0;
+        padding: 1px 3px;
+        border-radius: 3px;
+        position: absolute;
+        bottom: 2px;
+        left: 2px;
+        white-space: nowrap;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        z-index: 3;
+    }
+
     .player-name {
         font-size: 10px;
         text-align: center;
@@ -637,6 +653,10 @@
                 <span class="ms-1">Aguardando aceite</span>
             </div>
             <div class="legend-item">
+                <span style="font-size: 11px; padding: 2px 5px; background-color: #9c27b0; color: #fff; border-radius: 3px;">22/02|24/02</span>
+                <span class="ms-1">Escolhendo data</span>
+            </div>
+            <div class="legend-item">
                 <div class="legend-color legend-yellow" style="position: relative; display: flex; align-items: center; justify-content: center;">
                     <span style="font-weight: bold; color: #000; font-size: 14px;">✕</span>
                 </div>
@@ -716,7 +736,28 @@
                                                 
                                                 {% set displayed = [false] %}
                                                 
-                                                {# Primeiro verifica desafios pendentes (aguardando aceite) - mostra a data #}
+                                                {# Primeiro verifica desafios com datas propostas (aguardando escolha) #}
+                                                {% for challenge in challenges %}
+                                                    {% if not displayed[0] and challenge.status == 'awaiting_date_confirmation' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                                        <span class="proposed-dates">
+                                                            {% set d1 = challenge.proposed_date_1|string %}
+                                                            {% set d2 = challenge.proposed_date_2|string %}
+                                                            {% if '-' in d1 %}
+                                                                {% set p1 = d1.split('-') %}
+                                                                {{ p1[2].split(' ')[0] }}/{{ p1[1] }}
+                                                            {% endif %}
+                                                            |
+                                                            {% if '-' in d2 %}
+                                                                {% set p2 = d2.split('-') %}
+                                                                {{ p2[2].split(' ')[0] }}/{{ p2[1] }}
+                                                            {% endif %}
+                                                        </span>
+                                                        {% if displayed.append(true) %}{% endif %}
+                                                        {% if displayed.pop(0) %}{% endif %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                                
+                                                {# Depois verifica desafios pendentes (aguardando aceite) - mostra a data #}
                                                 {% for challenge in challenges %}
                                                     {% if not displayed[0] and challenge.status == 'pending' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
                                                         <span class="pending-date">
@@ -824,6 +865,61 @@
                                                         <i class="fas fa-venus me-1" style="opacity: 0.8;"></i>
                                                         {{ player.name }}
                                                     </span>
+                                                    
+                                                    {% set displayed = [false] %}
+                                                    
+                                                    {# Primeiro verifica desafios com datas propostas (aguardando escolha) #}
+                                                    {% for challenge in challenges %}
+                                                        {% if not displayed[0] and challenge.status == 'awaiting_date_confirmation' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                                            <span class="proposed-dates">
+                                                                {% set d1 = challenge.proposed_date_1|string %}
+                                                                {% set d2 = challenge.proposed_date_2|string %}
+                                                                {% if '-' in d1 %}
+                                                                    {% set p1 = d1.split('-') %}
+                                                                    {{ p1[2].split(' ')[0] }}/{{ p1[1] }}
+                                                                {% endif %}
+                                                                |
+                                                                {% if '-' in d2 %}
+                                                                    {% set p2 = d2.split('-') %}
+                                                                    {{ p2[2].split(' ')[0] }}/{{ p2[1] }}
+                                                                {% endif %}
+                                                            </span>
+                                                            {% if displayed.append(true) %}{% endif %}
+                                                            {% if displayed.pop(0) %}{% endif %}
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                    
+                                                    {# Depois verifica desafios pendentes (aguardando aceite) - mostra a data #}
+                                                    {% for challenge in challenges %}
+                                                        {% if not displayed[0] and challenge.status == 'pending' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                                            <span class="pending-date">
+                                                                {% set date_str = challenge.scheduled_date|string %}
+                                                                {% if '-' in date_str %}
+                                                                    {% set parts = date_str.split('-') %}
+                                                                    ({{ parts[2].split(' ')[0] }}/{{ parts[1] }})
+                                                                {% else %}
+                                                                    (?)
+                                                                {% endif %}
+                                                            </span>
+                                                            {% if displayed.append(true) %}{% endif %}
+                                                            {% if displayed.pop(0) %}{% endif %}
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                    
+                                                    {# Depois verifica desafios aceitos #}
+                                                    {% for challenge in challenges %}
+                                                        {% if not displayed[0] and challenge.status == 'accepted' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                                            <span class="challenge-date">
+                                                                {% set date_str = challenge.scheduled_date|string %}
+                                                                {% if '-' in date_str %}
+                                                                    {% set parts = date_str.split('-') %}
+                                                                    ({{ parts[2].split(' ')[0] }}/{{ parts[1] }})
+                                                                {% endif %}
+                                                            </span>
+                                                            {% if displayed.append(true) %}{% endif %}
+                                                            {% if displayed.pop(0) %}{% endif %}
+                                                        {% endif %}
+                                                    {% endfor %}
                                                 </div>
                                                 {% if current_index.append(current_index.pop() + 1) %}{% endif %}
                                             {% endif %}
