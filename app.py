@@ -7848,39 +7848,66 @@ from flask import request, jsonify
 # ============================================================
 
 def get_chat_state(telefone):
-    """Retorna o estado atual da conversa do usuário"""
+    """Retorna o estado atual da conversa do usuário (do banco de dados)"""
     telefone_norm = normalizar_telefone(telefone)
     
-    if telefone_norm not in CHAT_STATES:
-        return None
+    conn = get_db_connection()
+    state = conn.execute(
+        'SELECT estado, dados, expira FROM chat_states WHERE telefone = ?',
+        (telefone_norm,)
+    ).fetchone()
+    conn.close()
     
-    state = CHAT_STATES[telefone_norm]
+    if not state:
+        return None
     
     # Verificar se expirou
-    if datetime.now() > state.get('expira', datetime.now()):
-        del CHAT_STATES[telefone_norm]
-        return None
+    try:
+        expira = datetime.strptime(state['expira'], '%Y-%m-%d %H:%M:%S')
+        if datetime.now() > expira:
+            clear_chat_state(telefone_norm)
+            return None
+    except:
+        pass
     
-    return state
-
-
-def set_chat_state(telefone, estado, dados=None):
-    """Define o estado da conversa do usuário"""
-    telefone_norm = normalizar_telefone(telefone)
+    # Parsear dados JSON
+    import json
+    try:
+        dados = json.loads(state['dados']) if state['dados'] else {}
+    except:
+        dados = {}
     
-    CHAT_STATES[telefone_norm] = {
-        'estado': estado,
-        'dados': dados or {},
-        'expira': datetime.now() + timedelta(minutes=CHAT_STATE_TIMEOUT)
+    return {
+        'estado': state['estado'],
+        'dados': dados
     }
 
 
-def clear_chat_state(telefone):
-    """Limpa o estado da conversa do usuário"""
+def set_chat_state(telefone, estado, dados=None):
+    """Define o estado da conversa do usuário (no banco de dados)"""
+    import json
     telefone_norm = normalizar_telefone(telefone)
     
-    if telefone_norm in CHAT_STATES:
-        del CHAT_STATES[telefone_norm]
+    dados_json = json.dumps(dados or {})
+    expira = (datetime.now() + timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
+    
+    conn = get_db_connection()
+    conn.execute('''
+        INSERT OR REPLACE INTO chat_states (telefone, estado, dados, expira)
+        VALUES (?, ?, ?, ?)
+    ''', (telefone_norm, estado, dados_json, expira))
+    conn.commit()
+    conn.close()
+
+
+def clear_chat_state(telefone):
+    """Limpa o estado da conversa do usuário (do banco de dados)"""
+    telefone_norm = normalizar_telefone(telefone)
+    
+    conn = get_db_connection()
+    conn.execute('DELETE FROM chat_states WHERE telefone = ?', (telefone_norm,))
+    conn.commit()
+    conn.close()
 
 
 def criar_desafio_via_whatsapp(challenger_id, challenged_id, scheduled_date):
