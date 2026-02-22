@@ -9438,6 +9438,74 @@ def aceitar_data_proposta(challenge_id, data_escolhida):
     conn.close()
 
 
+def cancelar_desafio_sem_penalidade(challenge_id):
+    """Cancela o desafio sem prejuízo para nenhuma das partes"""
+    conn = get_db_connection()
+    
+    conn.execute('''
+        UPDATE challenges 
+        SET status = 'cancelled',
+            updated_at = ?
+        WHERE id = ?
+    ''', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), challenge_id))
+    
+    conn.commit()
+    conn.close()
+
+
+def notificar_cancelamento_sem_penalidade(challenge_id):
+    """Notifica ambas as partes sobre o cancelamento sem prejuízo"""
+    conn = get_db_connection()
+    
+    challenge = conn.execute('''
+        SELECT c.*, 
+               challenger.name as challenger_name,
+               challenger.telefone as challenger_telefone,
+               challenged.name as challenged_name,
+               challenged.telefone as challenged_telefone,
+               challenged.position as challenged_position
+        FROM challenges c
+        JOIN players challenger ON c.challenger_id = challenger.id
+        JOIN players challenged ON c.challenged_id = challenged.id
+        WHERE c.id = ?
+    ''', (challenge_id,)).fetchone()
+    
+    conn.close()
+    
+    if not challenge:
+        return False
+    
+    # Notificar desafiado
+    telefone_desafiado = challenge['challenged_telefone']
+    if telefone_desafiado:
+        msg_desafiado = f"""❌ *DESAFIO CANCELADO*
+
+*{challenge['challenger_name']}* não aceitou as datas propostas.
+
+O desafio foi cancelado *sem prejuízo* para nenhuma das partes.
+
+Vocês podem criar um novo desafio quando quiserem! 🏌️
+
+_Digite *0* para voltar ao menu._"""
+        
+        telefone_norm = normalizar_telefone(telefone_desafiado)
+        enviar_mensagem_whatsapp(f"55{telefone_norm}@s.whatsapp.net", msg_desafiado)
+    
+    # Notificar no grupo da liga
+    msg_grupo = f"""❌ *DESAFIO CANCELADO*
+
+⚔️ *{challenge['challenger_name']}* vs *{challenge['challenged_name']}*
+
+O desafiante não aceitou as datas propostas.
+Desafio cancelado *sem prejuízo* para ambos."""
+    
+    enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
+    
+    return True
+
+
+
+
 def notificar_proposta_datas(challenge_id):
     """Notifica o desafiante sobre as datas propostas"""
     conn = get_db_connection()
@@ -9481,9 +9549,10 @@ def notificar_proposta_datas(challenge_id):
 
 *[A]* {data1_fmt}
 *[B]* {data2_fmt}
+*[C]* ❌ Cancelar desafio (sem prejuízo)
 
 ━━━━━━━━━━━━━━━━━━━━━
-Digite *A* ou *B* para aceitar uma das datas.
+Digite *A*, *B* ou *C* para responder.
 
 ⏰ _Você tem 2 dias para responder._"""
         
@@ -9505,6 +9574,33 @@ Aguardando escolha do desafiante... ⏳"""
     enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
     
     return True
+```
+
+---
+
+## RESUMO DAS ALTERAÇÕES:
+
+1. ✅ **Nova função** `cancelar_desafio_sem_penalidade()` - muda status para `cancelled`
+2. ✅ **Nova função** `notificar_cancelamento_sem_penalidade()` - avisa desafiado e grupo
+3. ✅ **Modificado** bloco `if msg in ['a', 'b']:` → `if msg in ['a', 'b', 'c']:`
+4. ✅ **Modificado** `notificar_proposta_datas()` - inclui opção C na mensagem
+
+---
+
+## FLUXO FINAL:
+
+**Desafiante recebe:**
+```
+📅 PROPOSTA DE NOVAS DATAS
+
+João (5º) propôs novas datas para o desafio:
+
+[A] 25/02/2026
+[B] 27/02/2026
+[C] ❌ Cancelar desafio (sem prejuízo)
+
+━━━━━━━━━━━━━━━━━━━━━
+Digite A, B ou C para responder.
 
 
 def notificar_data_confirmada(challenge_id, data_escolhida):
@@ -9576,14 +9672,35 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
 Seu número de WhatsApp não está vinculado a nenhum jogador da Liga.
 
 Para cadastrar, acesse seu perfil no site e adicione seu número no campo "WhatsApp para Notificações"."""
-    
-    # ---------------------------------------------------------
+
+# ---------------------------------------------------------
     # VERIFICAR SE HÁ PROPOSTA DE DATA PENDENTE (desafiante)
     # ---------------------------------------------------------
-    if msg in ['a', 'b']:
+    if msg in ['a', 'b', 'c']:
         proposta = get_proposta_pendente_para_desafiante(jogador['id'])
         
         if proposta:
+            # Opção C - Cancelar sem prejuízo
+            if msg == 'c':
+                cancelar_desafio_sem_penalidade(proposta['id'])
+                
+                # Notificar
+                try:
+                    notificar_cancelamento_sem_penalidade(proposta['id'])
+                except Exception as e:
+                    print(f"Erro ao notificar cancelamento: {e}")
+                
+                return f"""❌ *DESAFIO CANCELADO*
+
+Você optou por não aceitar as datas propostas por *{proposta['challenged_name']}*.
+
+O desafio foi cancelado *sem prejuízo* para nenhuma das partes.
+
+Vocês podem criar um novo desafio quando quiserem! 🏌️
+
+_Digite *0* para voltar ao menu._"""
+            
+            # Opção A ou B - Aceitar uma das datas
             if msg == 'a':
                 data_escolhida = proposta['proposed_date_1']
             else:
@@ -9612,6 +9729,8 @@ Você aceitou a data *{data_fmt}* para o desafio contra *{proposta['challenged_n
 O desafio está confirmado! Boa sorte! 🏌️
 
 _Digite *0* para voltar ao menu._"""
+
+
     
     # ---------------------------------------------------------
     # VERIFICAR SE HÁ ESTADO PENDENTE (conversa em andamento)
