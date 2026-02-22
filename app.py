@@ -9341,7 +9341,8 @@ def webhook_whatsapp():
             
             # Enviar resposta
             if resposta:
-                enviar_mensagem_whatsapp(f"55{telefone}@s.whatsapp.net", resposta)
+                rodape = "\n\n━━━━━━━━━━━━━━━━━━━━━\n🌐 Visite: www.ligaolimpicadegolfe.com.br"
+                enviar_mensagem_whatsapp(f"55{telefone}@s.whatsapp.net", resposta + rodape)
             
             return jsonify({'status': 'processed'})
         
