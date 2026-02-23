@@ -8607,7 +8607,7 @@ _Digite *0* para voltar ao menu._"""
 
 Olá, {jogador['name']}!
 
-🆔 Código: *{jogador['id']}*
+🆔 Código: *{jogador['player_code']}*
 Você está na posição *{jogador['position']}º* no ranking.
 
 _Digite *0* para voltar ao menu._"""
@@ -9973,7 +9973,7 @@ _Digite *0* para voltar ao menu._"""
 
 Olá, {jogador['name']}!
 
-🆔 Código: *{jogador['id']}*
+🆔 Código: *{jogador['player_code']}*
 Você está na posição *{jogador['position']}º* no ranking.
 
 _Digite *0* para voltar ao menu._"""
