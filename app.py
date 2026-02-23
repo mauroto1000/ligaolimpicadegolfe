@@ -8197,7 +8197,7 @@ def get_player_by_phone(telefone):
     
     # Busca considerando variações do número (com/sem 55, com/sem 9)
     cursor.execute("""
-        SELECT id, name, position, sexo, telefone
+        SELECT id, name, position, sexo, telefone, player_code
         FROM players 
         WHERE REPLACE(REPLACE(REPLACE(telefone, '-', ''), ' ', ''), '+', '') LIKE ?
            OR REPLACE(REPLACE(REPLACE(telefone, '-', ''), ' ', ''), '+', '') LIKE ?
