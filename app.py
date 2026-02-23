@@ -9574,33 +9574,7 @@ Aguardando escolha do desafiante... ⏳"""
     enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
     
     return True
-```
 
----
-
-## RESUMO DAS ALTERAÇÕES:
-
-1. ✅ **Nova função** `cancelar_desafio_sem_penalidade()` - muda status para `cancelled`
-2. ✅ **Nova função** `notificar_cancelamento_sem_penalidade()` - avisa desafiado e grupo
-3. ✅ **Modificado** bloco `if msg in ['a', 'b']:` → `if msg in ['a', 'b', 'c']:`
-4. ✅ **Modificado** `notificar_proposta_datas()` - inclui opção C na mensagem
-
----
-
-## FLUXO FINAL:
-
-**Desafiante recebe:**
-```
-📅 PROPOSTA DE NOVAS DATAS
-
-João (5º) propôs novas datas para o desafio:
-
-[A] 25/02/2026
-[B] 27/02/2026
-[C] ❌ Cancelar desafio (sem prejuízo)
-
-━━━━━━━━━━━━━━━━━━━━━
-Digite A, B ou C para responder.
 
 
 
