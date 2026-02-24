@@ -9,6 +9,8 @@ import json
 from flask import send_file
 from io import BytesIO
 
+from whatsapp_multilingual import processar_comando_whatsapp_v3, MENSAGENS, msg
+
 # Adicionando session config
 app = Flask(__name__)
 app.secret_key = 'liga_olimpica_golfe_2025'
@@ -9632,13 +9634,690 @@ Boa sorte a ambos! 🏌️"""
 
 
 # ============================================================
-# FUNÇÃO PROCESSAR_COMANDO_WHATSAPP - VERSÃO ATUALIZADA
+# FUNÇÃO PROCESSAR_COMANDO_WHATSAPP - VERSÃO COM MULTILÍNGUE
 # ============================================================
 # SUBSTITUI a função processar_comando_whatsapp existente
+# Adicione o dicionário MENSAGENS e a função msg() antes desta função
 # ============================================================
 
+# ============================================================
+# DICIONÁRIO DE MENSAGENS PT/EN
+# ============================================================
+MENSAGENS = {
+    'numero_nao_cadastrado': {
+        'pt': """❌ *Número não cadastrado*
+
+Seu número de WhatsApp não está vinculado a nenhum jogador da Liga.
+
+Para cadastrar, acesse seu perfil no site e adicione seu número no campo "WhatsApp para Notificações".""",
+        'en': """❌ *Number not registered*
+
+Your WhatsApp number is not linked to any player in the League.
+
+To register, access your profile on the website and add your number in the "WhatsApp for Notifications" field."""
+    },
+    
+    'idioma_alterado': {
+        'pt': '🌐 Idioma alterado para *Português*.\n\n_Digite *0* para ver o menu._',
+        'en': '🌐 Language changed to *English*.\n\n_Type *0* to see the menu._'
+    },
+    
+    'opcao_invalida': {
+        'pt': '⚠️ Opção inválida!\n\nDigite um número de *1* a *{max}* para selecionar o oponente.\n\nOu digite *0* para cancelar.',
+        'en': '⚠️ Invalid option!\n\nEnter a number from *1* to *{max}* to select the opponent.\n\nOr type *0* to cancel.'
+    },
+    
+    'digite_apenas_numero': {
+        'pt': '⚠️ Digite apenas o *número* do oponente.\n\nExemplo: *1* ou *2* ou *3*\n\n_Digite *0* para cancelar._',
+        'en': '⚠️ Enter only the opponent *number*.\n\nExample: *1* or *2* or *3*\n\n_Type *0* to cancel._'
+    },
+    
+    'criacao_cancelada': {
+        'pt': '❌ Criação de desafio cancelada.\n\n_Digite *0* para ver o menu._',
+        'en': '❌ Challenge creation cancelled.\n\n_Type *0* to see the menu._'
+    },
+    
+    'proposta_cancelada': {
+        'pt': '❌ Proposta cancelada.\n\n_Digite *0* para ver o menu._',
+        'en': '❌ Proposal cancelled.\n\n_Type *0* to see the menu._'
+    },
+    
+    'desafio_cancelado_sem_penalidade': {
+        'pt': """❌ *DESAFIO CANCELADO*
+
+Você optou por não aceitar as datas propostas por *{nome}*.
+
+O desafio foi cancelado *sem prejuízo* para nenhuma das partes.
+
+Vocês podem criar um novo desafio quando quiserem! 🏌️
+
+_Digite *0* para voltar ao menu._""",
+        'en': """❌ *CHALLENGE CANCELLED*
+
+You chose not to accept the dates proposed by *{nome}*.
+
+The challenge was cancelled *without penalty* for either party.
+
+You can create a new challenge whenever you want! 🏌️
+
+_Type *0* to return to menu._"""
+    },
+    
+    'data_confirmada': {
+        'pt': """✅ *DATA CONFIRMADA!*
+
+Você aceitou a data *{data}* para o desafio contra *{nome}*.
+
+O desafio está confirmado! Boa sorte! 🏌️
+
+_Digite *0* para voltar ao menu._""",
+        'en': """✅ *DATE CONFIRMED!*
+
+You accepted the date *{data}* for the challenge against *{nome}*.
+
+The challenge is confirmed! Good luck! 🏌️
+
+_Type *0* to return to menu._"""
+    },
+    
+    'oponente_selecionado': {
+        'pt': """✅ Oponente selecionado: *{nome}* ({posicao}º)
+
+📅 *Qual a data do jogo?*
+
+Digite no formato *DD/MM* (ex: {data_exemplo})
+
+A data deve ser nos próximos *7 dias*.
+(até {data_max})
+
+_Digite *0* para cancelar._""",
+        'en': """✅ Opponent selected: *{nome}* ({posicao}th)
+
+📅 *What is the game date?*
+
+Enter in format *DD/MM* (e.g.: {data_exemplo})
+
+The date must be within the next *7 days*.
+(until {data_max})
+
+_Type *0* to cancel._"""
+    },
+    
+    'data_formato_invalido': {
+        'pt': '⚠️ Formato de data inválido!\n\nDigite no formato *DD/MM* (ex: 25/02)\n\n_Digite *0* para cancelar._',
+        'en': '⚠️ Invalid date format!\n\nEnter in format *DD/MM* (e.g.: 25/02)\n\n_Type *0* to cancel._'
+    },
+    
+    'data_no_passado': {
+        'pt': '⚠️ A data não pode ser no passado!\n\nDigite uma data a partir de hoje.\n\n_Digite *0* para cancelar._',
+        'en': '⚠️ The date cannot be in the past!\n\nEnter a date from today onwards.\n\n_Type *0* to cancel._'
+    },
+    
+    'data_muito_longe': {
+        'pt': '⚠️ A data não pode ser superior a 7 dias!\n\nData máxima permitida: *{data_max}*\n\n_Digite *0* para cancelar._',
+        'en': '⚠️ The date cannot be more than 7 days away!\n\nMaximum allowed date: *{data_max}*\n\n_Type *0* to cancel._'
+    },
+    
+    'desafio_criado_sucesso': {
+        'pt': """🎉 *DESAFIO CRIADO COM SUCESSO!*
+
+Você desafiou *{nome}* ({posicao}º)
+
+📅 Data do jogo: *{data}*
+⏳ Prazo para resposta: *2 dias*
+
+O desafiado será notificado e pode:
+- Aceitar a data
+- Rejeitar (perde por WO)
+- Propor 2 novas datas
+
+Boa sorte! 🏌️
+
+_Digite *0* para voltar ao menu._""",
+        'en': """🎉 *CHALLENGE CREATED SUCCESSFULLY!*
+
+You challenged *{nome}* ({posicao}th)
+
+📅 Game date: *{data}*
+⏳ Response deadline: *2 days*
+
+The challenged player will be notified and can:
+- Accept the date
+- Reject (loses by WO)
+- Propose 2 new dates
+
+Good luck! 🏌️
+
+_Type *0* to return to menu._"""
+    },
+    
+    'erro_criar_desafio': {
+        'pt': '❌ *Erro ao criar desafio*\n\n{erro}\n\n_Digite *0* para voltar ao menu._',
+        'en': '❌ *Error creating challenge*\n\n{erro}\n\n_Type *0* to return to menu._'
+    },
+    
+    'primeira_data_ok': {
+        'pt': '✅ Primeira data: *{data}*\n\nAgora informe a *segunda opção* de data:\n\n(formato DD/MM, máximo 7 dias)\n\n_Digite *0* para cancelar._',
+        'en': '✅ First date: *{data}*\n\nNow enter the *second date option*:\n\n(format DD/MM, maximum 7 days)\n\n_Type *0* to cancel._'
+    },
+    
+    'proposta_enviada': {
+        'pt': """✅ *PROPOSTA DE DATAS ENVIADA!*
+
+Você propôs as seguintes datas para *{nome}*:
+
+📆 *Opção A:* {data1}
+📆 *Opção B:* {data2}
+
+━━━━━━━━━━━━━━━━━━━━━
+{status}
+
+Ele deve escolher uma das datas em até *2 dias*.
+
+Você será notificado quando a data for confirmada! 🏌️
+
+_Digite *0* para voltar ao menu._""",
+        'en': """✅ *DATE PROPOSAL SENT!*
+
+You proposed the following dates to *{nome}*:
+
+📆 *Option A:* {data1}
+📆 *Option B:* {data2}
+
+━━━━━━━━━━━━━━━━━━━━━
+{status}
+
+They must choose one of the dates within *2 days*.
+
+You will be notified when the date is confirmed! 🏌️
+
+_Type *0* to return to menu._"""
+    },
+    
+    'minha_posicao': {
+        'pt': """📊 *Sua Posição no Ranking*
+
+Olá, {nome}!
+
+🆔 Código: *{codigo}*
+Você está na posição *{posicao}º* no ranking.
+
+_Digite *0* para voltar ao menu._""",
+        'en': """📊 *Your Ranking Position*
+
+Hello, {nome}!
+
+🆔 Code: *{codigo}*
+You are in position *{posicao}* in the ranking.
+
+_Type *0* to return to menu._"""
+    },
+    
+    'possiveis_desafiados_vazio': {
+        'pt': """🎯 *Possíveis Desafiados*
+
+Olá, {nome}!
+Você está na posição *{posicao}º*.
+
+No momento não há jogadores disponíveis para desafio.
+
+_Digite *0* para voltar ao menu._""",
+        'en': """🎯 *Possible Opponents*
+
+Hello, {nome}!
+You are in position *{posicao}*.
+
+There are currently no players available for challenge.
+
+_Type *0* to return to menu._"""
+    },
+    
+    'possiveis_desafiados': {
+        'pt': """🎯 *Possíveis Desafiados*
+
+Olá, {nome}!
+Você está na posição *{posicao}º*.
+
+Você pode desafiar:
+{lista}
+
+📱 Para criar um desafio, digite *6*
+
+_Digite *0* para voltar ao menu._""",
+        'en': """🎯 *Possible Opponents*
+
+Hello, {nome}!
+You are in position *{posicao}*.
+
+You can challenge:
+{lista}
+
+📱 To create a challenge, type *6*
+
+_Type *0* to return to menu._"""
+    },
+    
+    'meus_desafios_vazio': {
+        'pt': """📋 *Meus Desafios*
+
+Olá, {nome}!
+
+Você não tem desafios ativos no momento.
+
+_Digite *0* para voltar ao menu._""",
+        'en': """📋 *My Challenges*
+
+Hello, {nome}!
+
+You have no active challenges at the moment.
+
+_Type *0* to return to menu._"""
+    },
+    
+    'meus_desafios': {
+        'pt': """📋 *Meus Desafios*
+
+Olá, {nome}!
+
+Seus desafios ativos:
+{lista}{aviso_proposta}{dica}
+
+_Digite *0* para voltar ao menu._""",
+        'en': """📋 *My Challenges*
+
+Hello, {nome}!
+
+Your active challenges:
+{lista}{aviso_proposta}{dica}
+
+_Type *0* to return to menu._"""
+    },
+    
+    'status_aguardando': {
+        'pt': 'Aguardando resposta',
+        'en': 'Awaiting response'
+    },
+    
+    'status_aceito': {
+        'pt': 'Aceito',
+        'en': 'Accepted'
+    },
+    
+    'status_aguardando_data': {
+        'pt': 'Aguardando escolha de data',
+        'en': 'Awaiting date selection'
+    },
+    
+    'dica_pendentes': {
+        'pt': '\n\n💡 Digite *4* (aceitar), *5* (rejeitar) ou *7* (propor datas)',
+        'en': '\n\n💡 Type *4* (accept), *5* (reject) or *7* (propose dates)'
+    },
+    
+    'aviso_proposta_pendente': {
+        'pt': """
+
+📅 *PROPOSTA DE DATAS PENDENTE!*
+{nome} propôs:
+*[A]* {data1}
+*[B]* {data2}
+*[C]* ❌ Cancelar desafio
+
+Digite *A*, *B* ou *C*.""",
+        'en': """
+
+📅 *PENDING DATE PROPOSAL!*
+{nome} proposed:
+*[A]* {data1}
+*[B]* {data2}
+*[C]* ❌ Cancel challenge
+
+Type *A*, *B* or *C*."""
+    },
+    
+    'aceitar_sem_pendentes': {
+        'pt': """✅ *Aceitar Desafio*
+
+Você não tem nenhum desafio pendente para aceitar.
+
+_Digite *0* para voltar ao menu._""",
+        'en': """✅ *Accept Challenge*
+
+You have no pending challenges to accept.
+
+_Type *0* to return to menu._"""
+    },
+    
+    'desafio_aceito': {
+        'pt': """✅ *Desafio Aceito!*
+
+Você aceitou o desafio de *{nome}* (posição {posicao}º).
+
+📅 Data agendada: {data}
+
+Boa sorte! 🏌️
+
+_Digite *0* para voltar ao menu._""",
+        'en': """✅ *Challenge Accepted!*
+
+You accepted the challenge from *{nome}* (position {posicao}).
+
+📅 Scheduled date: {data}
+
+Good luck! 🏌️
+
+_Type *0* to return to menu._"""
+    },
+    
+    'desafio_aceito_id': {
+        'pt': '✅ *Desafio #{id} aceito com sucesso!*\n\n_Digite *0* para voltar ao menu._',
+        'en': '✅ *Challenge #{id} accepted successfully!*\n\n_Type *0* to return to menu._'
+    },
+    
+    'aceitar_lista': {
+        'pt': """✅ *Aceitar Desafio*
+
+Você tem {qtd} desafios pendentes:
+{lista}
+
+Para aceitar, digite: *4 [número]*
+Exemplo: *4 123*
+
+_Digite *0* para voltar ao menu._""",
+        'en': """✅ *Accept Challenge*
+
+You have {qtd} pending challenges:
+{lista}
+
+To accept, type: *4 [number]*
+Example: *4 123*
+
+_Type *0* to return to menu._"""
+    },
+    
+    'rejeitar_sem_pendentes': {
+        'pt': """❌ *Rejeitar Desafio*
+
+Você não tem nenhum desafio pendente para rejeitar.
+
+_Digite *0* para voltar ao menu._""",
+        'en': """❌ *Reject Challenge*
+
+You have no pending challenges to reject.
+
+_Type *0* to return to menu._"""
+    },
+    
+    'desafio_rejeitado': {
+        'pt': """⚠️ *Desafio Rejeitado*
+
+Você rejeitou o desafio de *{nome}*.
+
+WO aplicado - você perdeu a posição.
+
+_Digite *0* para voltar ao menu._""",
+        'en': """⚠️ *Challenge Rejected*
+
+You rejected the challenge from *{nome}*.
+
+WO applied - you lost the position.
+
+_Type *0* to return to menu._"""
+    },
+    
+    'desafio_rejeitado_id': {
+        'pt': '⚠️ *Desafio #{id} rejeitado.* WO aplicado.\n\n_Digite *0* para voltar ao menu._',
+        'en': '⚠️ *Challenge #{id} rejected.* WO applied.\n\n_Type *0* to return to menu._'
+    },
+    
+    'rejeitar_lista': {
+        'pt': """❌ *Rejeitar Desafio*
+
+⚠️ *ATENÇÃO*: Rejeitar resulta em WO!
+
+Seus desafios pendentes:
+{lista}
+
+Para rejeitar, digite: *5 [número]*
+Exemplo: *5 123*
+
+💡 Prefere propor novas datas? Digite *7*
+
+_Digite *0* para voltar ao menu._""",
+        'en': """❌ *Reject Challenge*
+
+⚠️ *WARNING*: Rejecting results in WO!
+
+Your pending challenges:
+{lista}
+
+To reject, type: *5 [number]*
+Example: *5 123*
+
+💡 Prefer to propose new dates? Type *7*
+
+_Type *0* to return to menu._"""
+    },
+    
+    'ja_tem_desafio_ativo': {
+        'pt': """⚠️ *Você já tem um desafio ativo!*
+
+Conclua seu desafio atual antes de criar um novo.
+
+Digite *3* para ver seus desafios.
+
+_Digite *0* para voltar ao menu._""",
+        'en': """⚠️ *You already have an active challenge!*
+
+Complete your current challenge before creating a new one.
+
+Type *3* to see your challenges.
+
+_Type *0* to return to menu._"""
+    },
+    
+    'criar_desafio_sem_oponentes': {
+        'pt': """🎯 *Criar Desafio*
+
+Olá, {nome}!
+Você está na posição *{posicao}º*.
+
+❌ No momento não há jogadores disponíveis para desafio.
+
+_Digite *0* para voltar ao menu._""",
+        'en': """🎯 *Create Challenge*
+
+Hello, {nome}!
+You are in position *{posicao}*.
+
+❌ There are currently no players available for challenge.
+
+_Type *0* to return to menu._"""
+    },
+    
+    'criar_desafio_lista': {
+        'pt': """🎯 *Criar Desafio*
+
+Olá, {nome}!
+Você está na posição *{posicao}º*.
+
+Selecione quem você quer desafiar:
+{lista}
+
+Digite o *número* do oponente (ex: *1*)
+
+_Digite *0* para cancelar._""",
+        'en': """🎯 *Create Challenge*
+
+Hello, {nome}!
+You are in position *{posicao}*.
+
+Select who you want to challenge:
+{lista}
+
+Enter the opponent *number* (e.g.: *1*)
+
+_Type *0* to cancel._"""
+    },
+    
+    'propor_sem_pendentes': {
+        'pt': """📅 *Propor Novas Datas*
+
+Você não tem nenhum desafio pendente para propor novas datas.
+
+_Digite *0* para voltar ao menu._""",
+        'en': """📅 *Propose New Dates*
+
+You have no pending challenges to propose new dates.
+
+_Type *0* to return to menu._"""
+    },
+    
+    'propor_data_inicio': {
+        'pt': """📅 *Propor Novas Datas*
+
+Você vai propor novas datas para o desafio de *{nome}*.
+
+Informe a *primeira opção* de data:
+(formato DD/MM, máximo 7 dias - até {data_max})
+
+_Digite *0* para cancelar._""",
+        'en': """📅 *Propose New Dates*
+
+You will propose new dates for the challenge from *{nome}*.
+
+Enter the *first date option*:
+(format DD/MM, maximum 7 days - until {data_max})
+
+_Type *0* to cancel._"""
+    },
+    
+    'propor_lista': {
+        'pt': """📅 *Propor Novas Datas*
+
+Você tem {qtd} desafios pendentes:
+{lista}
+
+Para propor datas, digite: *7 [número]*
+Exemplo: *7 123*
+
+_Digite *0* para voltar ao menu._""",
+        'en': """📅 *Propose New Dates*
+
+You have {qtd} pending challenges:
+{lista}
+
+To propose dates, type: *7 [number]*
+Example: *7 123*
+
+_Type *0* to return to menu._"""
+    },
+    
+    'menu_principal': {
+        'pt': """🏌️ *Liga Olímpica de Golfe*
+
+Olá, *{nome}*!
+📊 Posição atual: *{posicao}º*
+{aviso_proposta}
+━━━━━━━━━━━━━━━━━━━━━
+*MENU DE OPÇÕES*
+━━━━━━━━━━━━━━━━━━━━━
+
+*[1]* 📊 Minha posição
+*[2]* 🎯 Quem posso desafiar
+*[3]* 📋 Meus desafios
+*[4]* ✅ Aceitar desafio
+*[5]* ❌ Rejeitar desafio
+*[6]* ⚔️ Criar desafio
+*[7]* 📅 Propor novas datas
+
+━━━━━━━━━━━━━━━━━━━━━
+🌐 _Type *EN* for English_
+
+_Digite o número da opção desejada._""",
+        'en': """🏌️ *Olympic Golf League*
+
+Hello, *{nome}*!
+📊 Current position: *{posicao}*
+{aviso_proposta}
+━━━━━━━━━━━━━━━━━━━━━
+*MENU OPTIONS*
+━━━━━━━━━━━━━━━━━━━━━
+
+*[1]* 📊 My position
+*[2]* 🎯 Who can I challenge
+*[3]* 📋 My challenges
+*[4]* ✅ Accept challenge
+*[5]* ❌ Reject challenge
+*[6]* ⚔️ Create challenge
+*[7]* 📅 Propose new dates
+
+━━━━━━━━━━━━━━━━━━━━━
+🌐 _Digite *PT* para Português_
+
+_Enter the option number._"""
+    },
+    
+    'aviso_proposta_menu': {
+        'pt': """
+━━━━━━━━━━━━━━━━━━━━━
+📅 *VOCÊ TEM PROPOSTA DE DATAS!*
+Digite *3* para ver e responder
+━━━━━━━━━━━━━━━━━━━━━
+""",
+        'en': """
+━━━━━━━━━━━━━━━━━━━━━
+📅 *YOU HAVE A DATE PROPOSAL!*
+Type *3* to see and respond
+━━━━━━━━━━━━━━━━━━━━━
+"""
+    },
+}
+
+
+# ============================================================
+# FUNÇÃO AUXILIAR PARA OBTER MENSAGEM
+# ============================================================
+def get_msg(chave, idioma='pt', **kwargs):
+    """Obtém mensagem no idioma especificado e aplica formatação."""
+    if idioma not in ['pt', 'en']:
+        idioma = 'pt'
+    
+    if chave not in MENSAGENS:
+        return f"[Mensagem não encontrada: {chave}]"
+    
+    mensagem = MENSAGENS[chave].get(idioma, MENSAGENS[chave].get('pt', ''))
+    
+    if kwargs:
+        try:
+            mensagem = mensagem.format(**kwargs)
+        except KeyError as e:
+            print(f"Erro ao formatar mensagem '{chave}': variável {e} não fornecida")
+    
+    return mensagem
+
+
+# ============================================================
+# FUNÇÃO PARA ATUALIZAR IDIOMA DO JOGADOR
+# ============================================================
+def atualizar_idioma_jogador(player_id, idioma):
+    """Atualiza o idioma preferido do jogador no banco de dados."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE players SET idioma = ? WHERE id = ?", (idioma, player_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Erro ao atualizar idioma: {e}")
+        return False
+
+
+# ============================================================
+# FUNÇÃO PROCESSAR_COMANDO_WHATSAPP - COM MULTILÍNGUE
+# ============================================================
 def processar_comando_whatsapp_v2(mensagem, telefone):
-    """Processa mensagem recebida e retorna resposta - VERSÃO COM PROPOSTA DE DATAS"""
+    """Processa mensagem recebida e retorna resposta - VERSÃO COM MULTILÍNGUE"""
     
     # Normalizar mensagem
     msg = mensagem.lower().strip()
@@ -9648,13 +10327,23 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
     jogador = get_player_by_phone(telefone)
     
     if not jogador:
-        return """❌ *Número não cadastrado*
+        return get_msg('numero_nao_cadastrado', 'pt')
+    
+    # Obter idioma do jogador (padrão: pt)
+    idioma = jogador.get('idioma', 'pt') or 'pt'
 
-Seu número de WhatsApp não está vinculado a nenhum jogador da Liga.
+    # ---------------------------------------------------------
+    # COMANDO PARA TROCAR IDIOMA
+    # ---------------------------------------------------------
+    if msg == 'en':
+        atualizar_idioma_jogador(jogador['id'], 'en')
+        return get_msg('idioma_alterado', 'en')
+    
+    if msg == 'pt':
+        atualizar_idioma_jogador(jogador['id'], 'pt')
+        return get_msg('idioma_alterado', 'pt')
 
-Para cadastrar, acesse seu perfil no site e adicione seu número no campo "WhatsApp para Notificações"."""
-
-# ---------------------------------------------------------
+    # ---------------------------------------------------------
     # VERIFICAR SE HÁ PROPOSTA DE DATA PENDENTE (desafiante)
     # ---------------------------------------------------------
     if msg in ['a', 'b', 'c']:
@@ -9665,21 +10354,12 @@ Para cadastrar, acesse seu perfil no site e adicione seu número no campo "Whats
             if msg == 'c':
                 cancelar_desafio_sem_penalidade(proposta['id'])
                 
-                # Notificar
                 try:
                     notificar_cancelamento_sem_penalidade(proposta['id'])
                 except Exception as e:
                     print(f"Erro ao notificar cancelamento: {e}")
                 
-                return f"""❌ *DESAFIO CANCELADO*
-
-Você optou por não aceitar as datas propostas por *{proposta['challenged_name']}*.
-
-O desafio foi cancelado *sem prejuízo* para nenhuma das partes.
-
-Vocês podem criar um novo desafio quando quiserem! 🏌️
-
-_Digite *0* para voltar ao menu._"""
+                return get_msg('desafio_cancelado_sem_penalidade', idioma, nome=proposta['challenged_name'])
             
             # Opção A ou B - Aceitar uma das datas
             if msg == 'a':
@@ -9687,32 +10367,21 @@ _Digite *0* para voltar ao menu._"""
             else:
                 data_escolhida = proposta['proposed_date_2']
             
-            # Aceitar a data
             aceitar_data_proposta(proposta['id'], data_escolhida)
             
-            # Notificar
             try:
                 notificar_data_confirmada(proposta['id'], data_escolhida)
             except Exception as e:
                 print(f"Erro ao notificar: {e}")
             
-            # Formatar data
             try:
                 data_obj = datetime.strptime(data_escolhida, '%Y-%m-%d')
                 data_fmt = data_obj.strftime('%d/%m/%Y')
             except:
                 data_fmt = data_escolhida
             
-            return f"""✅ *DATA CONFIRMADA!*
+            return get_msg('data_confirmada', idioma, data=data_fmt, nome=proposta['challenged_name'])
 
-Você aceitou a data *{data_fmt}* para o desafio contra *{proposta['challenged_name']}*.
-
-O desafio está confirmado! Boa sorte! 🏌️
-
-_Digite *0* para voltar ao menu._"""
-
-
-    
     # ---------------------------------------------------------
     # VERIFICAR SE HÁ ESTADO PENDENTE (conversa em andamento)
     # ---------------------------------------------------------
@@ -9726,20 +10395,16 @@ _Digite *0* para voltar ao menu._"""
         # ESTADO: Selecionando oponente para desafio
         # ---------------------------------------------------------
         if estado == 'selecionando_oponente':
-            if msg == '0' or 'cancelar' in msg:
+            if msg == '0' or 'cancelar' in msg or 'cancel' in msg:
                 clear_chat_state(telefone_normalizado)
-                return "❌ Criação de desafio cancelada.\n\n_Digite *0* para ver o menu._"
+                return get_msg('criacao_cancelada', idioma)
             
             try:
                 opcao = int(msg)
                 possiveis = dados.get('possiveis', [])
                 
                 if opcao < 1 or opcao > len(possiveis):
-                    return f"""⚠️ Opção inválida!
-
-Digite um número de *1* a *{len(possiveis)}* para selecionar o oponente.
-
-Ou digite *0* para cancelar."""
+                    return get_msg('opcao_invalida', idioma, max=len(possiveis))
                 
                 oponente = possiveis[opcao - 1]
                 
@@ -9752,57 +10417,36 @@ Ou digite *0* para cancelar."""
                 hoje = datetime.now()
                 data_max = hoje + timedelta(days=7)
                 
-                return f"""✅ Oponente selecionado: *{oponente['name']}* ({oponente['position']}º)
-
-📅 *Qual a data do jogo?*
-
-Digite no formato *DD/MM* (ex: {data_max.strftime('%d/%m')})
-
-A data deve ser nos próximos *7 dias*.
-(até {data_max.strftime('%d/%m/%Y')})
-
-_Digite *0* para cancelar._"""
+                return get_msg('oponente_selecionado', idioma,
+                              nome=oponente['name'],
+                              posicao=oponente['position'],
+                              data_exemplo=data_max.strftime('%d/%m'),
+                              data_max=data_max.strftime('%d/%m/%Y'))
                 
             except ValueError:
-                return """⚠️ Digite apenas o *número* do oponente.
-
-Exemplo: *1* ou *2* ou *3*
-
-_Digite *0* para cancelar._"""
+                return get_msg('digite_apenas_numero', idioma)
         
         # ---------------------------------------------------------
         # ESTADO: Informando data do jogo (criar desafio)
         # ---------------------------------------------------------
         elif estado == 'informando_data':
-            if msg == '0' or 'cancelar' in msg:
+            if msg == '0' or 'cancelar' in msg or 'cancel' in msg:
                 clear_chat_state(telefone_normalizado)
-                return "❌ Criação de desafio cancelada.\n\n_Digite *0* para ver o menu._"
+                return get_msg('criacao_cancelada', idioma)
             
             data_jogo = parse_data_input(msg)
             
             if not data_jogo:
-                return """⚠️ Formato de data inválido!
-
-Digite no formato *DD/MM* (ex: 25/02)
-
-_Digite *0* para cancelar._"""
+                return get_msg('data_formato_invalido', idioma)
             
             hoje = datetime.now().date()
             
             if data_jogo < hoje:
-                return """⚠️ A data não pode ser no passado!
-
-Digite uma data a partir de hoje.
-
-_Digite *0* para cancelar._"""
+                return get_msg('data_no_passado', idioma)
             
             data_max = hoje + timedelta(days=7)
             if data_jogo > data_max:
-                return f"""⚠️ A data não pode ser superior a 7 dias!
-
-Data máxima permitida: *{data_max.strftime('%d/%m/%Y')}*
-
-_Digite *0* para cancelar._"""
+                return get_msg('data_muito_longe', idioma, data_max=data_max.strftime('%d/%m/%Y'))
             
             oponente_id = dados['oponente_id']
             oponente_nome = dados['oponente_nome']
@@ -9823,121 +10467,76 @@ _Digite *0* para cancelar._"""
                 except Exception as e:
                     print(f"Erro ao notificar: {e}")
                 
-                return f"""🎉 *DESAFIO CRIADO COM SUCESSO!*
-
-Você desafiou *{oponente_nome}* ({oponente_posicao}º)
-
-📅 Data do jogo: *{data_jogo.strftime('%d/%m/%Y')}*
-⏳ Prazo para resposta: *2 dias*
-
-O desafiado será notificado e pode:
-- Aceitar a data
-- Rejeitar (perde por WO)
-- Propor 2 novas datas
-
-Boa sorte! 🏌️
-
-_Digite *0* para voltar ao menu._"""
+                return get_msg('desafio_criado_sucesso', idioma,
+                              nome=oponente_nome,
+                              posicao=oponente_posicao,
+                              data=data_jogo.strftime('%d/%m/%Y'))
             else:
-                return f"""❌ *Erro ao criar desafio*
-
-{mensagem_retorno}
-
-_Digite *0* para voltar ao menu._"""
+                return get_msg('erro_criar_desafio', idioma, erro=mensagem_retorno)
         
         # ---------------------------------------------------------
         # ESTADO: Propondo primeira data alternativa
         # ---------------------------------------------------------
         elif estado == 'propondo_data_1':
-            if msg == '0' or 'cancelar' in msg:
+            if msg == '0' or 'cancelar' in msg or 'cancel' in msg:
                 clear_chat_state(telefone_normalizado)
-                return "❌ Proposta cancelada.\n\n_Digite *0* para ver o menu._"
+                return get_msg('proposta_cancelada', idioma)
             
             data1 = parse_data_input(msg)
             
             if not data1:
-                return """⚠️ Formato de data inválido!
-
-Digite no formato *DD/MM* (ex: 25/02)
-
-_Digite *0* para cancelar._"""
+                return get_msg('data_formato_invalido', idioma)
             
             hoje = datetime.now().date()
             
             if data1 < hoje:
-                return """⚠️ A data não pode ser no passado!
-
-_Digite *0* para cancelar._"""
+                return get_msg('data_no_passado', idioma)
             
             data_max = hoje + timedelta(days=7)
             if data1 > data_max:
-                return f"""⚠️ A data deve ser em até 7 dias!
-
-Data máxima: *{data_max.strftime('%d/%m/%Y')}*
-
-_Digite *0* para cancelar._"""
+                return get_msg('data_muito_longe', idioma, data_max=data_max.strftime('%d/%m/%Y'))
             
-            # Salvar primeira data e pedir segunda
             set_chat_state(telefone_normalizado, 'propondo_data_2', {
                 'challenge_id': dados['challenge_id'],
                 'challenger_name': dados['challenger_name'],
                 'data_1': data1.strftime('%Y-%m-%d')
             })
             
-            return f"""✅ Primeira data: *{data1.strftime('%d/%m/%Y')}*
-
-Agora informe a *segunda opção* de data:
-
-(formato DD/MM, máximo 7 dias)
-
-_Digite *0* para cancelar._"""
+            return get_msg('primeira_data_ok', idioma, data=data1.strftime('%d/%m/%Y'))
         
         # ---------------------------------------------------------
         # ESTADO: Propondo segunda data alternativa
         # ---------------------------------------------------------
         elif estado == 'propondo_data_2':
-            if msg == '0' or 'cancelar' in msg:
+            if msg == '0' or 'cancelar' in msg or 'cancel' in msg:
                 clear_chat_state(telefone_normalizado)
-                return "❌ Proposta cancelada.\n\n_Digite *0* para ver o menu._"
+                return get_msg('proposta_cancelada', idioma)
             
             data2 = parse_data_input(msg)
             
             if not data2:
-                return """⚠️ Formato de data inválido!
-
-Digite no formato *DD/MM* (ex: 27/02)
-
-_Digite *0* para cancelar._"""
+                return get_msg('data_formato_invalido', idioma)
             
             hoje = datetime.now().date()
             
             if data2 < hoje:
-                return """⚠️ A data não pode ser no passado!
-
-_Digite *0* para cancelar._"""
+                return get_msg('data_no_passado', idioma)
             
             data_max = hoje + timedelta(days=7)
             if data2 > data_max:
-                return f"""⚠️ A data deve ser em até 7 dias!
-
-Data máxima: *{data_max.strftime('%d/%m/%Y')}*
-
-_Digite *0* para cancelar._"""
+                return get_msg('data_muito_longe', idioma, data_max=data_max.strftime('%d/%m/%Y'))
             
-            # Salvar ambas as datas
             challenge_id = dados['challenge_id']
             data1 = dados['data_1']
             
             salvar_proposta_datas(challenge_id, data1, data2.strftime('%Y-%m-%d'), jogador['id'])
             
-            # Formatar data1 para exibição
             try:
                 data1_obj = datetime.strptime(data1, '%Y-%m-%d')
                 data1_fmt = data1_obj.strftime('%d/%m/%Y')
             except:
                 data1_fmt = data1
             
-            # Notificar desafiante e grupo
             notificacao_enviada = False
             try:
                 notificacao_enviada = notificar_proposta_datas(challenge_id)
@@ -9946,110 +10545,77 @@ _Digite *0* para cancelar._"""
             
             clear_chat_state(telefone_normalizado)
             
-            # Mensagem de confirmação para o desafiado
             if notificacao_enviada:
-                status_msg = "✅ *" + dados['challenger_name'] + " foi notificado!*"
+                status_msg = "✅ *" + dados['challenger_name'] + (" foi notificado!*" if idioma == 'pt' else " was notified!*")
             else:
-                status_msg = "⚠️ Não foi possível notificar automaticamente."
+                status_msg = "⚠️ " + ("Não foi possível notificar automaticamente." if idioma == 'pt' else "Could not notify automatically.")
             
-            return f"""✅ *PROPOSTA DE DATAS ENVIADA!*
-
-Você propôs as seguintes datas para *{dados['challenger_name']}*:
-
-📆 *Opção A:* {data1_fmt}
-📆 *Opção B:* {data2.strftime('%d/%m/%Y')}
-
-━━━━━━━━━━━━━━━━━━━━━
-{status_msg}
-
-Ele deve escolher uma das datas em até *2 dias*.
-
-Você será notificado quando a data for confirmada! 🏌️
-
-_Digite *0* para voltar ao menu._"""
+            return get_msg('proposta_enviada', idioma,
+                          nome=dados['challenger_name'],
+                          data1=data1_fmt,
+                          data2=data2.strftime('%d/%m/%Y'),
+                          status=status_msg)
     
     # ---------------------------------------------------------
     # COMANDOS NORMAIS (sem estado pendente)
     # ---------------------------------------------------------
     
     # COMANDO [1]: Minha posição
-    if msg == '1' or any(palavra in msg for palavra in ['posição', 'posicao', 'ranking', 'colocação', 'colocacao']):
-        return f"""📊 *Sua Posição no Ranking*
-
-Olá, {jogador['name']}!
-
-🆔 Código: *{jogador['player_code']}*
-Você está na posição *{jogador['position']}º* no ranking.
-
-_Digite *0* para voltar ao menu._"""
+    if msg == '1' or any(palavra in msg for palavra in ['posição', 'posicao', 'ranking', 'colocação', 'colocacao', 'position']):
+        return get_msg('minha_posicao', idioma,
+                      nome=jogador['name'],
+                      codigo=jogador['player_code'],
+                      posicao=jogador['position'])
     
     # COMANDO [2]: Quem posso desafiar
-    if msg == '2' or any(palavra in msg for palavra in ['quem posso', 'possiveis', 'possíveis']):
+    if msg == '2' or any(palavra in msg for palavra in ['quem posso', 'possiveis', 'possíveis', 'who can', 'possible']):
         possiveis = get_possiveis_desafiados(jogador['id'])
         
         if not possiveis:
-            return f"""🎯 *Possíveis Desafiados*
-
-Olá, {jogador['name']}!
-Você está na posição *{jogador['position']}º*.
-
-No momento não há jogadores disponíveis para desafio.
-
-_Digite *0* para voltar ao menu._"""
+            return get_msg('possiveis_desafiados_vazio', idioma,
+                          nome=jogador['name'],
+                          posicao=jogador['position'])
         
         lista = "\n".join([f"   {p['position']}º - {p['name']}" for p in possiveis])
         
-        return f"""🎯 *Possíveis Desafiados*
-
-Olá, {jogador['name']}!
-Você está na posição *{jogador['position']}º*.
-
-Você pode desafiar:
-{lista}
-
-📱 Para criar um desafio, digite *6*
-
-_Digite *0* para voltar ao menu._"""
+        return get_msg('possiveis_desafiados', idioma,
+                      nome=jogador['name'],
+                      posicao=jogador['position'],
+                      lista=lista)
     
     # COMANDO [3]: Meus desafios
-    if msg == '3' or (any(palavra in msg for palavra in ['meus desafio', 'meu desafio']) and 'criar' not in msg):
+    if msg == '3' or (any(palavra in msg for palavra in ['meus desafio', 'meu desafio', 'my challenge']) and 'criar' not in msg and 'create' not in msg):
         desafios = get_meus_desafios(jogador['id'])
-        
-        # Verificar proposta de datas pendente
         proposta = get_proposta_pendente_para_desafiante(jogador['id'])
         
         if not desafios and not proposta:
-            return f"""📋 *Meus Desafios*
-
-Olá, {jogador['name']}!
-
-Você não tem desafios ativos no momento.
-
-_Digite *0* para voltar ao menu._"""
+            return get_msg('meus_desafios_vazio', idioma, nome=jogador['name'])
         
         linhas = []
         for d in desafios:
             if d['status'] == 'pending':
                 status_emoji = "⏳"
-                status_texto = "Aguardando resposta"
+                status_texto = get_msg('status_aguardando', idioma)
             elif d['status'] == 'accepted':
                 status_emoji = "✅"
-                status_texto = "Aceito"
+                status_texto = get_msg('status_aceito', idioma)
             elif d['status'] == 'awaiting_date_confirmation':
                 status_emoji = "📅"
-                status_texto = "Aguardando escolha de data"
+                status_texto = get_msg('status_aguardando_data', idioma)
             else:
                 status_emoji = "❓"
                 status_texto = d['status']
             
             if d['challenger_id'] == jogador['id']:
-                linhas.append(f"   {status_emoji} #{d['id']} - Você → {d['challenged_name']} ({d['challenged_position']}º) [{status_texto}]")
+                voce = "Você" if idioma == 'pt' else "You"
+                linhas.append(f"   {status_emoji} #{d['id']} - {voce} → {d['challenged_name']} ({d['challenged_position']}º) [{status_texto}]")
             else:
-                linhas.append(f"   {status_emoji} #{d['id']} - {d['challenger_name']} ({d['challenger_position']}º) → Você [{status_texto}]")
+                voce = "Você" if idioma == 'pt' else "You"
+                linhas.append(f"   {status_emoji} #{d['id']} - {d['challenger_name']} ({d['challenger_position']}º) → {voce} [{status_texto}]")
         
-        lista = "\n".join(linhas) if linhas else "   Nenhum desafio ativo."
+        nenhum = "Nenhum desafio ativo." if idioma == 'pt' else "No active challenges."
+        lista = "\n".join(linhas) if linhas else f"   {nenhum}"
         
-        # Adicionar aviso de proposta pendente
         aviso_proposta = ""
         if proposta:
             try:
@@ -10061,32 +10627,22 @@ _Digite *0* para voltar ao menu._"""
                 data1_fmt = proposta['proposed_date_1']
                 data2_fmt = proposta['proposed_date_2']
             
-            aviso_proposta = f"""
-
-📅 *PROPOSTA DE DATAS PENDENTE!*
-{proposta['challenged_name']} propôs:
-*[A]* {data1_fmt}
-*[B]* {data2_fmt}
-
-Digite *A* ou *B* para escolher."""
+            aviso_proposta = get_msg('aviso_proposta_pendente', idioma,
+                                    nome=proposta['challenged_name'],
+                                    data1=data1_fmt,
+                                    data2=data2_fmt)
         
         pendentes_para_responder = [d for d in desafios if d['status'] == 'pending' and d['challenged_id'] == jogador['id']]
+        dica = get_msg('dica_pendentes', idioma) if pendentes_para_responder else ""
         
-        dica = ""
-        if pendentes_para_responder:
-            dica = "\n\n💡 Digite *4* (aceitar), *5* (rejeitar) ou *7* (propor datas)"
-        
-        return f"""📋 *Meus Desafios*
-
-Olá, {jogador['name']}!
-
-Seus desafios ativos:
-{lista}{aviso_proposta}{dica}
-
-_Digite *0* para voltar ao menu._"""
+        return get_msg('meus_desafios', idioma,
+                      nome=jogador['name'],
+                      lista=lista,
+                      aviso_proposta=aviso_proposta,
+                      dica=dica)
     
     # COMANDO [4]: Aceitar desafio
-    if msg == '4' or 'aceitar' in msg or 'aceito' in msg:
+    if msg == '4' or any(palavra in msg for palavra in ['aceitar', 'aceito', 'accept']):
         numeros = re.findall(r'\d+', msg)
         if numeros and numeros[0] == '4' and len(msg) <= 2:
             numeros = []
@@ -10094,11 +10650,7 @@ _Digite *0* para voltar ao menu._"""
         desafios_pendentes = get_desafios_pendentes(jogador['id'])
         
         if not desafios_pendentes:
-            return """✅ *Aceitar Desafio*
-
-Você não tem nenhum desafio pendente para aceitar.
-
-_Digite *0* para voltar ao menu._"""
+            return get_msg('aceitar_sem_pendentes', idioma)
         
         if len(desafios_pendentes) == 1 and not numeros:
             desafio = desafios_pendentes[0]
@@ -10110,15 +10662,10 @@ _Digite *0* para voltar ao menu._"""
                 except:
                     pass
                 
-                return f"""✅ *Desafio Aceito!*
-
-Você aceitou o desafio de *{desafio['challenger_name']}* (posição {desafio['challenger_position']}º).
-
-📅 Data agendada: {desafio['scheduled_date']}
-
-Boa sorte! 🏌️
-
-_Digite *0* para voltar ao menu._"""
+                return get_msg('desafio_aceito', idioma,
+                              nome=desafio['challenger_name'],
+                              posicao=desafio['challenger_position'],
+                              data=desafio['scheduled_date'])
             else:
                 return f"❌ {mensagem_retorno}"
         
@@ -10131,25 +10678,15 @@ _Digite *0* para voltar ao menu._"""
                     notificar_desafio_aceito_bot(challenge_id)
                 except:
                     pass
-                return f"""✅ *Desafio #{challenge_id} aceito com sucesso!*
-
-_Digite *0* para voltar ao menu._"""
+                return get_msg('desafio_aceito_id', idioma, id=challenge_id)
             else:
                 return f"❌ {mensagem_retorno}"
         
-        lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} (posição {d['challenger_position']}º)" for d in desafios_pendentes])
-        return f"""✅ *Aceitar Desafio*
-
-Você tem {len(desafios_pendentes)} desafios pendentes:
-{lista}
-
-Para aceitar, digite: *4 [número]*
-Exemplo: *4 123*
-
-_Digite *0* para voltar ao menu._"""
+        lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} ({d['challenger_position']}º)" for d in desafios_pendentes])
+        return get_msg('aceitar_lista', idioma, qtd=len(desafios_pendentes), lista=lista)
     
     # COMANDO [5]: Rejeitar desafio
-    if msg == '5' or any(palavra in msg for palavra in ['rejeitar', 'rejeito', 'recusar', 'recuso']):
+    if msg == '5' or any(palavra in msg for palavra in ['rejeitar', 'rejeito', 'recusar', 'recuso', 'reject', 'decline']):
         numeros = re.findall(r'\d+', msg)
         if numeros and numeros[0] == '5' and len(msg) <= 2:
             numeros = []
@@ -10157,24 +10694,14 @@ _Digite *0* para voltar ao menu._"""
         desafios_pendentes = get_desafios_pendentes(jogador['id'])
         
         if not desafios_pendentes:
-            return """❌ *Rejeitar Desafio*
-
-Você não tem nenhum desafio pendente para rejeitar.
-
-_Digite *0* para voltar ao menu._"""
+            return get_msg('rejeitar_sem_pendentes', idioma)
         
         if len(desafios_pendentes) == 1 and not numeros:
             desafio = desafios_pendentes[0]
             sucesso, mensagem_retorno = rejeitar_desafio(desafio['id'], jogador['id'])
             
             if sucesso:
-                return f"""⚠️ *Desafio Rejeitado*
-
-Você rejeitou o desafio de *{desafio['challenger_name']}*.
-
-WO aplicado - você perdeu a posição.
-
-_Digite *0* para voltar ao menu._"""
+                return get_msg('desafio_rejeitado', idioma, nome=desafio['challenger_name'])
             else:
                 return f"❌ {mensagem_retorno}"
         
@@ -10183,49 +10710,24 @@ _Digite *0* para voltar ao menu._"""
             sucesso, mensagem_retorno = rejeitar_desafio(challenge_id, jogador['id'])
             
             if sucesso:
-                return f"""⚠️ *Desafio #{challenge_id} rejeitado.* WO aplicado.
-
-_Digite *0* para voltar ao menu._"""
+                return get_msg('desafio_rejeitado_id', idioma, id=challenge_id)
             else:
                 return f"❌ {mensagem_retorno}"
         
-        lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} (posição {d['challenger_position']}º)" for d in desafios_pendentes])
-        return f"""❌ *Rejeitar Desafio*
-
-⚠️ *ATENÇÃO*: Rejeitar resulta em WO!
-
-Seus desafios pendentes:
-{lista}
-
-Para rejeitar, digite: *5 [número]*
-Exemplo: *5 123*
-
-💡 Prefere propor novas datas? Digite *7*
-
-_Digite *0* para voltar ao menu._"""
+        lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} ({d['challenger_position']}º)" for d in desafios_pendentes])
+        return get_msg('rejeitar_lista', idioma, lista=lista)
     
     # COMANDO [6]: Criar desafio
-    if msg == '6' or any(palavra in msg for palavra in ['criar desafio', 'desafiar', 'novo desafio', 'quero desafiar']):
+    if msg == '6' or any(palavra in msg for palavra in ['criar desafio', 'desafiar', 'novo desafio', 'quero desafiar', 'create challenge', 'new challenge']):
         if tem_desafio_ativo(jogador['id']):
-            return """⚠️ *Você já tem um desafio ativo!*
-
-Conclua seu desafio atual antes de criar um novo.
-
-Digite *3* para ver seus desafios.
-
-_Digite *0* para voltar ao menu._"""
+            return get_msg('ja_tem_desafio_ativo', idioma)
         
         possiveis = get_possiveis_desafiados(jogador['id'])
         
         if not possiveis:
-            return f"""🎯 *Criar Desafio*
-
-Olá, {jogador['name']}!
-Você está na posição *{jogador['position']}º*.
-
-❌ No momento não há jogadores disponíveis para desafio.
-
-_Digite *0* para voltar ao menu._"""
+            return get_msg('criar_desafio_sem_oponentes', idioma,
+                          nome=jogador['name'],
+                          posicao=jogador['position'])
         
         linhas = []
         for i, p in enumerate(possiveis, 1):
@@ -10237,30 +10739,18 @@ _Digite *0* para voltar ao menu._"""
             'possiveis': possiveis
         })
         
-        return f"""🎯 *Criar Desafio*
-
-Olá, {jogador['name']}!
-Você está na posição *{jogador['position']}º*.
-
-Selecione quem você quer desafiar:
-{lista}
-
-Digite o *número* do oponente (ex: *1*)
-
-_Digite *0* para cancelar._"""
+        return get_msg('criar_desafio_lista', idioma,
+                      nome=jogador['name'],
+                      posicao=jogador['position'],
+                      lista=lista)
     
     # COMANDO [7]: Propor novas datas
-    if msg == '7' or any(palavra in msg for palavra in ['propor data', 'nova data', 'outras datas', 'propor datas']):
+    if msg == '7' or any(palavra in msg for palavra in ['propor data', 'nova data', 'outras datas', 'propor datas', 'propose date', 'new date']):
         desafios_pendentes = get_desafios_pendentes(jogador['id'])
         
         if not desafios_pendentes:
-            return """📅 *Propor Novas Datas*
-
-Você não tem nenhum desafio pendente para propor novas datas.
-
-_Digite *0* para voltar ao menu._"""
+            return get_msg('propor_sem_pendentes', idioma)
         
-        # Se tem apenas um desafio pendente, já inicia o fluxo
         if len(desafios_pendentes) == 1:
             desafio = desafios_pendentes[0]
             
@@ -10272,59 +10762,23 @@ _Digite *0* para voltar ao menu._"""
             hoje = datetime.now()
             data_max = hoje + timedelta(days=7)
             
-            return f"""📅 *Propor Novas Datas*
-
-Você vai propor novas datas para o desafio de *{desafio['challenger_name']}*.
-
-Informe a *primeira opção* de data:
-(formato DD/MM, máximo 7 dias - até {data_max.strftime('%d/%m/%Y')})
-
-_Digite *0* para cancelar._"""
+            return get_msg('propor_data_inicio', idioma,
+                          nome=desafio['challenger_name'],
+                          data_max=data_max.strftime('%d/%m/%Y'))
         
-        # Se tem múltiplos desafios
         lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} ({d['challenger_position']}º)" for d in desafios_pendentes])
-        return f"""📅 *Propor Novas Datas*
-
-Você tem {len(desafios_pendentes)} desafios pendentes:
-{lista}
-
-Para propor datas, digite: *7 [número]*
-Exemplo: *7 123*
-
-_Digite *0* para voltar ao menu._"""
+        return get_msg('propor_lista', idioma, qtd=len(desafios_pendentes), lista=lista)
     
-    # MENU PRINCIPAL [0]
-    # Verificar se tem proposta de data pendente
+    # ---------------------------------------------------------
+    # MENU PRINCIPAL [0] ou qualquer outra coisa
+    # ---------------------------------------------------------
     proposta = get_proposta_pendente_para_desafiante(jogador['id'])
-    aviso_proposta = ""
-    if proposta:
-        aviso_proposta = """
-━━━━━━━━━━━━━━━━━━━━━
-📅 *VOCÊ TEM PROPOSTA DE DATAS!*
-Digite *3* para ver e responder
-━━━━━━━━━━━━━━━━━━━━━
-"""
+    aviso_proposta = get_msg('aviso_proposta_menu', idioma) if proposta else ""
     
-    return f"""🏌️ *Liga Olímpica de Golfe*
-
-Olá, *{jogador['name']}*!
-📊 Posição atual: *{jogador['position']}º*
-{aviso_proposta}
-━━━━━━━━━━━━━━━━━━━━━
-*MENU DE OPÇÕES*
-━━━━━━━━━━━━━━━━━━━━━
-
-*[1]* 📊 Minha posição
-*[2]* 🎯 Quem posso desafiar
-*[3]* 📋 Meus desafios
-*[4]* ✅ Aceitar desafio
-*[5]* ❌ Rejeitar desafio
-*[6]* ⚔️ Criar desafio
-*[7]* 📅 Propor novas datas
-
-━━━━━━━━━━━━━━━━━━━━━
-
-_Digite o número da opção desejada._"""
+    return get_msg('menu_principal', idioma,
+                  nome=jogador['name'],
+                  posicao=jogador['position'],
+                  aviso_proposta=aviso_proposta)
 
 
 def parse_data_input(texto):
