@@ -9,7 +9,6 @@ import json
 from flask import send_file
 from io import BytesIO
 
-from whatsapp_multilingual import processar_comando_whatsapp_v3, MENSAGENS, msg
 
 # Adicionando session config
 app = Flask(__name__)
