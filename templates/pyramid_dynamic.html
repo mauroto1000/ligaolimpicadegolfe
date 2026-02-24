@@ -591,15 +591,17 @@
             {% endif %}
         </div>
 
-        <!-- Separar jogadores por sexo -->
+        <!-- Separar jogadores por sexo - EXCLUINDO VIPs (tipo_membro='vip') -->
         {% set female_players = [] %}
         {% set male_players = [] %}
         {% for tier_letter, players in tiers %}
             {% for player in players %}
-                {% if player.sexo == 'feminino' %}
-                    {% set _ = female_players.append(player) %}
-                {% else %}
-                    {% set _ = male_players.append(player) %}
+                {% if player.tipo_membro != 'vip' %}
+                    {% if player.sexo == 'feminino' %}
+                        {% set _ = female_players.append(player) %}
+                    {% else %}
+                        {% set _ = male_players.append(player) %}
+                    {% endif %}
                 {% endif %}
             {% endfor %}
         {% endfor %}
@@ -684,7 +686,7 @@
                             {% for tier_letter, players in tiers %}
                                 {% set male_players_in_tier = [] %}
                                 {% for player in players %}
-                                    {% if player.sexo != 'feminino' %}
+                                    {% if player.sexo != 'feminino' and player.tipo_membro != 'vip' %}
                                         {% set _ = male_players_in_tier.append(player) %}
                                     {% endif %}
                                 {% endfor %}

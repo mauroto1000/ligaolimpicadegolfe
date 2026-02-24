@@ -2705,19 +2705,21 @@ def index():
                           inactive_players=inactive_players)
 
 
-@app.route('/pyramid')
-@login_required 
-def pyramid_redirect():
-    """Redireciona a rota antiga para a nova rota da pirâmide"""
-    return redirect(url_for('pyramid_dynamic'))
-
 @app.route('/pyramid_dynamic')
 @login_required 
 def pyramid_dynamic():
     conn = get_db_connection()
     
-    # Buscar jogadores ativos
-    players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
+    # ===== Buscar jogadores ativos do RANKING (position > 0) =====
+    players = conn.execute(
+        'SELECT * FROM players WHERE active = 1 AND position > 0 ORDER BY position'
+    ).fetchall()
+    
+    # ===== Buscar membros VIP separadamente (position = 0) =====
+    vip_members_raw = conn.execute(
+        'SELECT * FROM players WHERE active = 1 AND position = 0 ORDER BY name'
+    ).fetchall()
+    vip_members = [dict(m) for m in vip_members_raw]
     
     # Buscar jogadores com desafios
     challenges = conn.execute('''
@@ -2761,7 +2763,7 @@ def pyramid_dynamic():
         if challenged_id in player_challenges:
             player_challenges[challenged_id]['challenged_by_positions'].append(challenge['challenger_position'])
     
-    # Organizar jogadores por tier
+    # Organizar jogadores por tier (VIP já excluído pela query SQL)
     tiers = {}
     for player in players:
         if player['tier'] not in tiers:
@@ -2781,17 +2783,20 @@ def pyramid_dynamic():
     # Ordenar tiers alfabeticamente
     sorted_tiers = sorted(tiers.items())
     
-    # Buscar todos os desafios aceitos e pendentes para mostrar datas ou indicadores
+    # Buscar todos os desafios aceitos, pendentes e aguardando confirmação
     challenges_for_display = conn.execute('''
-        SELECT id, challenger_id, challenged_id, status, scheduled_date
+        SELECT id, challenger_id, challenged_id, status, scheduled_date,
+               proposed_date_1, proposed_date_2
         FROM challenges
-        WHERE status IN ('accepted', 'pending')
+        WHERE status IN ('accepted', 'pending', 'awaiting_date_confirmation')
     ''').fetchall()
     
     conn.close()
     return render_template('pyramid_dynamic.html', 
                           tiers=sorted_tiers, 
-                          challenges=challenges_for_display)
+                          challenges=challenges_for_display,
+                          vip_members=vip_members)
+
 
 @app.route('/pyramid_print')
 @login_required 
