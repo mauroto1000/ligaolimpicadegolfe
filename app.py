@@ -8852,6 +8852,7 @@ _Digite *0* para cancelar._"""
     return f"""🏌️ *Liga Olímpica de Golfe*
 
 Olá, *{jogador['name']}*!
+🆔 Código: *{jogador['player_code']}*
 📊 Posição atual: *{jogador['position']}º*
 
 ━━━━━━━━━━━━━━━━━━━━━
