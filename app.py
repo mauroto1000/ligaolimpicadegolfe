@@ -9636,7 +9636,6 @@ Boa sorte a ambos! 🏌️"""
 # FUNÇÃO PROCESSAR_COMANDO_WHATSAPP - VERSÃO COM MULTILÍNGUE
 # ============================================================
 # SUBSTITUI a função processar_comando_whatsapp existente
-# Adicione o dicionário MENSAGENS e a função msg() antes desta função
 # ============================================================
 
 # ============================================================
@@ -9839,7 +9838,7 @@ _Type *0* to return to menu._"""
 Olá, {nome}!
 
 🆔 Código: *{codigo}*
-Você está na posição *{posicao}º* no ranking.
+📊 Posição: *{posicao}º* no ranking.
 
 _Digite *0* para voltar ao menu._""",
         'en': """📊 *Your Ranking Position*
@@ -9847,7 +9846,7 @@ _Digite *0* para voltar ao menu._""",
 Hello, {nome}!
 
 🆔 Code: *{codigo}*
-You are in position *{posicao}* in the ranking.
+📊 Position: *{posicao}* in the ranking.
 
 _Type *0* to return to menu._"""
     },
@@ -10215,6 +10214,7 @@ _Type *0* to return to menu._"""
         'pt': """🏌️ *Liga Olímpica de Golfe*
 
 Olá, *{nome}*!
+🆔 Código: *{codigo}*
 📊 Posição atual: *{posicao}º*
 {aviso_proposta}
 ━━━━━━━━━━━━━━━━━━━━━
@@ -10236,6 +10236,7 @@ _Digite o número da opção desejada._""",
         'en': """🏌️ *Olympic Golf League*
 
 Hello, *{nome}*!
+🆔 Code: *{codigo}*
 📊 Current position: *{posicao}*
 {aviso_proposta}
 ━━━━━━━━━━━━━━━━━━━━━
@@ -10313,7 +10314,7 @@ def atualizar_idioma_jogador(player_id, idioma):
 
 
 # ============================================================
-# FUNÇÃO PROCESSAR_COMANDO_WHATSAPP - COM MULTILÍNGUE
+# FUNÇÃO PROCESSAR_COMANDO_WHATSAPP_V2 - COM MULTILÍNGUE
 # ============================================================
 def processar_comando_whatsapp_v2(mensagem, telefone):
     """Processa mensagem recebida e retorna resposta - VERSÃO COM MULTILÍNGUE"""
@@ -10776,6 +10777,7 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
     
     return get_msg('menu_principal', idioma,
                   nome=jogador['name'],
+                  codigo=jogador['player_code'],
                   posicao=jogador['position'],
                   aviso_proposta=aviso_proposta)
 
