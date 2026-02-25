@@ -2892,7 +2892,7 @@ def pyramid_dynamic():
     
     # ===== Buscar jogadores ativos do RANKING (position > 0) =====
     players = conn.execute(
-        'SELECT * FROM players WHERE active = 1 AND position > 0 ORDER BY position'
+        "SELECT * FROM players WHERE active = 1 AND position > 0 AND (tipo_membro IS NULL OR tipo_membro != 'vip') ORDER BY position"
     ).fetchall()
     
     # ===== Buscar membros VIP separadamente (position = 0) =====
@@ -2911,10 +2911,23 @@ def pyramid_dynamic():
         WHERE c.status IN ('pending', 'accepted', 'completed_pending', 'awaiting_date_confirmation')
     ''').fetchall()
     
+
     # Converter listas para conjuntos para busca eficiente
     players_with_challenges = set()
     players_with_completed_pending = {}
-    
+
+    # Criar mapeamento de posição visual (sem VIPs, sequencial por sexo)
+    posicao_visual = {}
+    contador_masc = 0
+    contador_fem = 0
+    for player in sorted(players, key=lambda p: p['position']):
+        if player['sexo'] == 'feminino':
+            contador_fem += 1
+            posicao_visual[player['id']] = contador_fem
+        else:
+            contador_masc += 1
+            posicao_visual[player['id']] = contador_masc
+
     # Mapear desafios por jogador
     player_challenges = {}
     for player in players:
@@ -2923,12 +2936,12 @@ def pyramid_dynamic():
             'challenging_positions': [],
             'challenged_by_positions': []
         }
-    
+
     # Processar desafios
     for challenge in challenges:
         challenger_id = challenge['challenger_id']
         challenged_id = challenge['challenged_id']
-        
+
         # Marcar jogadores envolvidos em desafios
         if challenge['status'] == 'completed_pending':
             players_with_completed_pending[challenger_id] = 'completed_pending'
@@ -2936,12 +2949,12 @@ def pyramid_dynamic():
         else:
             players_with_challenges.add(challenger_id)
             players_with_challenges.add(challenged_id)
-        
-        # Registrar posições envolvidas nos desafios
-        if challenger_id in player_challenges:
-            player_challenges[challenger_id]['challenging_positions'].append(challenge['challenged_position'])
-        if challenged_id in player_challenges:
-            player_challenges[challenged_id]['challenged_by_positions'].append(challenge['challenger_position'])
+
+        # Registrar posições envolvidas nos desafios (usando posição visual)
+        if challenger_id in player_challenges and challenged_id in posicao_visual:
+            player_challenges[challenger_id]['challenging_positions'].append(posicao_visual[challenged_id])
+        if challenged_id in player_challenges and challenger_id in posicao_visual:
+            player_challenges[challenged_id]['challenged_by_positions'].append(posicao_visual[challenger_id])
     
     # Organizar jogadores por tier (VIP já excluído pela query SQL)
     tiers = {}
@@ -3338,7 +3351,7 @@ def new_challenge():
     blocked_player_ids = {p['id'] for p in blocked_players}
     
     if is_main_admin:
-        all_players = conn.execute('SELECT * FROM players WHERE active = 1 AND position > 0 ORDER BY position').fetchall()
+        all_players = conn.execute("SELECT * FROM players WHERE active = 1 AND position > 0 AND (tipo_membro IS NULL OR tipo_membro != 'vip') ORDER BY position").fetchall()
         preselected_challenger_id = request.args.get('challenger_id')
         
         if preselected_challenger_id:
@@ -3367,7 +3380,7 @@ def new_challenge():
                 preselected_challenger_id = None
                 
     elif is_admin:
-        all_players = conn.execute('SELECT * FROM players WHERE active = 1 AND position > 0 ORDER BY position').fetchall()
+        all_players = conn.execute("SELECT * FROM players WHERE active = 1 AND position > 0 AND (tipo_membro IS NULL OR tipo_membro != 'vip') ORDER BY position").fetchall()
         preselected_challenger_id = request.args.get('challenger_id')
         
         if preselected_challenger_id:
@@ -3426,7 +3439,7 @@ def new_challenge():
                                      (preselected_challenger_id,)).fetchone()
             
             if challenger:
-                all_players = conn.execute('SELECT * FROM players WHERE active = 1 AND position > 0 ORDER BY position').fetchall()
+                all_players = conn.execute("SELECT * FROM players WHERE active = 1 AND position > 0 AND (tipo_membro IS NULL OR tipo_membro != 'vip') ORDER BY position").fetchall()
                 challenger_sexo = challenger['sexo'] or 'masculino'
                 
                 eligible_challenged = conn.execute('''
@@ -3444,7 +3457,7 @@ def new_challenge():
                 eligible_challenged = [player for player in eligible_challenged 
                                       if player['id'] not in players_with_challenges]
         else:
-            all_players = conn.execute('SELECT * FROM players WHERE active = 1 AND position > 0 ORDER BY position').fetchall()
+            all_players = conn.execute("SELECT * FROM players WHERE active = 1 AND position > 0 AND (tipo_membro IS NULL OR tipo_membro != 'vip') ORDER BY position").fetchall()
             all_players = [player for player in all_players 
                           if player['id'] not in players_with_challenges
                           and player['id'] not in blocked_player_ids]
