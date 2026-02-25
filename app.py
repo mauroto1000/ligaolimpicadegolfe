@@ -19,8 +19,7 @@ from io import BytesIO
 
 import os
 
-# Carregar variáveis de ambiente do arquivo .env
-load_dotenv()
+
 
 # Configurar OpenAI
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
