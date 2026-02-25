@@ -10,8 +10,184 @@ from flask import send_file
 from io import BytesIO
 
 
+# ============================================================
+# INTEGRAÇÃO OPENAI - CONVERSA CASUAL
+# ============================================================
+# Adicione este código no início do app.py (após os imports)
+# ============================================================
+
+import os
 from dotenv import load_dotenv
+
+# Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
+
+# Configurar OpenAI
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+# Verificar se a chave existe
+if not OPENAI_API_KEY:
+    print("⚠️ AVISO: OPENAI_API_KEY não configurada. Funcionalidade de IA desabilitada.")
+
+# Cliente OpenAI (inicializar apenas se a chave existir)
+openai_client = None
+if OPENAI_API_KEY:
+    try:
+        from openai import OpenAI
+        openai_client = OpenAI(api_key=OPENAI_API_KEY)
+        print("✅ OpenAI configurada com sucesso!")
+    except ImportError:
+        print("⚠️ Biblioteca openai não instalada. Execute: pip install openai")
+    except Exception as e:
+        print(f"⚠️ Erro ao configurar OpenAI: {e}")
+
+
+# ============================================================
+# FUNÇÃO DE CONVERSA COM IA
+# ============================================================
+def conversar_com_ia(mensagem_usuario, jogador, idioma='pt'):
+    """
+    Envia mensagem para OpenAI e retorna resposta contextualizada.
+    
+    Args:
+        mensagem_usuario: Texto enviado pelo usuário
+        jogador: Dict com dados do jogador (name, position, player_code)
+        idioma: 'pt' ou 'en'
+    
+    Returns:
+        Resposta da IA ou None se falhar
+    """
+    if not openai_client:
+        return None
+    
+    # Prompt do sistema baseado no idioma
+    if idioma == 'en':
+        system_prompt = f"""You are the friendly assistant of the Olympic Golf League (Liga Olímpica de Golfe).
+You are talking to {jogador['name']}, who is in position {jogador.get('posicao_ranking', jogador.get('position', '?'))} in the ranking.
+
+Your personality:
+- Friendly and helpful
+- You love golf and the league
+- Brief and direct responses (max 3-4 sentences)
+- Use golf emojis occasionally 🏌️⛳🏆
+
+Important rules:
+- If asked about challenges, positions, or league actions, suggest using the menu (type 0)
+- If asked about golf rules, give a brief answer and offer more details
+- If asked about statistics, say you can help and ask what they want to know
+- Always end suggesting the menu if relevant
+
+Available menu options:
+[1] My position | [2] Who can I challenge | [3] My challenges
+[4] Accept challenge | [5] Reject challenge | [6] Create challenge | [7] Propose dates"""
+    else:
+        system_prompt = f"""Você é o assistente amigável da Liga Olímpica de Golfe.
+Você está conversando com {jogador['name']}, que está na posição {jogador.get('posicao_ranking', jogador.get('position', '?'))}º no ranking.
+
+Sua personalidade:
+- Simpático e prestativo
+- Ama golfe e a liga
+- Respostas breves e diretas (máximo 3-4 frases)
+- Use emojis de golfe ocasionalmente 🏌️⛳🏆
+
+Regras importantes:
+- Se perguntarem sobre desafios, posições ou ações da liga, sugira usar o menu (digite 0)
+- Se perguntarem sobre regras de golfe, dê uma resposta breve e ofereça mais detalhes
+- Se perguntarem sobre estatísticas, diga que pode ajudar e pergunte o que querem saber
+- Sempre termine sugerindo o menu se for relevante
+
+Opções do menu disponíveis:
+[1] Minha posição | [2] Quem posso desafiar | [3] Meus desafios
+[4] Aceitar desafio | [5] Rejeitar desafio | [6] Criar desafio | [7] Propor datas"""
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",  # Modelo mais barato e rápido
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": mensagem_usuario}
+            ],
+            max_tokens=200,  # Limitar tamanho da resposta
+            temperature=0.7  # Um pouco criativo mas não demais
+        )
+        
+        resposta = response.choices[0].message.content.strip()
+        
+        # Adicionar footer com dica do menu
+        if idioma == 'en':
+            footer = "\n\n_Type *0* to see the menu._"
+        else:
+            footer = "\n\n_Digite *0* para ver o menu._"
+        
+        return resposta + footer
+        
+    except Exception as e:
+        print(f"Erro na OpenAI: {e}")
+        return None
+
+
+# ============================================================
+# FUNÇÃO AUXILIAR - DETECTAR SE É COMANDO OU CONVERSA
+# ============================================================
+def é_comando_menu(msg):
+    """
+    Verifica se a mensagem é um comando de menu conhecido.
+    Retorna True se for comando, False se for conversa livre.
+    """
+    msg = msg.lower().strip()
+    
+    # Comandos numéricos
+    if msg in ['0', '1', '2', '3', '4', '5', '6', '7']:
+        return True
+    
+    # Comandos com número (ex: "4 123")
+    if msg.split()[0] in ['4', '5', '7'] and len(msg.split()) > 1:
+        return True
+    
+    # Comandos de idioma
+    if msg in ['en', 'pt']:
+        return True
+    
+    # Comandos de proposta de data (A/B/C)
+    if msg in ['a', 'b', 'c']:
+        return True
+    
+    # Palavras-chave de comandos específicos
+    palavras_comando = [
+        'posição', 'posicao', 'ranking', 'colocação', 'colocacao', 'position',
+        'desafiar', 'desafio', 'challenge',
+        'aceitar', 'aceito', 'accept',
+        'rejeitar', 'rejeito', 'recusar', 'reject', 'decline',
+        'criar desafio', 'novo desafio', 'create challenge',
+        'propor data', 'nova data', 'propose date'
+    ]
+    
+    for palavra in palavras_comando:
+        if palavra in msg:
+            return True
+    
+    return False
+
+
+# ============================================================
+# COMO INTEGRAR NO processar_comando_whatsapp_v2
+# ============================================================
+# No FINAL da função processar_comando_whatsapp_v2, 
+# ANTES de retornar o menu principal, adicione:
+#
+#     # ---------------------------------------------------------
+#     # FALLBACK: CONVERSA COM IA
+#     # ---------------------------------------------------------
+#     if not é_comando_menu(msg):
+#         resposta_ia = conversar_com_ia(mensagem, jogador, idioma)
+#         if resposta_ia:
+#             return resposta_ia
+#
+#     # ---------------------------------------------------------
+#     # MENU PRINCIPAL [0] ou qualquer outra coisa
+#     # ---------------------------------------------------------
+#     ... (código existente do menu)
+# ============================================================
 
 
 # Adicionando session config
