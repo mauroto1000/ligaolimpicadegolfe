@@ -8197,26 +8197,28 @@ def get_player_by_phone(telefone):
     telefone_normalizado = normalizar_telefone(telefone)
     if not telefone_normalizado:
         return None
-    
     conn = get_db_connection()
     cursor = conn.cursor()
-    
     # Busca considerando variações do número (com/sem 55, com/sem 9)
     cursor.execute("""
-        SELECT id, name, position, sexo, telefone, player_code, idioma
-        FROM players 
-        WHERE REPLACE(REPLACE(REPLACE(telefone, '-', ''), ' ', ''), '+', '') LIKE ?
-           OR REPLACE(REPLACE(REPLACE(telefone, '-', ''), ' ', ''), '+', '') LIKE ?
-           OR REPLACE(REPLACE(REPLACE(telefone, '-', ''), ' ', ''), '+', '') LIKE ?
+        SELECT 
+            p.id, p.name, p.position, p.sexo, p.telefone, p.player_code, p.idioma,
+            (SELECT COUNT(*) + 1 FROM players p2 
+             WHERE p2.tipo_membro != 'vip' 
+             AND p2.active = 1 
+             AND p2.sexo = p.sexo
+             AND p2.position < p.position) as posicao_ranking
+        FROM players p
+        WHERE REPLACE(REPLACE(REPLACE(p.telefone, '-', ''), ' ', ''), '+', '') LIKE ?
+           OR REPLACE(REPLACE(REPLACE(p.telefone, '-', ''), ' ', ''), '+', '') LIKE ?
+           OR REPLACE(REPLACE(REPLACE(p.telefone, '-', ''), ' ', ''), '+', '') LIKE ?
     """, (
         f'%{telefone_normalizado}',
         f'%{telefone_normalizado[-9:]}',  # Últimos 9 dígitos
         f'%{telefone_normalizado[-8:]}'   # Últimos 8 dígitos
     ))
-    
     player = cursor.fetchone()
     conn.close()
-    
     return dict(player) if player else None
 
 
@@ -8614,7 +8616,7 @@ _Digite *0* para voltar ao menu._"""
 Olá, {jogador['name']}!
 
 🆔 Código: *{jogador['player_code']}*
-Você está na posição *{jogador['position']}º* no ranking.
+Você está na posição *{jogador['posicao_ranking']}º* no ranking.
 
 _Digite *0* para voltar ao menu._"""
     
@@ -8626,7 +8628,7 @@ _Digite *0* para voltar ao menu._"""
             return f"""🎯 *Possíveis Desafiados*
 
 Olá, {jogador['name']}!
-Você está na posição *{jogador['position']}º*.
+Você está na posição *{jogador['posicao_ranking']}º*.
 
 No momento não há jogadores disponíveis para desafio.
 
@@ -8637,7 +8639,7 @@ _Digite *0* para voltar ao menu._"""
         return f"""🎯 *Possíveis Desafiados*
 
 Olá, {jogador['name']}!
-Você está na posição *{jogador['position']}º*.
+Você está na posição *{jogador['posicao_ranking']}º*.
 
 Você pode desafiar:
 {lista}
@@ -8820,7 +8822,7 @@ _Digite *0* para voltar ao menu._"""
             return f"""🎯 *Criar Desafio*
 
 Olá, {jogador['name']}!
-Você está na posição *{jogador['position']}º*.
+Você está na posição *{jogador['posicao_ranking']}º*.
 
 ❌ No momento não há jogadores disponíveis para desafio.
 
@@ -8839,7 +8841,7 @@ _Digite *0* para voltar ao menu._"""
         return f"""🎯 *Criar Desafio*
 
 Olá, {jogador['name']}!
-Você está na posição *{jogador['position']}º*.
+Você está na posição *{jogador['posicao_ranking']}º*.
 
 Selecione quem você quer desafiar:
 {lista}
@@ -8852,7 +8854,7 @@ _Digite *0* para cancelar._"""
     return f"""🏌️ *Liga Olímpica de Golfe*
 
 Olá, *{jogador['name']}*!
-📊 Posição atual: *{jogador['position']}º*
+📊 Posição atual: *{jogador['posicao_ranking']}º*
 
 ━━━━━━━━━━━━━━━━━━━━━
 *MENU DE OPÇÕES*
@@ -9052,7 +9054,7 @@ def recalcular_tiers_por_sexo(conn, sexo):
     ''', (sexo, sexo)).fetchall()
     
     for jogador in jogadores:
-        novo_tier = calcular_tier(jogador['position'])
+        novo_tier = calcular_tier(jogador['posicao_ranking'])
         conn.execute('UPDATE players SET tier = ? WHERE id = ?', 
                     (novo_tier, jogador['id']))
 
@@ -9162,7 +9164,7 @@ def corrigir_vip():
         ''').fetchall()
         
         for jogador in jogadores_ativos:
-            novo_tier = calcular_tier(jogador['position'])
+            novo_tier = calcular_tier(jogador['posicao_ranking'])
             conn.execute('UPDATE players SET tier = ? WHERE id = ?', (novo_tier, jogador['id']))
         relatorio.append(f"Tiers recalculados: {len(jogadores_ativos)} jogadores")
         
@@ -10565,7 +10567,7 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
         return get_msg('minha_posicao', idioma,
                       nome=jogador['name'],
                       codigo=jogador['player_code'],
-                      posicao=jogador['position'])
+                      posicao=jogador['posicao_ranking'])
     
     # COMANDO [2]: Quem posso desafiar
     if msg == '2' or any(palavra in msg for palavra in ['quem posso', 'possiveis', 'possíveis', 'who can', 'possible']):
@@ -10574,13 +10576,13 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
         if not possiveis:
             return get_msg('possiveis_desafiados_vazio', idioma,
                           nome=jogador['name'],
-                          posicao=jogador['position'])
+                          posicao=jogador['posicao_ranking'])
         
         lista = "\n".join([f"   {p['position']}º - {p['name']}" for p in possiveis])
         
         return get_msg('possiveis_desafiados', idioma,
                       nome=jogador['name'],
-                      posicao=jogador['position'],
+                      posicao=jogador['posicao_ranking'],
                       lista=lista)
     
     # COMANDO [3]: Meus desafios
@@ -10727,7 +10729,7 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
         if not possiveis:
             return get_msg('criar_desafio_sem_oponentes', idioma,
                           nome=jogador['name'],
-                          posicao=jogador['position'])
+                          posicao=jogador['posicao_ranking'])
         
         linhas = []
         for i, p in enumerate(possiveis, 1):
@@ -10741,7 +10743,7 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
         
         return get_msg('criar_desafio_lista', idioma,
                       nome=jogador['name'],
-                      posicao=jogador['position'],
+                      posicao=jogador['posicao_ranking'],
                       lista=lista)
     
     # COMANDO [7]: Propor novas datas
@@ -10778,7 +10780,7 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
     return get_msg('menu_principal', idioma,
                   nome=jogador['name'],
                   codigo=jogador['player_code'],
-                  posicao=jogador['position'],
+                  posicao=jogador['posicao_ranking'],
                   aviso_proposta=aviso_proposta)
 
 
