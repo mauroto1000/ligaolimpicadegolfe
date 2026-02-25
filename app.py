@@ -10,6 +10,10 @@ from flask import send_file
 from io import BytesIO
 
 
+from dotenv import load_dotenv
+load_dotenv()
+
+
 # Adicionando session config
 app = Flask(__name__)
 app.secret_key = 'liga_olimpica_golfe_2025'
@@ -10770,6 +10774,16 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
         
         lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} ({d['challenger_position']}º)" for d in desafios_pendentes])
         return get_msg('propor_lista', idioma, qtd=len(desafios_pendentes), lista=lista)
+
+
+    # ---------------------------------------------------------
+    # FALLBACK: CONVERSA COM IA
+    # ---------------------------------------------------------
+    if not é_comando_menu(msg):
+        resposta_ia = conversar_com_ia(mensagem, jogador, idioma)
+        if resposta_ia:
+            return resposta_ia
+
     
     # ---------------------------------------------------------
     # MENU PRINCIPAL [0] ou qualquer outra coisa
