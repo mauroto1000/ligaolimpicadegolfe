@@ -8839,7 +8839,6 @@ _Digite *0* para voltar ao menu._"""
         return f"""🎯 *Criar Desafio*
 
 Olá, {jogador['name']}!
-🆔 Código: *{jogador['player_code']}*
 Você está na posição *{jogador['position']}º*.
 
 Selecione quem você quer desafiar:
@@ -8853,7 +8852,6 @@ _Digite *0* para cancelar._"""
     return f"""🏌️ *Liga Olímpica de Golfe*
 
 Olá, *{jogador['name']}*!
-🆔 Código: *{jogador['player_code']}*
 📊 Posição atual: *{jogador['position']}º*
 
 ━━━━━━━━━━━━━━━━━━━━━
@@ -10217,7 +10215,6 @@ _Type *0* to return to menu._"""
         'pt': """🏌️ *Liga Olímpica de Golfe*
 
 Olá, *{nome}*!
-🆔 Código: *{jogador['player_code']}*
 📊 Posição atual: *{posicao}º*
 {aviso_proposta}
 ━━━━━━━━━━━━━━━━━━━━━
