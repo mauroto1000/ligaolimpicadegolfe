@@ -16,8 +16,8 @@ from io import BytesIO
 # Adicione este código no início do app.py (após os imports)
 # ============================================================
 
+
 import os
-from dotenv import load_dotenv
 
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
