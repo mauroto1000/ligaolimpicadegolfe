@@ -8415,7 +8415,7 @@ def get_player_by_phone(telefone):
 
 
 def get_possiveis_desafiados(player_id):
-    """Retorna lista de jogadores que podem ser desafiados"""
+    """Retorna lista de jogadores que podem ser desafiados com posição visual"""
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -8430,22 +8430,45 @@ def get_possiveis_desafiados(player_id):
     posicao_atual = player['position']
     sexo = player['sexo'] or 'masculino'
     
+    # Criar mapeamento de posição visual (sem VIPs)
+    cursor.execute("""
+        SELECT id, position FROM players 
+        WHERE active = 1 
+          AND position > 0 
+          AND (tipo_membro IS NULL OR tipo_membro != 'vip')
+          AND (sexo = ? OR sexo IS NULL OR sexo = '')
+        ORDER BY position
+    """, (sexo,))
+    
+    posicao_visual = {}
+    contador = 0
+    for row in cursor.fetchall():
+        contador += 1
+        posicao_visual[row['id']] = contador
+    
     # Calcular posição mínima (até 8 posições acima)
     posicao_minima = max(1, posicao_atual - 8)
     
-    # Buscar possíveis desafiados (mesma categoria, posição superior, não bloqueados)
+    # Buscar possíveis desafiados (sem VIPs)
     cursor.execute("""
         SELECT id, name, position
         FROM players
-        WHERE position >= ? 
+        WHERE position >= ?
           AND position < ?
           AND (sexo = ? OR sexo IS NULL OR sexo = '')
           AND (bloqueado = 0 OR bloqueado IS NULL)
+          AND (tipo_membro IS NULL OR tipo_membro != 'vip')
           AND id != ?
         ORDER BY position ASC
     """, (posicao_minima, posicao_atual, sexo, player_id))
     
-    desafiados = [dict(row) for row in cursor.fetchall()]
+    desafiados = []
+    for row in cursor.fetchall():
+        d = dict(row)
+        # Usar posição visual
+        d['position'] = posicao_visual.get(d['id'], d['position'])
+        desafiados.append(d)
+    
     conn.close()
     
     # Verificar se jogadores já têm desafios pendentes
@@ -8455,6 +8478,7 @@ def get_possiveis_desafiados(player_id):
             desafiados_disponiveis.append(d)
     
     return desafiados_disponiveis
+
 
 
 def tem_desafio_ativo(player_id):
