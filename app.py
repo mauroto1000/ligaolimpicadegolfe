@@ -164,7 +164,147 @@ def é_comando_menu(msg):
     for palavra in palavras_comando:
         if palavra in msg:
             return True
+    return False
+
+
     
+
+# ============================================================
+# FASE 2 - ESTATÍSTICAS INTELIGENTES COM IA
+# ============================================================
+
+SCHEMA_INFO = """
+Tabelas: players (id, name, position, sexo, tier, active, tipo_membro) e 
+challenges (id, challenger_id, challenged_id, status, result, scheduled_date).
+Excluir VIPs: (tipo_membro IS NULL OR tipo_membro != 'vip'). Filtrar: active = 1.
+"""
+
+QUERIES_CACHE = {
+    'mais_vitorias': {
+        'keywords': ['mais vitórias', 'mais vitorias', 'quem venceu mais', 'most wins'],
+        'sql': """SELECT p.name, COUNT(CASE WHEN (c.challenger_id = p.id AND c.result = 'challenger_won') OR (c.challenged_id = p.id AND c.result = 'challenged_won') THEN 1 END) as vitorias FROM players p LEFT JOIN challenges c ON (c.challenger_id = p.id OR c.challenged_id = p.id) AND c.status = 'completed' WHERE p.active = 1 AND (p.tipo_membro IS NULL OR p.tipo_membro != 'vip') GROUP BY p.id HAVING vitorias > 0 ORDER BY vitorias DESC LIMIT 10""",
+        'formato': 'ranking'
+    },
+    'mais_derrotas': {
+        'keywords': ['mais derrotas', 'quem perdeu mais', 'most losses'],
+        'sql': """SELECT p.name, COUNT(CASE WHEN (c.challenger_id = p.id AND c.result = 'challenged_won') OR (c.challenged_id = p.id AND c.result = 'challenger_won') THEN 1 END) as derrotas FROM players p LEFT JOIN challenges c ON (c.challenger_id = p.id OR c.challenged_id = p.id) AND c.status = 'completed' WHERE p.active = 1 AND (p.tipo_membro IS NULL OR p.tipo_membro != 'vip') GROUP BY p.id HAVING derrotas > 0 ORDER BY derrotas DESC LIMIT 10""",
+        'formato': 'ranking'
+    },
+    'mais_desafios': {
+        'keywords': ['mais desafios', 'mais desafiou', 'quem desafiou mais'],
+        'sql': """SELECT p.name, COUNT(c.id) as desafios FROM players p JOIN challenges c ON c.challenger_id = p.id WHERE p.active = 1 AND (p.tipo_membro IS NULL OR p.tipo_membro != 'vip') GROUP BY p.id ORDER BY desafios DESC LIMIT 10""",
+        'formato': 'ranking'
+    },
+    'total_desafios': {
+        'keywords': ['quantos desafios', 'total de desafios'],
+        'sql': """SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'completed' THEN 1 END) as completados, COUNT(CASE WHEN status = 'pending' THEN 1 END) as pendentes FROM challenges""",
+        'formato': 'resumo'
+    },
+    'ranking_atual': {
+        'keywords': ['ranking atual', 'top ranking', 'top 10', 'melhores posições'],
+        'sql': """SELECT name, position, tier FROM players WHERE active = 1 AND position > 0 AND (tipo_membro IS NULL OR tipo_membro != 'vip') ORDER BY position LIMIT 10""",
+        'formato': 'ranking_posicao'
+    }
+}
+
+def buscar_query_cache(pergunta):
+    pergunta_lower = pergunta.lower()
+    for nome, config in QUERIES_CACHE.items():
+        for keyword in config['keywords']:
+            if keyword in pergunta_lower:
+                return config
+    return None
+
+def é_pergunta_estatistica(mensagem):
+    palavras = ['quem', 'quantos', 'quantas', 'qual', 'quais', 'mais', 'menos', 'maior', 'menor', 'vitória', 'vitoria', 'derrota', 'desafio', 'ranking', 'estatística', 'estatistica', 'top', 'histórico', 'historico']
+    msg_lower = mensagem.lower()
+    return any(p in msg_lower for p in palavras)
+
+def executar_query_segura(sql):
+    sql_upper = sql.upper().strip()
+    for cmd in ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'CREATE']:
+        if cmd in sql_upper:
+            return None, f"Comando {cmd} não permitido"
+    if not sql_upper.startswith('SELECT'):
+        return None, "Apenas SELECT permitido"
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(sql)
+        resultados = cursor.fetchall()
+        colunas = [d[0] for d in cursor.description]
+        conn.close()
+        return [dict(zip(colunas, row)) for row in resultados], None
+    except Exception as e:
+        return None, str(e)
+
+def gerar_sql_com_ia(pergunta, idioma='pt'):
+    if not openai_client:
+        return None, "IA não configurada"
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": f"Converta perguntas em SQL. {SCHEMA_INFO} Regras: apenas SELECT, exclua VIPs, limite 10. Responda SÓ com SQL ou IMPOSSIVEL."},
+                {"role": "user", "content": pergunta}
+            ],
+            max_tokens=500, temperature=0.1
+        )
+        sql = response.choices[0].message.content.strip().replace('```sql', '').replace('```', '').strip()
+        return (None, "Impossível") if 'IMPOSSIVEL' in sql.upper() else (sql, None)
+    except Exception as e:
+        return None, str(e)
+
+def formatar_resposta_estatistica(dados, formato, pergunta, idioma='pt'):
+    if not dados:
+        return "Não encontrei dados." if idioma == 'pt' else "No data found."
+    if openai_client:
+        try:
+            response = openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": f"Formate para WhatsApp com emojis. Idioma: {'PT' if idioma == 'pt' else 'EN'}. Pergunta: {pergunta}. Dados: {dados[:10]}"}],
+                max_tokens=300, temperature=0.5
+            )
+            return response.choices[0].message.content.strip()
+        except:
+            pass
+    if formato == 'ranking':
+        linhas = ["📊 *Resultado:*\n"]
+        for i, row in enumerate(dados[:10], 1):
+            v = list(row.values())
+            linhas.append(f"{i}. {v[0]} - {v[1]}")
+        return "\n".join(linhas)
+    elif formato == 'ranking_posicao':
+        linhas = ["🏆 *Top 10:*\n"]
+        for row in dados[:10]:
+            linhas.append(f"#{row.get('position')} {row.get('name')} ({row.get('tier')})")
+        return "\n".join(linhas)
+    elif formato == 'resumo':
+        linhas = ["📊 *Resumo:*\n"]
+        for k, v in dados[0].items():
+            linhas.append(f"• {k}: {v}")
+        return "\n".join(linhas)
+    return f"📊 {dados}"
+
+def processar_estatistica(mensagem, jogador, idioma='pt'):
+    cache = buscar_query_cache(mensagem)
+    if cache:
+        dados, erro = executar_query_segura(cache['sql'])
+        if erro:
+            return f"Erro: {erro}"
+        resposta = formatar_resposta_estatistica(dados, cache['formato'], mensagem, idioma)
+        footer = "\n\n_Digite *0* para voltar ao menu._" if idioma == 'pt' else "\n\n_Type *0* for menu._"
+        return resposta + footer
+    sql, erro = gerar_sql_com_ia(mensagem, idioma)
+    if erro:
+        return None
+    dados, erro = executar_query_segura(sql)
+    if erro:
+        return "Não consegui processar." if idioma == 'pt' else "Could not process."
+    resposta = formatar_resposta_estatistica(dados, 'generico', mensagem, idioma)
+    footer = "\n\n_Digite *0* para voltar ao menu._" if idioma == 'pt' else "\n\n_Type *0* for menu._"
+    return resposta + footer
+
     return False
 
 
@@ -10990,8 +11130,13 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
 
     # ---------------------------------------------------------
     # FALLBACK: CONVERSA COM IA
-    # ---------------------------------------------------------
     if not é_comando_menu(msg):
+        # Primeiro, verificar se é pergunta sobre estatísticas
+        if é_pergunta_estatistica(mensagem):
+            resposta_stats = processar_estatistica(mensagem, jogador, idioma)
+            if resposta_stats:
+                return resposta_stats
+        # Se não for estatística, usar conversa casual
         resposta_ia = conversar_com_ia(mensagem, jogador, idioma)
         if resposta_ia:
             return resposta_ia
