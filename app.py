@@ -182,12 +182,12 @@ Excluir VIPs: (tipo_membro IS NULL OR tipo_membro != 'vip'). Filtrar: active = 1
 QUERIES_CACHE = {
     'mais_vitorias': {
         'keywords': ['mais vitórias', 'mais vitorias', 'quem venceu mais', 'most wins'],
-        'sql': """SELECT p.name, COUNT(CASE WHEN (c.challenger_id = p.id AND c.result = 'challenger_won') OR (c.challenged_id = p.id AND c.result = 'challenged_won') THEN 1 END) as vitorias FROM players p LEFT JOIN challenges c ON (c.challenger_id = p.id OR c.challenged_id = p.id) AND c.status = 'completed' WHERE p.active = 1 AND (p.tipo_membro IS NULL OR p.tipo_membro != 'vip') GROUP BY p.id HAVING vitorias > 0 ORDER BY vitorias DESC LIMIT 10""",
+        'sql': """SELECT p.name, COUNT(CASE WHEN (c.challenger_id = p.id AND c.result = 'challenger_win') OR (c.challenged_id = p.id AND c.result = 'challenged_win') THEN 1 END) as vitorias FROM players p LEFT JOIN challenges c ON (c.challenger_id = p.id OR c.challenged_id = p.id) AND c.status = 'completed' WHERE p.active = 1 AND (p.tipo_membro IS NULL OR p.tipo_membro != 'vip') GROUP BY p.id HAVING vitorias > 0 ORDER BY vitorias DESC LIMIT 10""",
         'formato': 'ranking'
     },
     'mais_derrotas': {
         'keywords': ['mais derrotas', 'quem perdeu mais', 'most losses'],
-        'sql': """SELECT p.name, COUNT(CASE WHEN (c.challenger_id = p.id AND c.result = 'challenged_won') OR (c.challenged_id = p.id AND c.result = 'challenger_won') THEN 1 END) as derrotas FROM players p LEFT JOIN challenges c ON (c.challenger_id = p.id OR c.challenged_id = p.id) AND c.status = 'completed' WHERE p.active = 1 AND (p.tipo_membro IS NULL OR p.tipo_membro != 'vip') GROUP BY p.id HAVING derrotas > 0 ORDER BY derrotas DESC LIMIT 10""",
+        'sql': """SELECT p.name, COUNT(CASE WHEN (c.challenger_id = p.id AND c.result = 'challenged_win') OR (c.challenged_id = p.id AND c.result = 'challenger_win') THEN 1 END) as derrotas FROM players p LEFT JOIN challenges c ON (c.challenger_id = p.id OR c.challenged_id = p.id) AND c.status = 'completed' WHERE p.active = 1 AND (p.tipo_membro IS NULL OR p.tipo_membro != 'vip') GROUP BY p.id HAVING derrotas > 0 ORDER BY derrotas DESC LIMIT 10""",
         'formato': 'ranking'
     },
     'mais_desafios': {
