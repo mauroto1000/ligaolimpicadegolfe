@@ -11129,19 +11129,22 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
 
 
     # ---------------------------------------------------------
-    # FALLBACK: CONVERSA COM IA
+    # ESTATÍSTICAS - verificar ANTES de é_comando_menu
+    # ---------------------------------------------------------
+    if é_pergunta_estatistica(mensagem):
+        resposta_stats = processar_estatistica(mensagem, jogador, idioma)
+        if resposta_stats:
+            return resposta_stats
+
+    # ---------------------------------------------------------
+    # CONVERSA CASUAL COM IA
+    # ---------------------------------------------------------
     if not é_comando_menu(msg):
-        # Primeiro, verificar se é pergunta sobre estatísticas
-        if é_pergunta_estatistica(mensagem):
-            resposta_stats = processar_estatistica(mensagem, jogador, idioma)
-            if resposta_stats:
-                return resposta_stats
-        # Se não for estatística, usar conversa casual
         resposta_ia = conversar_com_ia(mensagem, jogador, idioma)
         if resposta_ia:
             return resposta_ia
 
-    
+
     # ---------------------------------------------------------
     # MENU PRINCIPAL [0] ou qualquer outra coisa
     # ---------------------------------------------------------
