@@ -4225,13 +4225,17 @@ def player_detail(player_id):
     
     conn.close()
     
+    # Disponibilidade do jogador
+    disponibilidade = get_disponibilidade(player)
+    
     return render_template('player_detail.html',
                           player=player,
                           is_own_profile=is_own_profile,
                           is_admin=is_admin,
                           challenges_as_challenger=challenges_as_challenger,
                           challenges_as_challenged=challenges_as_challenged,
-                          potential_challenges=potential_challenges)
+                          potential_challenges=potential_challenges,
+                          disponibilidade=disponibilidade)
 
 
 @app.route('/challenge_detail/<int:challenge_id>')
@@ -8108,6 +8112,91 @@ def toggle_bloqueio_jogador(player_id):
     finally:
         conn.close()
     
+    return redirect(url_for('player_detail', player_id=player_id))
+
+
+# ============================================================
+# SISTEMA DE DISPONIBILIDADE DO JOGADOR
+# ============================================================
+
+DISPONIBILIDADE_DEFAULT = json.dumps({
+    "dom": {"manha": True, "tarde": True},
+    "seg": {"manha": True, "tarde": True},
+    "ter": {"manha": True, "tarde": True},
+    "qua": {"manha": True, "tarde": True},
+    "qui": {"manha": True, "tarde": True},
+    "sex": {"manha": True, "tarde": True},
+    "sab": {"manha": True, "tarde": True}
+})
+
+
+def get_disponibilidade(player):
+    """Retorna disponibilidade do jogador como dict. Usa default se não definida."""
+    try:
+        disp = player['disponibilidade']
+        if disp:
+            return json.loads(disp)
+    except (KeyError, TypeError, json.JSONDecodeError):
+        pass
+    return json.loads(DISPONIBILIDADE_DEFAULT)
+
+
+@app.route('/criar-coluna-disponibilidade')
+@login_required
+def criar_coluna_disponibilidade():
+    """Cria a coluna disponibilidade na tabela players"""
+    if not session.get('is_admin', False):
+        flash('Acesso restrito.', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    try:
+        columns = [col[1] for col in conn.execute("PRAGMA table_info(players)").fetchall()]
+        
+        if 'disponibilidade' not in columns:
+            conn.execute('ALTER TABLE players ADD COLUMN disponibilidade TEXT')
+            conn.commit()
+            flash('✅ Coluna "disponibilidade" criada!', 'success')
+        else:
+            flash('ℹ️ Coluna já existe.', 'info')
+    except Exception as e:
+        flash(f'❌ Erro: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/player/<int:player_id>/update-disponibilidade', methods=['POST'])
+@login_required
+def update_player_disponibilidade(player_id):
+    """Atualiza a disponibilidade semanal do jogador"""
+    
+    # Verificar permissão (próprio jogador ou admin)
+    if session.get('user_id') != player_id and not session.get('is_admin'):
+        flash('Você não tem permissão para editar este perfil.', 'danger')
+        return redirect(url_for('player_detail', player_id=player_id))
+    
+    dias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
+    periodos = ['manha', 'tarde']
+    
+    disponibilidade = {}
+    for dia in dias:
+        disponibilidade[dia] = {}
+        for periodo in periodos:
+            # Checkbox: presente no form = True, ausente = False
+            campo = f"{dia}_{periodo}"
+            disponibilidade[dia][periodo] = campo in request.form
+    
+    conn = get_db_connection()
+    conn.execute(
+        'UPDATE players SET disponibilidade = ? WHERE id = ?',
+        (json.dumps(disponibilidade), player_id)
+    )
+    conn.commit()
+    conn.close()
+    
+    flash('✅ Disponibilidade atualizada com sucesso!', 'success')
     return redirect(url_for('player_detail', player_id=player_id))
 
 
