@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+
+{% block title %}Ajustar Posição - {{ player.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <!-- Formulário de ajuste -->
+        <div class="col-md-6 mb-4">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0">
+                        <i class="fas fa-sort-numeric-down me-2"></i>
+                        Ajustar Posição no Ranking
+                    </h4>
+                </div>
+                <div class="card-body">
+                    
+                    <!-- Info do jogador -->
+                    <div class="alert alert-info">
+                        <div class="d-flex align-items-center">
+                            {% if player.sexo == 'feminino' %}
+                                <i class="fas fa-venus fa-2x me-3 text-pink"></i>
+                            {% else %}
+                                <i class="fas fa-mars fa-2x me-3 text-primary"></i>
+                            {% endif %}
+                            <div>
+                                <h5 class="mb-0">{{ player.name }}</h5>
+                                <small>
+                                    Posição atual: <strong>#{{ player.position }}</strong> | 
+                                    Tier: <strong>{{ player.tier }}</strong>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Formulário -->
+                    <form method="POST" action="{{ url_for('adjust_player_position', player_id=player.id) }}">
+                        
+                        <div class="mb-3">
+                            <label for="new_position" class="form-label">
+                                <i class="fas fa-hashtag me-1"></i> Nova Posição:
+                            </label>
+                            <input type="number" class="form-control form-control-lg text-center" 
+                                   id="new_position" name="new_position" 
+                                   min="1" max="{{ players_list|length }}"
+                                   value="{{ player.position }}" required>
+                            <small class="text-muted">
+                                Posições disponíveis: 1 a {{ players_list|length }}
+                            </small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="reason" class="form-label">
+                                <i class="fas fa-comment me-1"></i> Motivo (opcional):
+                            </label>
+                            <textarea class="form-control" id="reason" name="reason" rows="2" 
+                                      placeholder="Ex: Correção de erro, ajuste administrativo..."></textarea>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <small>
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                <strong>Atenção:</strong> Esta ação irá reorganizar as posições dos outros jogadores automaticamente.
+                            </small>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <a href="{{ url_for('player_detail', player_id=player.id) }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-1"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-warning flex-grow-1">
+                                <i class="fas fa-save me-1"></i> Confirmar Alteração
+                            </button>
+                        </div>
+                        
+                    </form>
+                    
+                </div>
+            </div>
+        </div>
+        
+        <!-- Lista de jogadores para referência -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list-ol me-2"></i>
+                        Ranking Atual 
+                        {% if player.sexo == 'feminino' %}
+                            (Ladies)
+                        {% else %}
+                            (Masculino)
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-sm table-striped table-hover mb-0">
+                            <thead class="table-dark sticky-top">
+                                <tr>
+                                    <th class="text-center">Pos</th>
+                                    <th class="text-center">Tier</th>
+                                    <th>Nome</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in players_list %}
+                                <tr class="{% if p.id == player.id %}table-warning{% endif %}">
+                                    <td class="text-center">
+                                        <strong>{{ p.position }}</strong>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary">{{ p.tier }}</span>
+                                    </td>
+                                    <td>
+                                        {% if p.id == player.id %}
+                                            <strong><i class="fas fa-arrow-right me-1 text-warning"></i>{{ p.name }}</strong>
+                                        {% else %}
+                                            {{ p.name }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer text-muted text-center">
+                    <small>{{ players_list|length }} jogadores no ranking</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .text-pink {
+        color: #e91e63;
+    }
+</style>
+{% endblock %}

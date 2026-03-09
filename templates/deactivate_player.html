@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Desativar Jogador{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="my-4">Desativar Jogador</h1>
+    
+    <div class="alert alert-warning">
+        <h4 class="alert-heading">Atenção!</h4>
+        <p>Você está prestes a desativar o jogador <strong>{{ player.name }}</strong> (posição: {{ player.position }}, tier: {{ player.tier }}).</p>
+        <p>Esta ação não pode ser desfeita automaticamente e afetará o histórico deste jogador.</p>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0">Confirmar Desativação</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('deactivate_player', player_id=player.id) }}">
+                <div class="form-group mb-3">
+                    <label for="senha"><strong>Senha de Administrador:</strong></label>
+                    <input type="password" class="form-control" id="senha" name="senha" required>
+                </div>
+                
+                <div class="form-group mb-4">
+                    <label><strong>Opções de Ranking:</strong></label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="rerank" id="rerank_yes" value="yes" checked>
+                        <label class="form-check-label" for="rerank_yes">
+                            <strong>Reorganizar o ranking</strong> - Os jogadores abaixo deste subem uma posição
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="rerank" id="rerank_no" value="no">
+                        <label class="form-check-label" for="rerank_no">
+                            <strong>Manter o ranking</strong> - Apenas desativa o jogador, mantendo uma "lacuna" no ranking
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <h5>Resumo das consequências:</h5>
+                    <div id="rerank_yes_info" class="p-3 mb-2 bg-light">
+                        <ul>
+                            <li>O jogador será marcado como inativo</li>
+                            <li>Todos os jogadores abaixo da posição {{ player.position }} subirão uma posição</li>
+                            <li>Desafios pendentes deste jogador serão cancelados</li>
+                            <li>O histórico será preservado</li>
+                        </ul>
+                    </div>
+                    <div id="rerank_no_info" class="p-3 mb-2 bg-light d-none">
+                        <ul>
+                            <li>O jogador será marcado como inativo</li>
+                            <li>A posição {{ player.position }} ficará vazia</li>
+                            <li>Desafios pendentes deste jogador serão cancelados</li>
+                            <li>O histórico será preservado</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="d-flex">
+                    <button type="submit" class="btn btn-danger me-2">Confirmar Desativação</button>
+                    <a href="{{ url_for('player_detail', player_id=player.id) }}" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const rerankYes = document.getElementById('rerank_yes');
+    const rerankNo = document.getElementById('rerank_no');
+    const rerankYesInfo = document.getElementById('rerank_yes_info');
+    const rerankNoInfo = document.getElementById('rerank_no_info');
+    
+    rerankYes.addEventListener('change', function() {
+        if (this.checked) {
+            rerankYesInfo.classList.remove('d-none');
+            rerankNoInfo.classList.add('d-none');
+        }
+    });
+    
+    rerankNo.addEventListener('change', function() {
+        if (this.checked) {
+            rerankNoInfo.classList.remove('d-none');
+            rerankYesInfo.classList.add('d-none');
+        }
+    });
+});
+</script>
+{% endblock %}

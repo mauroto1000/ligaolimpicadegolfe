@@ -1,0 +1,750 @@
+{% extends 'base.html' %}
+
+{% block title %}Ranking - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<style>
+    main.container {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+    
+    .alert {
+        margin-bottom: 0.5rem !important;
+        padding: 0.5rem !important;
+    }
+    
+    .row {
+        margin-top: 0 !important;
+    }
+    
+    h2 {
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .actions-cell {
+        white-space: nowrap;
+    }
+    
+    @media (max-width: 360px) {
+        .actions-cell .btn {
+            padding: 0.25rem 0.4rem;
+        }
+    }
+    
+    /* Controles e botões de ação */
+    .ranking-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 15px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+    }
+    
+    .ranking-controls .search-box {
+        flex: 1;
+        min-width: 200px;
+        max-width: 300px;
+    }
+    
+    .ranking-controls .action-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    @media (max-width: 576px) {
+        .ranking-controls {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .ranking-controls .search-box {
+            max-width: 100%;
+        }
+        
+        .ranking-controls .action-buttons {
+            justify-content: center;
+        }
+    }
+    
+    /* Switch de rankings */
+    .ranking-switch {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 20px;
+        gap: 0;
+    }
+    
+    .ranking-switch .switch-btn {
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .ranking-switch .switch-btn:first-child {
+        border-radius: 25px 0 0 25px;
+    }
+    
+    .ranking-switch .switch-btn:last-child {
+        border-radius: 0 25px 25px 0;
+    }
+    
+    .ranking-switch .switch-btn.mens {
+        background: #e3f2fd;
+        color: #1976d2;
+        border: 2px solid #1976d2;
+    }
+    
+    .ranking-switch .switch-btn.mens.active {
+        background: linear-gradient(135deg, #1976d2, #42a5f5);
+        color: white;
+        box-shadow: 0 4px 15px rgba(25, 118, 210, 0.4);
+    }
+    
+    .ranking-switch .switch-btn.ladies {
+        background: #fce4ec;
+        color: #e91e63;
+        border: 2px solid #e91e63;
+        border-left: none;
+    }
+    
+    .ranking-switch .switch-btn.ladies.active {
+        background: linear-gradient(135deg, #e91e63, #f48fb1);
+        color: white;
+        box-shadow: 0 4px 15px rgba(233, 30, 99, 0.4);
+    }
+    
+    .ranking-switch .switch-btn.vip {
+        background: #fff8e1;
+        color: #ff8f00;
+        border: 2px solid #ff8f00;
+        border-left: none;
+    }
+    
+    .ranking-switch .switch-btn.vip.active {
+        background: linear-gradient(135deg, #ff8f00, #ffca28);
+        color: white;
+        box-shadow: 0 4px 15px rgba(255, 143, 0, 0.4);
+    }
+    
+    .ranking-switch .switch-btn:hover:not(.active) {
+        transform: translateY(-2px);
+    }
+    
+    .ranking-switch .badge {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 10px;
+    }
+    
+    .ranking-switch .switch-btn.mens .badge {
+        background: rgba(25, 118, 210, 0.2);
+        color: #1976d2;
+    }
+    
+    .ranking-switch .switch-btn.mens.active .badge {
+        background: rgba(255, 255, 255, 0.3);
+        color: white;
+    }
+    
+    .ranking-switch .switch-btn.ladies .badge {
+        background: rgba(233, 30, 99, 0.2);
+        color: #e91e63;
+    }
+    
+    .ranking-switch .switch-btn.ladies.active .badge {
+        background: rgba(255, 255, 255, 0.3);
+        color: white;
+    }
+    
+    .ranking-switch .switch-btn.vip .badge {
+        background: rgba(255, 143, 0, 0.2);
+        color: #ff8f00;
+    }
+    
+    .ranking-switch .switch-btn.vip.active .badge {
+        background: rgba(255, 255, 255, 0.3);
+        color: white;
+    }
+    
+    @media (max-width: 576px) {
+        .ranking-switch .switch-btn {
+            padding: 10px 16px;
+            font-size: 13px;
+        }
+        
+        .ranking-switch .switch-btn i {
+            font-size: 16px;
+        }
+    }
+    
+    .ranking-section {
+        display: none;
+        animation: fadeIn 0.3s ease;
+    }
+    
+    .ranking-section.active {
+        display: block;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .ladies-liga .card-header {
+        background: linear-gradient(135deg, #e91e63, #f48fb1) !important;
+        color: white;
+    }
+    
+    .ladies-liga .table-dark {
+        background: linear-gradient(135deg, #ad1457, #e91e63) !important;
+    }
+    
+    .ladies-liga .badge-tier {
+        background-color: #e91e63 !important;
+        color: white !important;
+        border: 1px solid #ad1457 !important;
+    }
+    
+    .mens-ranking .card-header {
+        background: linear-gradient(135deg, #1976d2, #42a5f5) !important;
+        color: white;
+    }
+    
+    .mens-ranking .table-dark {
+        background: linear-gradient(135deg, #0d47a1, #1976d2) !important;
+    }
+    
+    .mens-ranking .badge-tier {
+        background-color: #1976d2 !important;
+        color: white !important;
+        border: 1px solid #0d47a1 !important;
+    }
+    
+    .vip-ranking .card-header {
+        background: linear-gradient(135deg, #ff8f00, #ffca28) !important;
+        color: white;
+    }
+    
+    .vip-ranking .table-dark {
+        background: linear-gradient(135deg, #e65100, #ff8f00) !important;
+    }
+    
+    .gender-icon {
+        margin-right: 5px;
+        font-size: 0.9em;
+    }
+    
+    .ladies-icon {
+        color: #e91e63;
+    }
+    
+    .mens-icon {
+        color: #1976d2;
+    }
+    
+    .vip-icon {
+        color: #ff8f00;
+    }
+    
+    tr.highlight {
+        background-color: #fff3cd !important;
+        animation: pulse 1s ease-in-out;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { background-color: #fff3cd; }
+        50% { background-color: #ffe69c; }
+    }
+</style>
+
+<!-- Banner de Cookies -->
+<div id="cookie-consent-banner" class="position-fixed bottom-0 start-0 end-0 p-3 bg-dark text-white" style="z-index: 1050; display: none;">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h5>Política de Privacidade e Cookies</h5>
+                <p class="mb-md-0">Este site utiliza cookies e dados pessoais para melhorar sua experiência, conforme nossa <a href="{{ url_for('privacy_policy') }}" class="text-info">Política de Privacidade</a>.</p>
+            </div>
+            <div class="col-md-4 text-md-end mt-2 mt-md-0">
+                <button id="accept-cookies" class="btn btn-success me-2">Aceitar</button>
+                <button id="cookie-settings" class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#cookieSettingsModal">Configurações</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Cookies -->
+<div class="modal fade" id="cookieSettingsModal" tabindex="-1" aria-labelledby="cookieSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cookieSettingsModalLabel">Configurações de Privacidade</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Selecione quais cookies você deseja aceitar:</p>
+                
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="necessaryCookies" checked disabled>
+                    <label class="form-check-label" for="necessaryCookies">
+                        <strong>Cookies Necessários</strong><br>
+                        <small class="text-muted">Essenciais para o funcionamento do site.</small>
+                    </label>
+                </div>
+                
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="functionalCookies">
+                    <label class="form-check-label" for="functionalCookies">
+                        <strong>Cookies Funcionais</strong><br>
+                        <small class="text-muted">Permitem recursos aprimorados.</small>
+                    </label>
+                </div>
+                
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="analyticsCookies">
+                    <label class="form-check-label" for="analyticsCookies">
+                        <strong>Cookies Analíticos</strong><br>
+                        <small class="text-muted">Nos ajudam a entender como você usa o site.</small>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" id="save-preferences">Salvar Preferências</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if 'user_id' not in session %}
+<div class="alert alert-danger mt-0 py-1">
+    <div class="d-flex align-items-center">
+        <i class="fas fa-sign-in-alt me-2"></i>
+        <small><a href="{{ url_for('login') }}" class="alert-link text-danger"><u>Faça login</u></a> para desafiar jogadores e acessar todas as funcionalidades.</small>
+    </div>
+</div>
+{% endif %}
+
+<div class="row g-2">
+    
+    <!-- Listas separadas pelo Python: male_players, female_players e vip_members -->
+    
+    <!-- SWITCH -->
+    <div class="col-12">
+        <div class="ranking-switch">
+            <button type="button" class="switch-btn mens active" data-target="mens-ranking-section">
+                <i class="fas fa-mars"></i>
+                <span>Masculino</span>
+                <span class="badge">{{ male_players|length }}</span>
+            </button>
+            <button type="button" class="switch-btn ladies {% if not vip_members %}{% endif %}" data-target="ladies-ranking-section">
+                <i class="fas fa-venus"></i>
+                <span>Ladies</span>
+                <span class="badge">{{ female_players|length }}</span>
+            </button>
+            {% if vip_members and vip_members|length > 0 %}
+            <button type="button" class="switch-btn vip" data-target="vip-ranking-section">
+                <i class="fas fa-star"></i>
+                <span>VIP</span>
+                <span class="badge">{{ vip_members|length }}</span>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Controles: Busca + Botões de Ação -->
+    <div class="col-12">
+        <div class="ranking-controls">
+            <!-- Busca -->
+            <div class="search-box">
+                <div class="input-group">
+                    <input type="text" id="playerSearch" class="form-control" placeholder="Buscar jogador...">
+                    <button class="btn btn-outline-secondary" type="button" id="clearSearch">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Botões de Ação -->
+            <div class="action-buttons">
+                <a href="{{ url_for('pyramid_dynamic') }}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-sitemap me-1"></i> Ver Pirâmide
+                </a>
+                <a href="{{ url_for('pyramid_print') }}" class="btn btn-info btn-sm" target="_blank">
+                    <i class="fas fa-print me-1"></i> Imprimir
+                </a>
+                <a href="{{ url_for('export_ranking_excel') }}" class="btn btn-success btn-sm">
+                    <i class="fas fa-file-excel me-1"></i> Baixar Excel
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- RANKING MASCULINO -->
+    <div id="mens-ranking-section" class="col-12 ranking-section active">
+        {% if male_players %}
+        <div class="card mb-3 mens-ranking">
+            <div class="card-header py-2">
+                <h4 class="mb-0 fs-5">
+                    <i class="fas fa-trophy mens-icon gender-icon"></i>
+                    Ranking Masculino
+                    <span class="badge bg-light text-dark ms-2">{{ male_players|length }} jogadores</span>
+                </h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0" id="mensTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th class="text-center">Pos</th>
+                                <th class="text-center">Código</th>
+                                <th>Nome</th>
+                                <th class="text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for player in male_players %}
+                            <tr data-player-name="{{ player['name']|lower }}">
+                                <td class="text-center"><strong>{{ loop.index }}</strong></td>
+                                <td class="text-center">{{ player['player_code'] }}</td>
+                                <td>
+                                    {{ player['name'] }}
+                                </td>
+                                <td class="text-center actions-cell">
+                                    <div class="d-flex justify-content-center gap-1">
+                                        <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-primary py-0 px-1">
+                                            <i class="fas fa-user"></i> <span class="d-none d-md-inline">Detalhes</span>
+                                        </a>
+                                        {% if 'user_id' in session %}
+                                        <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}" class="btn btn-sm btn-outline-success py-0 px-1">
+                                            <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
+                                        </a>
+                                        {% else %}
+                                        <a href="{{ url_for('login') }}" class="btn btn-sm btn-danger py-0 px-1" title="Faça login para desafiar">
+                                            <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info text-center">
+            <i class="fas fa-info-circle me-2"></i>
+            Nenhum jogador masculino cadastrado ainda.
+        </div>
+        {% endif %}
+        
+        <!-- INATIVOS MASCULINOS - APENAS PARA ADMINS -->
+        {% if session.is_admin %}
+        {% set inativos_masc = inactive_players|selectattr('sexo', 'equalto', 'masculino')|list %}
+        {% if inativos_masc %}
+        <div class="card mb-3 border-secondary">
+            <div class="card-header bg-secondary text-white py-2">
+                <h6 class="mb-0">
+                    <i class="fas fa-user-slash me-2"></i>
+                    Inativos Masculinos
+                    <span class="badge bg-light text-dark ms-2">{{ inativos_masc|length }}</span>
+                    <small class="ms-2 opacity-75">(admin)</small>
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead>
+                            <tr class="table-secondary">
+                                <th class="text-center">Código</th>
+                                <th>Nome</th>
+                                <th class="text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for player in inativos_masc %}
+                            <tr>
+                                <td class="text-center">{{ player.player_code }}</td>
+                                <td>{{ player.name }}</td>
+                                <td class="text-center">
+                                    <a href="{{ url_for('player_detail', player_id=player.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-1">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+    
+    <!-- LIGA LADIES -->
+    <div id="ladies-ranking-section" class="col-12 ranking-section">
+        {% if female_players %}
+        <div class="card mb-3 ladies-liga">
+            <div class="card-header py-2">
+                <h4 class="mb-0 fs-5">
+                    <i class="fas fa-crown ladies-icon gender-icon"></i>
+                    Liga Ladies - Ranking Feminino
+                    <span class="badge bg-light text-dark ms-2">{{ female_players|length }} jogadoras</span>
+                </h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0" id="ladiesTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th class="text-center">Pos</th>
+                                <th class="text-center">Código</th>
+                                <th>Nome</th>
+                                <th class="text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for player in female_players %}
+                            <tr data-player-name="{{ player['name']|lower }}">
+                                <td class="text-center"><strong>{{ loop.index }}</strong></td>
+                                <td class="text-center">{{ player['player_code'] }}</td>
+                                <td>
+                                    {{ player['name'] }}
+                                </td>
+                                <td class="text-center actions-cell">
+                                    <div class="d-flex justify-content-center gap-1">
+                                        <a href="{{ url_for('player_detail', player_id=player['id']) }}" class="btn btn-sm btn-outline-primary py-0 px-1">
+                                            <i class="fas fa-user"></i> <span class="d-none d-md-inline">Detalhes</span>
+                                        </a>
+                                        {% if 'user_id' in session %}
+                                        <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}" class="btn btn-sm btn-outline-success py-0 px-1">
+                                            <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
+                                        </a>
+                                        {% else %}
+                                        <a href="{{ url_for('login') }}" class="btn btn-sm btn-danger py-0 px-1" title="Faça login para desafiar">
+                                            <i class="fas fa-trophy"></i> <span class="d-none d-md-inline">Desafiar</span>
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info text-center">
+            <i class="fas fa-info-circle me-2"></i>
+            Nenhuma jogadora cadastrada ainda.
+        </div>
+        {% endif %}
+        
+        <!-- INATIVAS FEMININAS - APENAS PARA ADMINS -->
+        {% if session.is_admin %}
+        {% set inativas_fem = inactive_players|selectattr('sexo', 'equalto', 'feminino')|list %}
+        {% if inativas_fem %}
+        <div class="card mb-3 border-secondary">
+            <div class="card-header bg-secondary text-white py-2">
+                <h6 class="mb-0">
+                    <i class="fas fa-user-slash me-2"></i>
+                    Inativas Femininas
+                    <span class="badge bg-light text-dark ms-2">{{ inativas_fem|length }}</span>
+                    <small class="ms-2 opacity-75">(admin)</small>
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead>
+                            <tr class="table-secondary">
+                                <th class="text-center">Código</th>
+                                <th>Nome</th>
+                                <th class="text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for player in inativas_fem %}
+                            <tr>
+                                <td class="text-center">{{ player.player_code }}</td>
+                                <td>{{ player.name }}</td>
+                                <td class="text-center">
+                                    <a href="{{ url_for('player_detail', player_id=player.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-1">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+    
+    <!-- MEMBROS VIP -->
+    {% if vip_members and vip_members|length > 0 %}
+    <div id="vip-ranking-section" class="col-12 ranking-section">
+        <div class="card mb-3 vip-ranking">
+            <div class="card-header py-2">
+                <h4 class="mb-0 fs-5">
+                    <i class="fas fa-star vip-icon gender-icon"></i>
+                    Membros VIP
+                    <span class="badge bg-light text-dark ms-2">{{ vip_members|length }} membros</span>
+                </h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0" id="vipTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th class="text-center">Código</th>
+                                <th>Nome</th>
+                                <th class="text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for member in vip_members %}
+                            <tr data-player-name="{{ member['name']|lower }}">
+                                <td class="text-center">{{ member['player_code'] }}</td>
+                                <td>
+                                    <i class="fas fa-star text-warning me-1"></i>
+                                    {% if member['country'] %}
+                                        <img src="https://flagcdn.com/16x12/{{ member['country']|country_code }}.png" 
+                                             alt="{{ member['country'] }}" class="me-1" width="16" height="12">
+                                    {% endif %}
+                                    {{ member['name'] }}
+                                </td>
+                                <td class="text-center actions-cell">
+                                    <div class="d-flex justify-content-center gap-1">
+                                        <a href="{{ url_for('player_detail', player_id=member['id']) }}" class="btn btn-sm btn-outline-primary py-0 px-1">
+                                            <i class="fas fa-user"></i> <span class="d-none d-md-inline">Detalhes</span>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-light text-muted small">
+                <i class="fas fa-info-circle me-1"></i>
+                Membros VIP têm acesso à carteirinha digital e benefícios do clube, mas não participam do ranking de desafios.
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Resultado de busca -->
+    <div id="searchResults" class="col-12 alert alert-warning" style="display: none;">
+        <i class="fas fa-search me-2"></i>Nenhum jogador encontrado.
+    </div>
+    
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // SWITCH
+    const switchButtons = document.querySelectorAll('.switch-btn');
+    const rankingSections = document.querySelectorAll('.ranking-section');
+    
+    switchButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            
+            switchButtons.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            rankingSections.forEach(section => section.classList.remove('active'));
+            document.getElementById(targetId).classList.add('active');
+            
+            document.getElementById('playerSearch').value = '';
+            applySearch();
+        });
+    });
+    
+    // BUSCA
+    const playerSearch = document.getElementById('playerSearch');
+    const clearSearch = document.getElementById('clearSearch');
+    const searchResults = document.getElementById('searchResults');
+    
+    function applySearch() {
+        const searchTerm = playerSearch.value.trim().toLowerCase();
+        const activeSection = document.querySelector('.ranking-section.active');
+        const rows = activeSection.querySelectorAll('tbody tr');
+        
+        let visibleCount = 0;
+        
+        rows.forEach(row => {
+            const playerName = row.getAttribute('data-player-name');
+            const matches = searchTerm === '' || (playerName && playerName.includes(searchTerm));
+            
+            if (matches) {
+                row.style.display = '';
+                visibleCount++;
+                
+                if (searchTerm !== '') {
+                    row.classList.add('highlight');
+                    setTimeout(() => row.classList.remove('highlight'), 2000);
+                }
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        searchResults.style.display = (visibleCount === 0 && searchTerm !== '') ? 'block' : 'none';
+    }
+    
+    playerSearch.addEventListener('input', applySearch);
+    clearSearch.addEventListener('click', function() {
+        playerSearch.value = '';
+        applySearch();
+    });
+    
+    // COOKIES
+    const cookieConsent = localStorage.getItem('cookieConsent');
+    if (!cookieConsent) {
+        document.getElementById('cookie-consent-banner').style.display = 'block';
+    }
+    
+    document.getElementById('accept-cookies').addEventListener('click', function() {
+        localStorage.setItem('cookieConsent', JSON.stringify({necessary: true, functional: true, analytics: true, timestamp: new Date().toISOString()}));
+        document.getElementById('cookie-consent-banner').style.display = 'none';
+    });
+    
+    document.getElementById('save-preferences').addEventListener('click', function() {
+        const consent = {
+            necessary: true,
+            functional: document.getElementById('functionalCookies').checked,
+            analytics: document.getElementById('analyticsCookies').checked,
+            timestamp: new Date().toISOString()
+        };
+        localStorage.setItem('cookieConsent', JSON.stringify(consent));
+        document.getElementById('cookie-consent-banner').style.display = 'none';
+        bootstrap.Modal.getInstance(document.getElementById('cookieSettingsModal'))?.hide();
+    });
+});
+</script>
+{% endblock %}

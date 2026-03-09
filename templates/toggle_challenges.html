@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}Controle de Marcação de Desafios - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Controle de Marcação de Desafios</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4>Status atual:</h4>
+                            {% if is_locked %}
+                                <div class="alert alert-danger">
+                                    <i class="fas fa-lock fa-lg"></i> A marcação de desafios está <strong>BLOQUEADA</strong>
+                                </div>
+                                <p>Os jogadores não podem criar novos desafios. Apenas administradores podem criar desafios no momento.</p>
+                            {% else %}
+                                <div class="alert alert-success">
+                                    <i class="fas fa-unlock fa-lg"></i> A marcação de desafios está <strong>LIBERADA</strong>
+                                </div>
+                                <p>Todos os jogadores podem criar novos desafios normalmente.</p>
+                            {% endif %}
+                            
+                            {% if updated_at %}
+                            <p class="text-muted">
+                                <small>Última atualização: {{ updated_at|datetime }}</small>
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4>Alterar status:</h4>
+                            <form method="post" action="{{ url_for('toggle_challenges') }}">
+                                <div class="form-group">
+                                    <label for="senha">Senha administrativa:</label>
+                                    <input type="password" id="senha" name="senha" class="form-control" required>
+                                </div>
+                                
+                                {% if is_locked %}
+                                <button type="submit" name="action" value="unlock" class="btn btn-success mt-3">
+                                    <i class="fas fa-unlock"></i> Liberar Marcação de Desafios
+                                </button>
+                                {% else %}
+                                <button type="submit" name="action" value="lock" class="btn btn-danger mt-3">
+                                    <i class="fas fa-lock"></i> Bloquear Marcação de Desafios
+                                </button>
+                                {% endif %}
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left"></i> Voltar para o Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

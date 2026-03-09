@@ -1,0 +1,459 @@
+{% extends 'base.html' %}
+
+{% block title %}Histórico de Posições{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Histórico de Posições</h1>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0">Filtros</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="dateRange" class="form-label">Período:</label>
+                        <div class="btn-group" role="group" aria-label="Período">
+                            <a href="{{ url_for('ranking_history', days=7) }}" class="btn btn-outline-primary {% if days == 7 %}active{% endif %}">Últimos 7 dias</a>
+                            <a href="{{ url_for('ranking_history', days=30) }}" class="btn btn-outline-primary {% if days == 30 %}active{% endif %}">Últimos 30 dias</a>
+                            <a href="{{ url_for('ranking_history', days=90) }}" class="btn btn-outline-primary {% if days == 90 %}active{% endif %}">Últimos 90 dias</a>
+                            <a href="{{ url_for('ranking_history', days=365) }}" class="btn btn-outline-primary {% if days == 365 %}active{% endif %}">Último ano</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <form action="{{ url_for('ranking_history') }}" method="GET" class="mb-3">
+                        <div class="row">
+                            <div class="col-md-5">
+                                <label for="start_date" class="form-label">De:</label>
+                                <input type="date" id="start_date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
+                            </div>
+                            <div class="col-md-5">
+                                <label for="end_date" class="form-label">Até:</label>
+                                <input type="date" id="end_date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <hr>
+            
+            <div class="mb-3">
+                <label class="form-label">Jogadores:</label>
+                <div class="d-flex mb-2">
+                    <button id="selectTop10" class="btn btn-outline-primary me-2">Selecionar Top 10</button>
+                    <button id="selectAll" class="btn btn-outline-secondary me-2">Selecionar Todos</button>
+                    <button id="clearAll" class="btn btn-outline-secondary">Limpar Seleção</button>
+                </div>
+                <div class="players-select-container">
+                    <div class="players-select">
+                        {% for player in players %}
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input player-checkbox" type="checkbox" value="{{ player.id }}" id="player{{ player.id }}" data-position="{{ player.position }}">
+                            <label class="form-check-label" for="player{{ player.id }}">
+                                {{ player.name }}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-end">
+                <button id="updateChart" class="btn btn-success">Atualizar Gráfico</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Evolução de Posições</h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-container" style="position: relative; height:600px;">
+                <canvas id="rankingChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let chartInstance = null;
+    
+    // Restaurar seleção de jogadores do localStorage
+    function restorePlayerSelection() {
+        try {
+            const savedSelection = localStorage.getItem('selectedPlayers');
+            if (savedSelection) {
+                const selectedIds = JSON.parse(savedSelection);
+                
+                // Primeiro, desmarca todos
+                document.querySelectorAll('.player-checkbox').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                
+                // Depois marca os salvos
+                selectedIds.forEach(id => {
+                    const checkbox = document.getElementById(`player${id}`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+            } else {
+                // Se não houver seleção salva, selecionar os 5 primeiros por padrão
+                const checkboxes = document.querySelectorAll('.player-checkbox');
+                for (let i = 0; i < Math.min(5, checkboxes.length); i++) {
+                    checkboxes[i].checked = true;
+                }
+            }
+        } catch (e) {
+            console.error('Erro ao restaurar seleção:', e);
+        }
+    }
+    
+    // Salvar seleção de jogadores no localStorage
+    function savePlayerSelection() {
+        try {
+            const selectedPlayerIds = Array.from(document.querySelectorAll('.player-checkbox:checked'))
+                .map(checkbox => checkbox.value);
+            localStorage.setItem('selectedPlayers', JSON.stringify(selectedPlayerIds));
+        } catch (e) {
+            console.error('Erro ao salvar seleção:', e);
+        }
+    }
+    
+    async function loadChartData() {
+        // Obter jogadores selecionados
+        const selectedPlayerIds = Array.from(document.querySelectorAll('.player-checkbox:checked'))
+            .map(checkbox => checkbox.value);
+        
+        if (selectedPlayerIds.length === 0) {
+            alert('Por favor, selecione pelo menos um jogador.');
+            return;
+        }
+        
+        // Salvar seleção atual
+        savePlayerSelection();
+        
+        // Construir URL para API
+        const apiUrl = new URL('{{ url_for("api_ranking_history_data") }}', window.location.origin);
+        
+        // Adicionar parâmetros de data
+        {% if request.args.get('start_date') and request.args.get('end_date') %}
+            apiUrl.searchParams.append('start_date', '{{ request.args.get("start_date") }}');
+            apiUrl.searchParams.append('end_date', '{{ request.args.get("end_date") }}');
+        {% else %}
+            apiUrl.searchParams.append('days', '{{ days }}');
+        {% endif %}
+        
+        // Adicionar jogadores selecionados
+        selectedPlayerIds.forEach(id => {
+            apiUrl.searchParams.append('player_ids[]', id);
+        });
+        
+        try {
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+                throw new Error('Erro ao carregar dados');
+            }
+            
+            const data = await response.json();
+            renderChart(data);
+        } catch (error) {
+            console.error('Erro:', error);
+            alert('Erro ao carregar dados do gráfico');
+        }
+    }
+    
+    function renderChart(data) {
+        const ctx = document.getElementById('rankingChart').getContext('2d');
+        
+        // Destruir gráfico existente se houver
+        if (chartInstance) {
+            chartInstance.destroy();
+        }
+        
+        // Registrar o plugin datalabels
+        Chart.register(ChartDataLabels);
+        
+        // Gerar cores aleatórias para cada jogador
+        const colors = generateColors(data.players.length);
+        
+        // Calcular as datas efetivas: datas originais + pequeno espaço
+        // Usar apenas 5% de espaço adicional em vez de tomar muito espaço
+        const dateWidth = data.dates.length;
+        const gapSize = Math.max(1, Math.ceil(dateWidth * 0.05)); // 5% de espaço, no mínimo 1
+        
+        // Preparar datasets
+        const datasets = data.players.map((player, index) => {
+            // Encontrar o último ponto válido
+            let lastValidIndex = player.positions.length - 1;
+            while (lastValidIndex >= 0 && (player.positions[lastValidIndex] === null || player.positions[lastValidIndex] === undefined)) {
+                lastValidIndex--;
+            }
+            
+            // Se não tiver pontos válidos, pular este jogador
+            if (lastValidIndex < 0) {
+                return null;
+            }
+            
+            // Obter a última posição válida
+            const lastPosition = player.positions[lastValidIndex];
+            
+            // Criar uma cópia dos dados
+            const extendedData = [...player.positions];
+            
+            // Adicionar pontos nulos para criar o espaço (apenas o necessário)
+            for (let i = 0; i < gapSize - 1; i++) {
+                extendedData.push(null);
+            }
+            
+            // Adicionar o ponto para o texto
+            extendedData.push(lastPosition);
+            
+            return {
+                label: player.name,
+                data: extendedData,
+                borderColor: colors[index],
+                backgroundColor: colors[index] + '33',
+                tension: 0.3,
+                pointRadius: function(context) {
+                    // Ocultar pontos extras
+                    if (context.dataIndex >= player.positions.length) {
+                        return 0;
+                    }
+                    return 4;
+                },
+                pointHoverRadius: function(context) {
+                    if (context.dataIndex >= player.positions.length) {
+                        return 0;
+                    }
+                    return 6;
+                },
+                spanGaps: false, // Não conectar através de pontos null
+                borderWidth: 2,
+                fill: false,
+                lastPosition: lastPosition,
+                datalabels: {
+                    align: 'start',
+                    anchor: function(context) {
+                        // Para o ponto do texto
+                        if (context.dataIndex === extendedData.length - 1) {
+                            return 'start';
+                        }
+                        return 'center';
+                    },
+                    color: function(context) {
+                        return context.dataset.borderColor;
+                    },
+                    font: {
+                        weight: 'bold',
+                        size: 12
+                    },
+                    formatter: function(value, context) {
+                        // Mostrar colocação e nome apenas no último ponto
+                        if (context.dataIndex === extendedData.length - 1) {
+                            return context.dataset.lastPosition + 'º - ' + player.name;
+                        }
+                        return null;
+                    },
+                    padding: 0
+                }
+            };
+        }).filter(Boolean); // Remover jogadores sem pontos válidos
+        
+        // Criar labels estendidos para acomodar o espaço
+        const extendedLabels = [...data.dates];
+        for (let i = 0; i < gapSize; i++) {
+            extendedLabels.push('');
+        }
+        
+        // Configurar o gráfico
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: extendedLabels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        right: 80 // Menos padding já que o espaço é menor
+                    }
+                },
+                scales: {
+                    y: {
+                        reverse: true,
+                        title: {
+                            display: true,
+                            text: 'Posição'
+                        },
+                        min: 0.5,
+                        suggestedMax: 25,
+                        ticks: {
+                            stepSize: 1,
+                            precision: 0,
+                            callback: function(value) {
+                                if (Math.floor(value) === value) {
+                                    return value;
+                                }
+                                return '';
+                            },
+                            count: 30
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Data'
+                        },
+                        ticks: {
+                            callback: function(value, index, values) {
+                                // Não mostrar o label dos pontos extras
+                                if (index >= data.dates.length) {
+                                    return '';
+                                }
+                                
+                                // Lógica para mostrar menos labels em telas pequenas
+                                const screenWidth = window.innerWidth;
+                                const interval = screenWidth < 768 ? 
+                                                Math.ceil(data.dates.length / 5) : 
+                                                Math.ceil(data.dates.length / 10);
+                                
+                                if (index % interval === 0) {
+                                    return data.dates[index];
+                                }
+                                return '';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Evolução de Posições ao Longo do Tempo'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                // Não mostrar tooltip para os pontos extras
+                                if (tooltipItems[0].dataIndex >= data.dates.length) {
+                                    return '';
+                                }
+                                return 'Data: ' + tooltipItems[0].label;
+                            },
+                            label: function(context) {
+                                // Não mostrar tooltip para os pontos extras
+                                if (context.dataIndex >= data.dates.length) {
+                                    return '';
+                                }
+                                if (context.raw === null || context.raw === undefined) {
+                                    return '';
+                                }
+                                return context.dataset.label + ': ' + context.raw + 'ª posição';
+                            }
+                        }
+                    },
+                    legend: {
+                        display: false
+                    },
+                    datalabels: {
+                        clamp: false,
+                        // Configurações para evitar sobreposição
+                        overlap: {
+                            mode: 'shift',
+                            padding: 4
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    function generateColors(count) {
+        const colors = [];
+        const baseColors = [
+            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+            '#FF9F40', '#2E5BFF', '#5AD8A6', '#F53794', '#FF8373'
+        ];
+        
+        // Usar cores base se houver suficientes
+        if (count <= baseColors.length) {
+            return baseColors.slice(0, count);
+        }
+        
+        // Adicionar cores base
+        colors.push(...baseColors);
+        
+        // Gerar cores adicionais aleatórias
+        for (let i = baseColors.length; i < count; i++) {
+            const r = Math.floor(Math.random() * 255);
+            const g = Math.floor(Math.random() * 255);
+            const b = Math.floor(Math.random() * 255);
+            colors.push(`rgb(${r}, ${g}, ${b})`);
+        }
+        
+        return colors;
+    }
+    
+    // Restaurar seleção salva e inicializar gráfico
+    restorePlayerSelection();
+    loadChartData();
+    
+    // Atualizar gráfico quando o botão for clicado
+    document.getElementById('updateChart').addEventListener('click', loadChartData);
+    
+    // Configurar botões de seleção
+    document.getElementById('selectTop10').addEventListener('click', function() {
+        const checkboxes = Array.from(document.querySelectorAll('.player-checkbox'));
+        // Primeiro, desmarca todos
+        checkboxes.forEach(cb => cb.checked = false);
+        
+        // Ordena os checkboxes por posição e marca os 10 primeiros
+        checkboxes
+            .sort((a, b) => parseInt(a.dataset.position) - parseInt(b.dataset.position))
+            .slice(0, 10)
+            .forEach(cb => cb.checked = true);
+        
+        // Atualiza o gráfico
+        loadChartData();
+    });
+    
+    document.getElementById('selectAll').addEventListener('click', function() {
+        document.querySelectorAll('.player-checkbox').forEach(cb => cb.checked = true);
+        loadChartData();
+    });
+    
+    document.getElementById('clearAll').addEventListener('click', function() {
+        document.querySelectorAll('.player-checkbox').forEach(cb => cb.checked = false);
+    });
+});
+</script>
+
+<style>
+.players-select-container {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+}
+
+.players-select {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+</style>
+{% endblock %}

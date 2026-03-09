@@ -1,0 +1,81 @@
+SQLite version 3.31.1 2020-01-27 19:55:54
+Enter ".help" for usage hints.
+Connected to a [1mtransient in-memory database[0m.
+Use ".open FILENAME" to reopen on a persistent database.
+sqlite> > conn = sqlite3.connect('golf_league.db')
+   ...> > cursor = conn.execute(\"SELECT name FROM sqlite_master WHERE type='table'\")
+   ...> > print('Tabelas no banco:')
+   ...> > for row in cursor:
+   ...> >     print(f'  - {row[0]}')
+   ...> > conn.close()
+   ...> > "
+   ...> Tabelas no banco:
+   ...>   - players
+   ...>   - sqlite_sequence
+   ...>   - challenges
+   ...>   - ranking_history
+   ...>   - player_ranking_history
+   ...>   - daily_ranking_history
+   ...>   - admins
+   ...>   - challenge_logs
+   ...>   - hcp_history
+   ...>   - system_settings
+   ...>   - challenges_history
+   ...>   - ranking_history_archive
+   ...>   - verification_tokens
+   ...>   - businesses
+   ...>   - regulamento
+   ...> (ligaolimpica) 04:33 ~/ligaolimpicadegolfe (main)$ python3 -c "
+   ...> > import sqlite3
+   ...> > conn = sqlite3.connect('golf_league.db')
+   ...> > cursor = conn.execute('PRAGMA table_info(challenges)')
+   ...> > print('Colunas da tabela challenges:')
+   ...> > for row in cursor:
+   ...> >     print(f'  - {row[1]} ({row[2]})')
+   ...> > conn.close()
+   ...> > "
+   ...> Colunas da tabela challenges:
+   ...> > "
+   ...>   - id (INTEGER)
+   ...>   - challenger_id (INTEGER)
+   ...>   - challenged_id (INTEGER)
+   ...>   - status (TEXT)
+   ...>   - scheduled_date (DATE)
+   ...>   - result (TEXT)
+   ...>   - created_at (TIMESTAMP)
+   ...>   - response_deadline (DATETIME)
+   ...>   - proposed_date (DATE)
+   ...>   - result_type (TEXT)
+   ...>   - challenger_position_at_creation (INTEGER)
+   ...>   - challenged_position_at_creation (INTEGER)
+   ...>   - proposed_date_1 (DATE)
+   ...>   - proposed_date_2 (DATE)
+   ...>   - date_proposed_by (INTEGER)
+   ...>   - date_proposed_at (DATETIME)
+   ...>   - updated_at (DATETIME)
+   ...> (ligaolimpica) 04:38 ~/ligaolimpicadegolfe (main)$ grep -A 25 "def aceitar_data_proposta" ~/ligaolimpicadegolfe/app.py
+   ...> def aceitar_data_proposta(challenge_id, data_escolhida):
+   ...>     """Aceita uma das datas propostas e confirma o desafio"""
+   ...>     conn = get_db_connection()
+   ...>     
+   ...>     conn.execute('''
+   ...>         UPDATE challenges 
+   ...>         SET status = 'accepted',
+   ...>             scheduled_date = ?,
+   ...>             updated_at = ?
+   ...>         WHERE id = ?
+   ...>     ''', (data_escolhida, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), challenge_id))
+   ...>     
+   ...>     conn.commit()
+   ...>     conn.close()
+   ...> def notificar_proposta_datas(challenge_id):
+   ...>     """Notifica o desafiante sobre as datas propostas"""
+   ...>     conn = get_db_connection()
+   ...>     
+   ...>     challenge = conn.execute('''
+   ...>         SELECT c.*, 
+   ...>                challenger.name as challenger_name,
+   ...>                challenger.telefone as challenger_telefone,
+   ...>                challenged.name as challenged_name,
+   ...>                challenged.position as challenged_position
+   ...> ^C^C^C

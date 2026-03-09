@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block title %}Login - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Login</h3>
+                </div>
+                <div class="card-body">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }}">{{ message }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <form method="POST" action="{{ url_for('login') }}">
+                        <div class="mb-3">
+                            <label for="player_code" class="form-label">Código do Jogador:</label>
+                            <input type="text" class="form-control" id="player_code" name="player_code" required autofocus placeholder="Ex: LOG123">
+                            <small class="form-text text-muted">
+                                Digite seu código de jogador (formato: LOG seguido do número).
+                            </small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Senha:</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                            <small class="form-text text-muted">
+                                Senha padrão: peça para os adminstradores do grupo. Você pode alterar sua senha após o primeiro login.
+                            </small>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Entrar</button>
+                        </div>
+                    </form>
+                    
+                    <div class="mt-3 text-center">
+                        <a href="{{ url_for('forgot_password') }}" class="text-decoration-none">Esqueceu sua senha?</a>
+                    </div>
+
+                    <div class="mt-4 alert alert-info">
+                        <p class="mb-1"><strong>Novo método de login!</strong></p>
+                        <p>Agora você deve usar seu código de jogador para acessar o sistema.</p>
+                        <p class="mb-1">Se você não sabe qual é o seu código, entre em contato com o administrador.</p>
+                    </div>
+
+                    <div class="mt-4">
+                        <p class="mb-1">Dicas de acesso:</p>
+                        <ul class="small text-muted">
+                            <li>Seu código de jogador tem o formato LOG seguido de um número (ex: LOG137)</li>
+                             <li>Você DEVE alterar sua senha após o primeiro login</li>
+                            <li>Os administradores continuam usando seu login específico</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mt-4 alert alert-secondary">
+                        <p class="mb-1"><strong>Para administradores:</strong></p>
+                        <p>Para acessar como administrador, use "admin" como código de jogador e sua senha de administrador.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

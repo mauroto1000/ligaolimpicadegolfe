@@ -1,0 +1,262 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message|safe }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Seção para destacar desafios pendentes que precisam de resposta -->
+    {% if challenges_as_challenged|selectattr('status', 'equalto', 'pending')|list|length > 0 %}
+    <div class="card shadow mb-4 border-danger">
+        <div class="card-header bg-danger text-white">
+            <h4 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Desafios Pendentes que Precisam de Resposta</h4>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <p><i class="fas fa-info-circle"></i> <strong>Lembrete importante:</strong> Ao propor uma nova data para um desafio, a data deve estar dentro dos próximos 7 dias a partir de hoje.</p>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Desafiante</th>
+                            <th>Data Proposta</th>
+                            <th>Prazo para Resposta</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for challenge in challenges_as_challenged %}
+                            {% if challenge.status == 'pending' %}
+                                <tr class="{% if challenge.days_remaining < 0 %}table-danger{% elif challenge.days_remaining <= 2 %}table-warning{% endif %}">
+                                    <td>{{ challenge.opponent_name }}</td>
+                                    <td>{{ challenge.scheduled_date|datetime('%d/%m/%Y') }}</td>
+                                    <td>
+                                        <strong class="{% if challenge.days_remaining < 0 %}text-danger{% elif challenge.days_remaining <= 2 %}text-warning{% else %}text-info{% endif %}">
+                                            {{ challenge.response_deadline|datetime('%d/%m/%Y') }}
+                                            {% if challenge.days_remaining < 0 %}
+                                                (EXPIRADO!)
+                                            {% elif challenge.days_remaining == 0 %}
+                                                (HOJE!)
+                                            {% elif challenge.days_remaining == 1 %}
+                                                (AMANHÃ!)
+                                            {% else %}
+                                                ({{ challenge.days_remaining }} dias)
+                                            {% endif %}
+                                        </strong>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-reply"></i> Responder
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Resto do código permanece o mesmo -->
+    <div class="row">
+        <!-- Perfil do Jogador -->
+        <div class="col-md-4 mb-4">
+            <!-- Conteúdo existente -->
+        </div>
+        
+        <!-- Desafios Pendentes -->
+        <div class="col-md-8 mb-4">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Meus Desafios</h4>
+                </div>
+                <div class="card-body">
+                    <ul class="nav nav-tabs mb-3" id="challengeTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" aria-controls="pending" aria-selected="true">
+                                Pendentes 
+                                <span class="badge bg-danger">{{ challenges_as_challenger|length + challenges_as_challenged|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="new-challenge-tab" data-bs-toggle="tab" data-bs-target="#new-challenge" type="button" role="tab" aria-controls="new-challenge" aria-selected="false">
+                                Desafiar Jogador
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content" id="challengeTabsContent">
+                        <!-- Desafios Pendentes Tab -->
+                        <div class="tab-pane fade show active" id="pending" role="tabpanel" aria-labelledby="pending-tab">
+                            {% if challenges_as_challenger|length > 0 or challenges_as_challenged|length > 0 %}
+                                <h5>Desafios que você fez:</h5>
+                                {% if challenges_as_challenger|length > 0 %}
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Desafiado</th>
+                                                    <th>Posição</th>
+                                                    <th>Data</th>
+                                                    <th>Status</th>
+                                                    <th>Ações</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for challenge in challenges_as_challenger %}
+                                                <tr>
+                                                    <td>{{ challenge.opponent_name }}</td>
+                                                    <td>#{{ challenge.opponent_position }}</td>
+                                                    <td>
+                                                        {% if challenge.scheduled_date %}
+                                                            {{ challenge.scheduled_date|datetime('%d/%m/%Y') }}
+                                                        {% else %}
+                                                            Não agendado
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if challenge.status == 'pending' %}
+                                                            <span class="badge bg-warning">Pendente</span>
+                                                        {% elif challenge.status == 'accepted' %}
+                                                            <span class="badge bg-primary">Aceito</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="btn btn-sm btn-outline-primary">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p>Você não tem desafios pendentes como desafiante.</p>
+                                {% endif %}
+                                
+                                <h5 class="mt-4">Desafios recebidos:</h5>
+                                {% if challenges_as_challenged|length > 0 %}
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Desafiante</th>
+                                                    <th>Posição</th>
+                                                    <th>Data</th>
+                                                    <th>Status</th>
+                                                    <th>Ações</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for challenge in challenges_as_challenged %}
+                                                <tr {% if challenge.status == 'pending' %}class="table-warning"{% endif %}>
+                                                    <td>{{ challenge.opponent_name }}</td>
+                                                    <td>#{{ challenge.opponent_position }}</td>
+                                                    <td>
+                                                        {% if challenge.scheduled_date %}
+                                                            {{ challenge.scheduled_date|datetime('%d/%m/%Y') }}
+                                                        {% else %}
+                                                            Não agendado
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if challenge.status == 'pending' %}
+                                                            <span class="badge bg-warning">Pendente</span>
+                                                            {% if challenge.days_remaining is defined %}
+                                                                {% if challenge.days_remaining < 0 %}
+                                                                    <span class="badge bg-danger">EXPIRADO!</span>
+                                                                {% elif challenge.days_remaining <= 2 %}
+                                                                    <span class="badge bg-danger">{{ challenge.days_remaining }} dias</span>
+                                                                {% endif %}
+                                                            {% endif %}
+                                                        {% elif challenge.status == 'accepted' %}
+                                                            <span class="badge bg-primary">Aceito</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="btn btn-sm btn-outline-primary">
+                                                            <i class="fas fa-eye"></i> Ver detalhes
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p>Você não tem desafios pendentes como desafiado.</p>
+                                {% endif %}
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <div class="mb-3">
+                                        <i class="fas fa-trophy fa-4x text-muted"></i>
+                                    </div>
+                                    <h5>Você não tem desafios pendentes</h5>
+                                    <p class="text-muted">Desafie um jogador para subir no ranking!</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Novo Desafio Tab -->
+                        <div class="tab-pane fade" id="new-challenge" role="tabpanel" aria-labelledby="new-challenge-tab">
+                            {% if potential_challenges|length > 0 %}
+                                <h5>Jogadores que você pode desafiar:</h5>
+                                <div class="alert alert-info">
+                                    <p class="mb-0"><i class="fas fa-info-circle"></i> Você só pode desafiar jogadores no mesmo nível ou um nível acima, e que tenham posição melhor que a sua. A data do desafio deve estar dentro dos próximos 7 dias a partir de hoje.</p>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Jogador</th>
+                                                <th>Posição</th>
+                                                <th>Tier</th>
+                                                <th>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for potential in potential_challenges %}
+                                            <tr>
+                                                <td>{{ potential.name }}</td>
+                                                <td>#{{ potential.position }}</td>
+                                                <td>{{ potential.tier }}</td>
+                                                <td>
+                                                    <a href="{{ url_for('new_challenge', challenger_id=player.id, challenged_id=potential.id) }}" class="btn btn-sm btn-success">
+                                                        <i class="fas fa-flag"></i> Desafiar
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <div class="mb-3">
+                                        <i class="fas fa-exclamation-circle fa-4x text-muted"></i>
+                                    </div>
+                                    <h5>Não há jogadores disponíveis para desafio</h5>
+                                    <p class="text-muted">Você pode estar no topo do ranking ou todos os possíveis oponentes já estão em desafios.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Resto do código permanece o mesmo -->
+</div>
+{% endblock %}

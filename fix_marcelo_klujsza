@@ -1,0 +1,173 @@
+import sqlite3
+from datetime import datetime
+
+# Configuração do banco de dados
+DATABASE = 'golf_league.db'
+
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def fix_marcelo_klujsza_positions():
+    """
+    Ajusta as posições do Marcelo Klujsza no histórico:
+    02/03/2025 - 21 (já está correto)
+    03/03/2025 - 21 (corrigir o ano 3025 para 2025)
+    04/03/2025 - 21 (corrigir o ano 3025 para 2025)
+    05/03/2025 - 21 (corrigir o ano 3025 para 2025)
+    06/03/2025 - 20 (corrigir o ano 3025 para 2025)
+    07/03/2025 - 20 (já está correto)
+    08/03/2025 - 21 (já está correto)
+    09/03/2025 - 21 (já está correto)
+    """
+    conn = get_db_connection()
+    
+    try:
+        # Primeiro, encontre o ID do Marcelo Klujsza
+        player = conn.execute('SELECT id FROM players WHERE name LIKE ? AND active = 1', 
+                              ('%Marcelo Klujsza%',)).fetchone()
+        
+        if not player:
+            print("ERRO: Jogador 'Marcelo Klujsza' não encontrado!")
+            return
+            
+        player_id = player['id']
+        print(f"ID do Marcelo Klujsza: {player_id}")
+        
+        # Verificar se a tabela daily_ranking_history existe
+        table_exists = conn.execute('''
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='daily_ranking_history'
+        ''').fetchone()
+        
+        if not table_exists:
+            print("ERRO: A tabela 'daily_ranking_history' não existe!")
+            return
+        
+        # Datas e posições corretas (corrigindo os anos de 3025 para 2025)
+        positions = {
+            "2025-03-02": 21,  # Esta data já está correta
+            "2025-03-03": 21,  # Corrigido de 3025 para 2025
+            "2025-03-04": 21,  # Corrigido de 3025 para 2025
+            "2025-03-05": 21,  # Corrigido de 3025 para 2025
+            "2025-03-06": 20,  # Corrigido de 3025 para 2025
+            "2025-03-07": 20,  # Esta data já está correta
+            "2025-03-08": 21,  # Esta data já está correta
+            "2025-03-09": 21   # Esta data já está correta
+        }
+        
+        # Calcular o tier correto para cada posição
+        def get_tier(position):
+            if position <= 1:
+                return 'A'
+            elif position <= 3:
+                return 'B'
+            elif position <= 6:
+                return 'C'
+            elif position <= 10:
+                return 'D'
+            else:
+                return 'E'  # Para posições 20 e 21, será tier E
+        
+        # Verificar os registros atuais para diagnóstico
+        print("\nRegistros atuais:")
+        current_records = conn.execute('''
+            SELECT date_recorded, position, tier
+            FROM daily_ranking_history
+            WHERE player_id = ?
+            ORDER BY date_recorded
+        ''', (player_id,)).fetchall()
+        
+        for record in current_records:
+            print(f"Data: {record['date_recorded']}, Posição: {record['position']}, Tier: {record['tier']}")
+        
+        # Iniciar a transação
+        conn.execute('BEGIN TRANSACTION')
+        
+        # Correção para datas com formato errado (3025 em vez de 2025)
+        incorrect_dates = [
+            "3025-03-03",
+            "3025-03-04",
+            "3025-03-05",
+            "3025-03-06"
+        ]
+        
+        # Primeiro, verificar e corrigir os registros com anos incorretos (3025)
+        rows_fixed = 0
+        for incorrect_date in incorrect_dates:
+            correct_date = incorrect_date.replace("3025", "2025")
+            
+            # Verificar se há um registro com a data incorreta
+            existing = conn.execute('''
+                SELECT id FROM daily_ranking_history 
+                WHERE player_id = ? AND date_recorded = ?
+            ''', (player_id, incorrect_date)).fetchone()
+            
+            if existing:
+                # Atualizar a data incorreta para a correta
+                conn.execute('''
+                    UPDATE daily_ranking_history
+                    SET date_recorded = ?
+                    WHERE player_id = ? AND date_recorded = ?
+                ''', (correct_date, player_id, incorrect_date))
+                rows_fixed += 1
+                print(f"Corrigida data: {incorrect_date} -> {correct_date}")
+        
+        # Atualizar ou inserir posições corretas para cada data
+        rows_updated = 0
+        for date, position in positions.items():
+            tier = get_tier(position)
+            
+            # Verificar se há um registro para esta data
+            existing = conn.execute('''
+                SELECT id, position, tier FROM daily_ranking_history 
+                WHERE player_id = ? AND date_recorded = ?
+            ''', (player_id, date)).fetchone()
+            
+            if existing:
+                # Se existe mas está incorreto, atualizar
+                if existing['position'] != position or existing['tier'] != tier:
+                    conn.execute('''
+                        UPDATE daily_ranking_history
+                        SET position = ?, tier = ?
+                        WHERE player_id = ? AND date_recorded = ?
+                    ''', (position, tier, player_id, date))
+                    rows_updated += 1
+                    print(f"Atualizado registro para {date}: {existing['position']} -> {position}, {existing['tier']} -> {tier}")
+            else:
+                # Se não existe, inserir novo
+                conn.execute('''
+                    INSERT INTO daily_ranking_history 
+                    (player_id, position, tier, date_recorded)
+                    VALUES (?, ?, ?, ?)
+                ''', (player_id, position, tier, date))
+                rows_updated += 1
+                print(f"Inserido novo registro para {date}: Posição {position}, Tier {tier}")
+        
+        # Commitar as alterações
+        conn.commit()
+        
+        print(f"\nAjuste concluído: {rows_fixed} datas corrigidas, {rows_updated} registros atualizados ou inseridos.")
+        
+        # Verificar os registros após as alterações
+        print("\nRegistros após ajuste:")
+        updated_records = conn.execute('''
+            SELECT date_recorded, position, tier
+            FROM daily_ranking_history
+            WHERE player_id = ?
+            ORDER BY date_recorded
+        ''', (player_id,)).fetchall()
+        
+        for record in updated_records:
+            print(f"Data: {record['date_recorded']}, Posição: {record['position']}, Tier: {record['tier']}")
+        
+    except Exception as e:
+        # Em caso de erro, reverter todas as alterações
+        conn.rollback()
+        print(f"ERRO durante o ajuste: {str(e)}")
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    fix_marcelo_klujsza_positions()

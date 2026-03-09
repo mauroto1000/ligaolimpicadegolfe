@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+
+{% block title %}Regulamento - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-6">
+            
+            <!-- Card Principal -->
+            <div class="card shadow-lg border-0" style="border-radius: 20px; overflow: hidden;">
+                
+                <!-- Header com Logo -->
+                <div class="card-header text-center py-4" style="background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 100%);">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo Liga Olímpica de Golfe" style="max-width: 120px;" class="mb-3">
+                    <h4 class="text-white mb-1">REGULAMENTO</h4>
+                    <p class="text-white-50 mb-0">Liga Olímpica de Golfe</p>
+                </div>
+                
+                <div class="card-body text-center p-4">
+                    
+                    {% if regulamento %}
+                        <!-- Ícone do PDF -->
+                        <div class="mb-4">
+                            <div class="pdf-icon mx-auto">
+                                <i class="fas fa-file-pdf"></i>
+                            </div>
+                        </div>
+                        
+                        <!-- Informações do Arquivo -->
+                        <h5 class="mb-2">{{ regulamento.nome_original }}</h5>
+                        <p class="text-muted small mb-4">
+                            <i class="fas fa-calendar-alt me-1"></i>
+                            Atualizado em: <strong>{{ regulamento.data_upload|datetime('%d/%m/%Y às %H:%M') }}</strong>
+                        </p>
+                        
+                        <!-- Botão de Download -->
+                        <a href="{{ url_for('download_regulamento') }}" class="btn btn-success btn-lg px-5 mb-3">
+                            <i class="fas fa-download me-2"></i> Baixar Regulamento
+                        </a>
+                        
+                        <p class="text-muted small mb-0">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Formato PDF • Leia com atenção todas as regras
+                        </p>
+                        
+                    {% else %}
+                        <!-- Sem Regulamento -->
+                        <div class="py-4">
+                            <div class="empty-icon mx-auto mb-3">
+                                <i class="fas fa-file-excel"></i>
+                            </div>
+                            <h5 class="text-muted">Regulamento não disponível</h5>
+                            <p class="text-muted small">O regulamento ainda não foi publicado.</p>
+                        </div>
+                    {% endif %}
+                    
+                </div>
+                
+                <!-- Contato -->
+                <div class="card-footer bg-light text-center py-3">
+                    <small class="text-muted">
+                        <i class="fas fa-envelope me-1"></i>
+                        Dúvidas? Entre em contato: 
+                        <a href="mailto:ligaolimpicadegolfe@gmail.com">ligaolimpicadegolfe@gmail.com</a>
+                    </small>
+                </div>
+            </div>
+            
+            {% if session.get('is_admin') %}
+            <!-- Área de Upload (apenas para admin) -->
+            <div class="card shadow-sm border-0 mt-4" style="border-radius: 15px;">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="mb-0">
+                        <i class="fas fa-cog me-2"></i> Área do Administrador
+                    </h6>
+                </div>
+                <div class="card-body p-4">
+                    <form action="{{ url_for('upload_regulamento') }}" method="post" enctype="multipart/form-data" id="uploadForm">
+                        <div class="mb-3">
+                            <label for="regulamento_pdf" class="form-label">
+                                <i class="fas fa-upload me-1"></i> Enviar novo regulamento (PDF)
+                            </label>
+                            <input type="file" class="form-control" id="regulamento_pdf" name="regulamento_pdf" accept=".pdf" required>
+                            <div class="form-text">Apenas arquivos PDF são aceitos. Máximo 10MB.</div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-warning" id="btnUpload">
+                                <i class="fas fa-cloud-upload-alt me-2"></i> Atualizar Regulamento
+                            </button>
+                        </div>
+                    </form>
+                    
+                    {% if regulamento %}
+                    <hr class="my-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            Arquivo atual: <strong>{{ regulamento.nome_arquivo }}</strong>
+                        </small>
+                        <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                            <i class="fas fa-trash"></i> Remover
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Modal de Confirmação para Excluir -->
+            {% if regulamento %}
+            <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title">Confirmar Exclusão</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Tem certeza que deseja remover o regulamento atual?</p>
+                            <p class="text-danger small"><i class="fas fa-exclamation-triangle me-1"></i> Os jogadores não terão acesso ao regulamento até que um novo seja enviado.</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <form action="{{ url_for('delete_regulamento') }}" method="post" class="d-inline">
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="fas fa-trash me-1"></i> Excluir
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+            
+        </div>
+    </div>
+</div>
+
+<style>
+    .pdf-icon {
+        width: 100px;
+        height: 100px;
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 30px rgba(220, 53, 69, 0.3);
+    }
+    
+    .pdf-icon i {
+        font-size: 3rem;
+        color: white;
+    }
+    
+    .empty-icon {
+        width: 80px;
+        height: 80px;
+        background: #e9ecef;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .empty-icon i {
+        font-size: 2rem;
+        color: #adb5bd;
+    }
+    
+    .btn-success {
+        background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 100%);
+        border: none;
+        box-shadow: 0 4px 15px rgba(26, 95, 42, 0.3);
+        transition: all 0.3s;
+    }
+    
+    .btn-success:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(26, 95, 42, 0.4);
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('uploadForm');
+    const btn = document.getElementById('btnUpload');
+    
+    if (form && btn) {
+        form.addEventListener('submit', function() {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Enviando...';
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,414 @@
+{% extends 'base.html' %}
+
+{% block title %}Calendário de Desafios - Liga Olímpica de Golfe{% endblock %}
+
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css" rel="stylesheet">
+<style>
+    .fc-event {
+        cursor: pointer;
+        margin-bottom: 4px !important;
+        padding: 6px !important;
+        border-radius: 6px !important;
+    }
+    
+    .fc-event-title {
+        font-weight: bold;
+        font-size: 13px;
+        white-space: normal !important;
+        overflow: visible !important;
+        padding: 2px 0;
+    }
+    
+    .fc-daygrid-event-dot {
+        display: none !important;
+    }
+    
+    /* Aumentar altura das células para acomodar mais eventos */
+    .fc-daygrid-day {
+        min-height: 120px !important;
+    }
+    
+    .fc-daygrid-day-frame {
+        min-height: 120px !important;
+    }
+    
+    /* Melhorar o estilo dos eventos truncados (+mais) */
+    .fc-daygrid-more-link {
+        background-color: #f8f9fa;
+        padding: 2px 6px;
+        margin-top: 3px;
+        border-radius: 4px;
+        font-weight: 500;
+        color: #495057 !important;
+    }
+    
+    .fc-event .badge {
+        display: inline-block;
+        margin-top: 5px;
+        padding: 3px 6px;
+        font-size: 11px;
+        width: 100%;
+        text-align: center;
+    }
+    
+    .calendar-legend {
+        display: flex;
+        flex-wrap: wrap;
+        margin-bottom: 15px;
+        gap: 10px;
+        justify-content: center;
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 8px;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-right: 10px;
+        padding: 5px;
+    }
+    
+    .legend-color {
+        width: 16px;
+        height: 16px;
+        display: inline-block;
+        margin-right: 5px;
+        border-radius: 4px;
+    }
+    
+    .legend-pending { background-color: #ffc107; }
+    .legend-accepted { background-color: #17a2b8; }
+    .legend-completed { background-color: #28a745; }
+    .legend-completed-pending { background-color: #ffc107; border: 2px solid #e0a800; }
+    .legend-rejected { background-color: #dc3545; }
+    .legend-cancelled { background-color: #6c757d; }
+    
+    /* Popover personalizado para preview de evento */
+    .fc-popover {
+        border-radius: 8px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    }
+    
+    .fc-popover-header {
+        background-color: #f8f9fa !important;
+        padding: 8px 10px !important;
+    }
+    
+    /* Estilos para área deslizante */
+    .calendar-scroll-container {
+        position: relative;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch; /* Para rolagem suave em iOS */
+        scrollbar-width: thin;             /* Firefox */
+        margin-left: -5px;
+        margin-right: -5px;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+    
+    .calendar-scroll-container::-webkit-scrollbar {
+        height: 8px;
+    }
+    
+    .calendar-scroll-container::-webkit-scrollbar-thumb {
+        background-color: #ccc; 
+        border-radius: 4px;
+    }
+    
+    .calendar-scroll-container::-webkit-scrollbar-track {
+        background-color: #f1f1f1;
+        border-radius: 4px;
+    }
+    
+    .scroll-hint {
+        animation: fadeInOut 2s ease-in-out infinite;
+        padding: 5px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        display: inline-block;
+        margin-top: 5px;
+    }
+    
+    @keyframes fadeInOut {
+        0% { opacity: 0.5; }
+        50% { opacity: 1; }
+        100% { opacity: 0.5; }
+    }
+    
+    /* Responsividade do calendário */
+    @media (max-width: 768px) {
+        .fc .fc-toolbar {
+            flex-direction: column;
+        }
+        
+        .fc .fc-toolbar-title {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+        
+        .fc .fc-button-group {
+            margin-bottom: 10px;
+        }
+        
+        .fc-event-title {
+            font-size: 12px;
+        }
+        
+        /* Garantir que o controle de rolagem seja claro em dispositivos móveis */
+        .calendar-scroll-container {
+            border-left: 2px solid #f1f1f1;
+            border-right: 2px solid #f1f1f1;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+            <h2>Calendário de Desafios</h2>
+            <div>
+                <a href="{{ url_for('challenges_list') }}" class="btn btn-outline-primary me-2">
+                    <i class="fas fa-table"></i> Ver como Tabela
+                </a>
+                <a href="{{ url_for('new_challenge') }}" class="btn btn-success">
+                    <i class="fas fa-plus-circle"></i> Novo Desafio
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="calendar-legend">
+                    <div class="legend-item">
+                        <span class="legend-color legend-pending"></span>
+                        <span>Pendente</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color legend-accepted"></span>
+                        <span>Aceito</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color legend-completed"></span>
+                        <span>Concluído</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color legend-completed-pending"></span>
+                        <span>Concluído (P)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color legend-rejected"></span>
+                        <span>Rejeitado</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color legend-cancelled"></span>
+                        <span>Cancelado</span>
+                    </div>
+                </div>
+                
+                <!-- Área deslizante para o calendário -->
+                <div class="calendar-scroll-container" style="overflow-x: auto; padding-bottom: 15px;">
+                    <div style="min-width: 768px;">
+                        <div id="calendar"></div>
+                    </div>
+                </div>
+                
+                <!-- Dica de rolagem para visualização mobile -->
+                <div class="d-sm-none text-center mt-2 mb-1 scroll-hint">
+                    <small class="text-muted"><i class="fas fa-arrows-left-right"></i> Deslize horizontalmente para ver todo o calendário</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para detalhes do desafio -->
+<div class="modal fade" id="challengeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalhes do Desafio</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <p>Carregando detalhes...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <a href="#" class="btn btn-primary" id="viewDetailBtn">Ver Detalhes</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/locales/pt-br.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var calendarEl = document.getElementById('calendar');
+        var modal = new bootstrap.Modal(document.getElementById('challengeModal'));
+        var viewDetailBtn = document.getElementById('viewDetailBtn');
+        
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'timeGridWeek,dayGridMonth'
+            },
+            initialView: 'timeGridWeek',  // Grade semanal como padrão
+            locale: 'pt-br',
+            buttonText: {
+                today: 'Hoje',
+                month: 'Mês',
+                week: 'Semana'
+            },
+            navLinks: true,
+            dayMaxEvents: 3,
+            moreLinkClick: 'popover',
+            eventDisplay: 'block',
+            events: [
+                {% for challenge in challenges %}
+                {
+                    id: '{{ challenge["id"] }}',
+                    title: '{{ challenge["challenger_name"] }} vs {{ challenge["challenged_name"] }}',
+                    start: '{{ challenge["scheduled_date"] }}',
+                    allDay: true,
+                    backgroundColor: getEventColor('{{ challenge["status"] }}'),
+                    borderColor: getEventColor('{{ challenge["status"] }}'),
+                    textColor: '#fff',
+                    extendedProps: {
+                        status: '{{ challenge["status"] }}',
+                        result: '{{ challenge["result"] }}',
+                        challenger: '{{ challenge["challenger_name"] }}',
+                        challenged: '{{ challenge["challenged_name"] }}',
+                        challengerId: '{{ challenge["challenger_id"] }}',
+                        challengedId: '{{ challenge["challenged_id"] }}'
+                    }
+                }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ],
+            eventClick: function(info) {
+                viewDetailBtn.href = '/challenge_detail/' + info.event.id;
+                
+                var modalBody = document.querySelector('#challengeModal .modal-body');
+                modalBody.innerHTML = `
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <h5 class="mb-1">Desafiante</h5>
+                            <p class="mb-0"><strong>${info.event.extendedProps.challenger}</strong></p>
+                        </div>
+                        <div class="col-md-6">
+                            <h5 class="mb-1">Desafiado</h5>
+                            <p class="mb-0"><strong>${info.event.extendedProps.challenged}</strong></p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="mb-1">Data Agendada</h5>
+                            <p class="mb-0">${info.event.start ? info.event.start.toLocaleDateString('pt-BR') : 'Não agendado'}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h5 class="mb-1">Status</h5>
+                            <p class="mb-0">${getStatusBadge(info.event.extendedProps.status)}</p>
+                        </div>
+                    </div>
+                `;
+                
+                modal.show();
+            },
+            eventDidMount: function(info) {
+                // Adicionar badges de status aos eventos
+                var statusBadge = document.createElement('span');
+                statusBadge.className = 'badge ';
+                
+                // Adicionar classe de cor conforme o status
+                if (info.event.extendedProps.status === 'pending') {
+                    statusBadge.className += 'bg-warning text-dark';
+                    statusBadge.innerText = 'Pendente';
+                } else if (info.event.extendedProps.status === 'accepted') {
+                    statusBadge.className += 'bg-info';
+                    statusBadge.innerText = 'Aceito';
+                } else if (info.event.extendedProps.status === 'completed') {
+                    statusBadge.className += 'bg-success';
+                    statusBadge.innerText = 'Concluído';
+                } else if (info.event.extendedProps.status === 'completed_pending') {
+                    statusBadge.className += 'bg-warning text-dark';
+                    statusBadge.innerText = 'Concluído (P)';
+                } else if (info.event.extendedProps.status === 'rejected') {
+                    statusBadge.className += 'bg-danger';
+                    statusBadge.innerText = 'Rejeitado';
+                } else if (info.event.extendedProps.status === 'cancelled') {
+                    statusBadge.className += 'bg-secondary';
+                    statusBadge.innerText = 'Cancelado';
+                }
+                
+                // Adicionar o badge ao evento
+                var titleEl = info.el.querySelector('.fc-event-title');
+                if (titleEl) {
+                    titleEl.appendChild(document.createElement('br'));
+                    titleEl.appendChild(statusBadge);
+                }
+            },
+            // Configurar altura do calendário para ser responsivo
+            height: 'auto',
+            // Aumentar as células dos dias
+            aspectRatio: 1.5,
+            // Garantir largura mínima adequada quando em scroll horizontal
+            contentWidth: 768
+        });
+        
+        calendar.render();
+        
+        function getEventColor(status) {
+            switch(status) {
+                case 'pending':
+                    return '#ffc107'; // warning
+                case 'accepted':
+                    return '#17a2b8'; // info
+                case 'completed':
+                    return '#28a745'; // success
+                case 'completed_pending':
+                    return '#ffc107'; // warning (igual ao pending)
+                case 'rejected':
+                    return '#dc3545'; // danger
+                case 'cancelled':
+                    return '#6c757d'; // secondary
+                default:
+                    return '#6c757d'; // secondary
+            }
+        }
+        
+        function getStatusBadge(status) {
+            switch(status) {
+                case 'pending':
+                    return '<span class="badge bg-warning text-dark">Pendente</span>';
+                case 'accepted':
+                    return '<span class="badge bg-info">Aceito</span>';
+                case 'completed':
+                    return '<span class="badge bg-success">Concluído</span>';
+                case 'completed_pending':
+                    return '<span class="badge bg-warning text-dark">Concluído (P)</span>';
+                case 'rejected':
+                    return '<span class="badge bg-danger">Rejeitado</span>';
+                case 'cancelled':
+                    return '<span class="badge bg-secondary">Cancelado</span>';
+                default:
+                    return '<span class="badge bg-secondary">Desconhecido</span>';
+            }
+        }
+    });
+</script>
+{% endblock %}

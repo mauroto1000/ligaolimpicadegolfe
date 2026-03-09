@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Reativar Jogador{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="my-4">Reativar Jogador</h1>
+    
+    <div class="alert alert-info">
+        <h4 class="alert-heading">Informação</h4>
+        <p>Você está prestes a reativar o jogador <strong>{{ player.name }}</strong>.</p>
+        <p>O jogador será reativado e posicionado na última posição do ranking atual.</p>
+    </div>
+    
+    {% if player.notes %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Histórico do Jogador</h5>
+        </div>
+        <div class="card-body">
+            <p>{{ player.notes }}</p>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Confirmar Reativação</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('reactivate_player', player_id=player.id) }}">
+                <div class="form-group mb-3">
+                    <label for="senha"><strong>Senha de Administrador:</strong></label>
+                    <input type="password" class="form-control" id="senha" name="senha" required>
+                </div>
+                
+                <div class="mb-3">
+                    <h5>Resumo das consequências:</h5>
+                    <div class="p-3 mb-2 bg-light">
+                        <ul>
+                            <li>O jogador será marcado como ativo novamente</li>
+                            <li>Será posicionado na última posição do ranking atual</li>
+                            <li>O tier será atualizado de acordo com a nova posição</li>
+                            <li>A reativação será registrada no histórico</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="d-flex">
+                    <button type="submit" class="btn btn-success me-2">Confirmar Reativação</button>
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,287 @@
+{% extends 'base.html' %}
+
+{% block title %}Histórico de Posições - {{ player.name }}{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .history-card {
+        margin-top: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .chart-container {
+        position: relative;
+        height: 400px;
+        width: 100%;
+        margin-top: 20px;
+    }
+    
+    .stats-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-top: 20px;
+    }
+    
+    .stat-card {
+        flex: 1 1 200px;
+        padding: 15px;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #28a745;
+        margin-bottom: 5px;
+    }
+    
+    .stat-label {
+        font-size: 14px;
+        color: #6c757d;
+    }
+    
+    .time-filter {
+        margin-bottom: 20px;
+    }
+    
+    @media (max-width: 767px) {
+        .chart-container {
+            height: 300px;
+        }
+        
+        .stats-container {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card history-card">
+    <div class="card-header bg-success text-white">
+        <h3 class="mb-0">Histórico de Posições - {{ player.name }}</h3>
+    </div>
+    <div class="card-body">
+        <!-- Filtros de tempo -->
+        <div class="time-filter">
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-secondary time-btn {% if days == 7 %}active{% endif %}" data-days="7">7 dias</button>
+                <button type="button" class="btn btn-outline-secondary time-btn {% if days == 30 or not days %}active{% endif %}" data-days="30">30 dias</button>
+                <button type="button" class="btn btn-outline-secondary time-btn {% if days == 90 %}active{% endif %}" data-days="90">90 dias</button>
+                <button type="button" class="btn btn-outline-secondary time-btn {% if days == 180 %}active{% endif %}" data-days="180">6 meses</button>
+                <button type="button" class="btn btn-outline-secondary time-btn {% if days == 365 %}active{% endif %}" data-days="365">1 ano</button>
+            </div>
+        </div>
+        
+        <!-- Estatísticas rápidas -->
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-value" id="bestPosition">-</div>
+                <div class="stat-label">Melhor posição</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="worstPosition">-</div>
+                <div class="stat-label">Pior posição</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="averagePosition">-</div>
+                <div class="stat-label">Média</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="currentStreak">-</div>
+                <div class="stat-label">Dias na posição atual</div>
+            </div>
+        </div>
+        
+        <!-- Container do gráfico -->
+        <div class="chart-container">
+            <canvas id="rankingChart"></canvas>
+        </div>
+        
+        <!-- Botões de navegação -->
+        <div class="mt-4">
+            <a href="{{ url_for('player_detail', player_id=player.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Voltar para Perfil
+            </a>
+            <a href="{{ url_for('pyramid_dynamic') }}" class="btn btn-primary">
+                <i class="fas fa-sitemap me-2"></i>Ver Pirâmide
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Dados do gráfico
+    const dates = {{ dates|tojson }};
+    const positions = {{ positions|tojson }};
+    const tiers = {{ tiers|tojson }};
+    
+    // Formatar as datas para exibição no gráfico
+    const formattedDates = dates.map(date => {
+        const parts = date.split('-');
+        return `${parts[2]}/${parts[1]}`;
+    });
+    
+    // Configuração inicial do gráfico
+    const ctx = document.getElementById('rankingChart').getContext('2d');
+    
+    // Definir cores para os diferentes tiers
+    const tierColors = {
+        'A': '#FFD700', // Dourado
+        'B': '#C0C0C0', // Prata
+        'C': '#CD7F32', // Bronze
+        'D': '#4169E1', // Azul Royal
+        'E': '#32CD32', // Verde Lima
+        'F': '#9932CC', // Roxo
+        'G': '#FF8C00', // Laranja Escuro
+        'H': '#1E90FF', // Azul Dodger
+        'I': '#FF1493', // Rosa Profundo
+        'J': '#00CED1', // Turquesa
+        'K': '#FF4500'  // Vermelho-Laranja
+    };
+    
+    // Determinar as cores dos pontos com base nos tiers
+    const pointColors = tiers.map(tier => tierColors[tier] || '#28a745');
+    
+    // Inverter o eixo Y para que posições melhores fiquem mais altas no gráfico
+    const rankingChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: formattedDates,
+            datasets: [{
+                label: 'Posição no Ranking',
+                data: positions,
+                borderColor: '#28a745',
+                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.1,
+                pointBackgroundColor: pointColors,
+                pointBorderColor: pointColors,
+                pointRadius: 5,
+                pointHoverRadius: 7
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            return 'Data: ' + tooltipItems[0].label;
+                        },
+                        label: function(context) {
+                            const index = context.dataIndex;
+                            return [
+                                'Posição: ' + context.raw,
+                                'Tier: ' + tiers[index]
+                            ];
+                        }
+                    }
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            scales: {
+                y: {
+                    reverse: true, // Posições menores (melhores) ficam mais altas
+                    beginAtZero: false,
+                    title: {
+                        display: true,
+                        text: 'Posição'
+                    },
+                    ticks: {
+                        precision: 0 // Mostrar apenas números inteiros
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Data'
+                    }
+                }
+            }
+        }
+    });
+    
+    // Atualizar estatísticas
+    function updateStats(positions) {
+        if (positions.length > 0) {
+            // Melhor posição (menor número)
+            const bestPos = Math.min(...positions);
+            document.getElementById('bestPosition').textContent = bestPos;
+            
+            // Pior posição (maior número)
+            const worstPos = Math.max(...positions);
+            document.getElementById('worstPosition').textContent = worstPos;
+            
+            // Média
+            const avgPos = (positions.reduce((sum, pos) => sum + pos, 0) / positions.length).toFixed(1);
+            document.getElementById('averagePosition').textContent = avgPos;
+            
+            // Dias na posição atual (streak)
+            let streak = 1;
+            const currentPos = positions[positions.length - 1];
+            for (let i = positions.length - 2; i >= 0; i--) {
+                if (positions[i] === currentPos) {
+                    streak++;
+                } else {
+                    break;
+                }
+            }
+            document.getElementById('currentStreak').textContent = streak;
+        }
+    }
+    
+    // Inicializar estatísticas
+    updateStats(positions);
+    
+    // Filtros de tempo
+    const timeButtons = document.querySelectorAll('.time-btn');
+    
+    timeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Remover classe ativa de todos os botões
+            timeButtons.forEach(btn => btn.classList.remove('active'));
+            // Adicionar classe ativa ao botão clicado
+            this.classList.add('active');
+            
+            // Obter o número de dias para filtrar
+            const days = parseInt(this.getAttribute('data-days'));
+            
+            // Fazer uma requisição AJAX para obter os dados filtrados
+            fetch(`/api/player/{{ player.id }}/ranking_history?days=${days}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Formatar as datas para exibição
+                    const formattedDates = data.dates.map(date => {
+                        const parts = date.split('-');
+                        return `${parts[2]}/${parts[1]}`;
+                    });
+                    
+                    // Determinar as cores dos pontos com base nos tiers
+                    const pointColors = data.tiers.map(tier => tierColors[tier] || '#28a745');
+                    
+                    // Atualizar o gráfico
+                    rankingChart.data.labels = formattedDates;
+                    rankingChart.data.datasets[0].data = data.positions;
+                    rankingChart.data.datasets[0].pointBackgroundColor = pointColors;
+                    rankingChart.data.datasets[0].pointBorderColor = pointColors;
+                    rankingChart.update();
+                    
+                    // Atualizar estatísticas
+                    updateStats(data.positions);
+                });
+        });
+    });
+});
+</script>
+{% endblock %}
