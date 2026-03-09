@@ -3473,9 +3473,9 @@ def new_challenge():
         current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         # ============================================================
-        # PRAZO PARA RESPONDER: 2 DIAS
+        # PRAZO PARA RESPONDER: 2 DIAS (até 23:59 do dia)
         # ============================================================
-        response_deadline = (datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
+        response_deadline = (datetime.now() + timedelta(days=2)).replace(hour=23, minute=59, second=59).strftime('%Y-%m-%d %H:%M:%S')
         
         conn.execute('''
             INSERT INTO challenges (
@@ -5118,7 +5118,7 @@ def add_response_deadline_column():
         # ============================================================
         conn.execute('''
             UPDATE challenges 
-            SET response_deadline = datetime(created_at, '+2 days')
+            SET response_deadline = date(created_at, '+2 days') || ' 23:59:59'
             WHERE status = 'pending' AND response_deadline IS NULL
         ''')
         print("Prazo de resposta (2 dias) definido para desafios pendentes existentes.")
@@ -8600,7 +8600,7 @@ def criar_desafio_via_whatsapp(challenger_id, challenged_id, scheduled_date):
         
         # Criar o desafio
         current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        response_deadline = (datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
+        response_deadline = (datetime.now() + timedelta(days=2)).replace(hour=23, minute=59, second=59).strftime('%Y-%m-%d %H:%M:%S')
         
         conn.execute('''
             INSERT INTO challenges (
@@ -10057,13 +10057,13 @@ def corrigir_prazos():
     conn = get_db_connection()
     conn.execute('''
         UPDATE challenges 
-        SET response_deadline = datetime(created_at, '+2 days')
+        SET response_deadline = date(created_at, '+2 days') || ' 23:59:59'
         WHERE status = 'pending'
     ''')
     conn.commit()
     conn.close()
     
-    flash('Prazos corrigidos para 2 dias!', 'success')
+    flash('Prazos corrigidos para 2 dias (até 23:59)!', 'success')
     return redirect(url_for('admin_dashboard'))
 
 
