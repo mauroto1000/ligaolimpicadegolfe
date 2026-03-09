@@ -3460,6 +3460,14 @@ def new_challenge():
             return redirect(url_for('new_challenge'))
         
         # ============================================================
+        # RESTRIÇÃO: Não pode desafiar o mesmo jogador em 7 dias
+        # ============================================================
+        if not is_main_admin and desafio_recente_entre(int(challenger_id), int(challenged_id), dias=7):
+            conn.close()
+            flash(f'❌ Você já desafiou (ou foi desafiado por) {challenged["name"]} nos últimos 7 dias. Aguarde para desafiar novamente.', 'error')
+            return redirect(url_for('new_challenge', challenger_id=challenger_id))
+        
+        # ============================================================
         # CRIAR O DESAFIO
         # ============================================================
         current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -4193,7 +4201,7 @@ def player_detail(player_id):
             ORDER BY position DESC
         ''', (player_sexo, player_position, max(1, player_position - 8), player_id)).fetchall()
     
-    # Marcar jogadores que já têm desafio ativo
+    # Marcar jogadores que já têm desafio ativo ou desafio recente (7 dias)
     potential_challenges_with_flag = []
     for p in potential_challenges:
         p_dict = dict(p)
@@ -4203,6 +4211,15 @@ def player_detail(player_id):
             AND status IN ('pending', 'accepted')
         ''', (p_dict['id'], p_dict['id'])).fetchone()['count'] > 0
         p_dict['tem_desafio'] = tem_desafio
+        # Verificar se houve desafio entre estes jogadores nos últimos 7 dias
+        desafio_recente = conn.execute('''
+            SELECT COUNT(*) as count FROM challenges
+            WHERE ((challenger_id = ? AND challenged_id = ?)
+                OR (challenger_id = ? AND challenged_id = ?))
+            AND status IN ('completed', 'rejected', 'cancelled')
+            AND created_at >= datetime('now', '-7 days')
+        ''', (player['id'], p_dict['id'], p_dict['id'], player['id'])).fetchone()['count'] > 0
+        p_dict['desafio_recente'] = desafio_recente
         potential_challenges_with_flag.append(p_dict)
     potential_challenges = potential_challenges_with_flag
     
@@ -8487,6 +8504,11 @@ def criar_desafio_via_whatsapp(challenger_id, challenged_id, scheduled_date):
             conn.close()
             return False, "Você só pode desafiar jogadores até 8 posições acima.", None
         
+        # Restrição: não pode desafiar o mesmo jogador em 7 dias
+        if desafio_recente_entre(challenger_id, challenged_id, dias=7):
+            conn.close()
+            return False, f"Você já desafiou (ou foi desafiado por) {challenged['name']} nos últimos 7 dias. Aguarde para desafiar novamente.", None
+        
         # Criar o desafio
         current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         response_deadline = (datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
@@ -8816,6 +8838,7 @@ def get_possiveis_desafiados(player_id):
     # Marcar jogadores que já têm desafio ativo (flag visual)
     for d in desafiados:
         d['tem_desafio'] = tem_desafio_ativo(d['id'])
+        d['desafio_recente'] = desafio_recente_entre(player_id, d['id'], dias=7)
     
     return desafiados
 
@@ -8832,6 +8855,31 @@ def tem_desafio_ativo(player_id):
         WHERE (challenger_id = ? OR challenged_id = ?)
           AND status IN ('pending', 'accepted')
     """, (player_id, player_id))
+    
+    result = cursor.fetchone()
+    conn.close()
+    
+    return result['count'] > 0
+
+
+def desafio_recente_entre(player_id_1, player_id_2, dias=7):
+    """
+    Verifica se houve um desafio concluído/rejeitado/cancelado entre dois jogadores
+    nos últimos N dias.
+    
+    Retorna True se houve (bloqueando novo desafio), False se pode desafiar.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT COUNT(*) as count
+        FROM challenges
+        WHERE ((challenger_id = ? AND challenged_id = ?)
+            OR (challenger_id = ? AND challenged_id = ?))
+          AND status IN ('completed', 'rejected', 'cancelled')
+          AND created_at >= datetime('now', ?)
+    """, (player_id_1, player_id_2, player_id_2, player_id_1, f'-{dias} days'))
     
     result = cursor.fetchone()
     conn.close()
@@ -9194,6 +9242,8 @@ _Digite *0* para voltar ao menu._"""
         for p in possiveis:
             if p.get('tem_desafio'):
                 linhas.append(f"   {p['position']}º - {p['name']} ⚠️ _desafio em andamento_")
+            elif p.get('desafio_recente'):
+                linhas.append(f"   {p['position']}º - {p['name']} 🕐 _aguardar 7 dias_")
             else:
                 linhas.append(f"   {p['position']}º - {p['name']} ✅")
         lista = "\n".join(linhas)
@@ -9380,22 +9430,29 @@ _Digite *0* para voltar ao menu._"""
         
         possiveis = get_possiveis_desafiados(jogador['id'])
         
-        # Separar disponíveis e ocupados
-        disponiveis = [p for p in possiveis if not p.get('tem_desafio')]
+        # Separar disponíveis e indisponíveis
+        disponiveis = [p for p in possiveis if not p.get('tem_desafio') and not p.get('desafio_recente')]
         ocupados = [p for p in possiveis if p.get('tem_desafio')]
+        recentes = [p for p in possiveis if p.get('desafio_recente') and not p.get('tem_desafio')]
         
         if not disponiveis:
-            if ocupados:
-                linhas_ocupados = "\n".join([f"   ⚠️ {p['name']} ({p['position']}º) - _desafio em andamento_" for p in ocupados])
+            linhas_indisponiveis = []
+            for p in ocupados:
+                linhas_indisponiveis.append(f"   ⚠️ {p['name']} ({p['position']}º) - _desafio em andamento_")
+            for p in recentes:
+                linhas_indisponiveis.append(f"   🕐 {p['name']} ({p['position']}º) - _aguardar 7 dias_")
+            
+            if linhas_indisponiveis:
+                lista_indisp = "\n".join(linhas_indisponiveis)
                 return f"""🎯 *Criar Desafio*
 
 Olá, {jogador['name']}!
 Você está na posição *{jogador['posicao_ranking']}º*.
 
-❌ Todos os jogadores do seu range estão com desafio em andamento:
-{linhas_ocupados}
+❌ Nenhum jogador do seu range está disponível:
+{lista_indisp}
 
-Aguarde a conclusão dos desafios para poder desafiar.
+Aguarde para poder desafiar.
 
 _Digite *0* para voltar ao menu._"""
             else:
@@ -9413,11 +9470,17 @@ _Digite *0* para voltar ao menu._"""
             linhas.append(f"   *{i}* - {p['name']} ({p['position']}º)")
         lista = "\n".join(linhas)
         
-        # Info sobre ocupados (se houver)
-        info_ocupados = ""
+        # Info sobre indisponíveis (se houver)
+        info_indisponiveis = ""
+        linhas_indisp = []
         if ocupados:
-            linhas_oc = "\n".join([f"   ⚠️ {p['name']} ({p['position']}º)" for p in ocupados])
-            info_ocupados = f"\n\n_Jogadores com desafio em andamento:_\n{linhas_oc}"
+            for p in ocupados:
+                linhas_indisp.append(f"   ⚠️ {p['name']} ({p['position']}º)")
+        if recentes:
+            for p in recentes:
+                linhas_indisp.append(f"   🕐 {p['name']} ({p['position']}º)")
+        if linhas_indisp:
+            info_indisponiveis = "\n\n_Indisponíveis:_\n" + "\n".join(linhas_indisp)
         
         set_chat_state(telefone_normalizado, 'selecionando_oponente', {
             'possiveis': disponiveis
@@ -9429,7 +9492,7 @@ Olá, {jogador['name']}!
 Você está na posição *{jogador['posicao_ranking']}º*.
 
 Selecione quem você quer desafiar:
-{lista}{info_ocupados}
+{lista}{info_indisponiveis}
 
 Digite o *número* do oponente (ex: *1*)
 
@@ -11167,6 +11230,8 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
         for p in possiveis:
             if p.get('tem_desafio'):
                 linhas.append(f"   {p['position']}º - {p['name']} ⚠️ _desafio em andamento_")
+            elif p.get('desafio_recente'):
+                linhas.append(f"   {p['position']}º - {p['name']} 🕐 _aguardar 7 dias_")
             else:
                 linhas.append(f"   {p['position']}º - {p['name']} ✅")
         lista = "\n".join(linhas)
@@ -11317,23 +11382,30 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
         
         possiveis = get_possiveis_desafiados(jogador['id'])
         
-        # Separar disponíveis e ocupados
-        disponiveis = [p for p in possiveis if not p.get('tem_desafio')]
+        # Separar disponíveis e indisponíveis
+        disponiveis = [p for p in possiveis if not p.get('tem_desafio') and not p.get('desafio_recente')]
         ocupados = [p for p in possiveis if p.get('tem_desafio')]
+        recentes = [p for p in possiveis if p.get('desafio_recente') and not p.get('tem_desafio')]
         
         if not disponiveis:
-            if ocupados:
-                linhas_oc = "\n".join([f"   ⚠️ {p['name']} ({p['position']}º)" for p in ocupados])
+            linhas_indisp = []
+            for p in ocupados:
+                linhas_indisp.append(f"   ⚠️ {p['name']} ({p['position']}º)")
+            for p in recentes:
+                linhas_indisp.append(f"   🕐 {p['name']} ({p['position']}º)")
+            
+            if linhas_indisp:
+                lista_indisp = "\n".join(linhas_indisp)
                 if idioma == 'pt':
                     return f"""🎯 *Criar Desafio*
 
 Olá, {jogador['name']}!
 Você está na posição *{jogador['posicao_ranking']}º*.
 
-❌ Todos os jogadores do seu range estão com desafio em andamento:
-{linhas_oc}
+❌ Nenhum jogador do seu range está disponível:
+{lista_indisp}
 
-Aguarde a conclusão dos desafios para poder desafiar.
+Aguarde para poder desafiar.
 
 _Digite *0* para voltar ao menu._"""
                 else:
@@ -11342,10 +11414,10 @@ _Digite *0* para voltar ao menu._"""
 Hello, {jogador['name']}!
 You are in position *{jogador['posicao_ranking']}*.
 
-❌ All players in your range have an active challenge:
-{linhas_oc}
+❌ No players in your range are available:
+{lista_indisp}
 
-Wait for their challenges to finish.
+Please wait before challenging.
 
 _Type *0* to return to menu._"""
             else:
@@ -11358,11 +11430,17 @@ _Type *0* to return to menu._"""
             linhas.append(f"   *{i}* - {p['name']} ({p['position']}º)")
         lista = "\n".join(linhas)
         
-        # Info sobre ocupados
+        # Info sobre indisponíveis
+        linhas_indisp = []
         if ocupados:
-            linhas_oc = "\n".join([f"   ⚠️ {p['name']} ({p['position']}º)" for p in ocupados])
-            aviso = "\n_Desafio em andamento:_" if idioma == 'pt' else "\n_Challenge in progress:_"
-            lista += f"\n{aviso}\n{linhas_oc}"
+            for p in ocupados:
+                linhas_indisp.append(f"   ⚠️ {p['name']} ({p['position']}º)")
+        if recentes:
+            for p in recentes:
+                linhas_indisp.append(f"   🕐 {p['name']} ({p['position']}º)")
+        if linhas_indisp:
+            aviso = "\n_Indisponíveis:_" if idioma == 'pt' else "\n_Unavailable:_"
+            lista += f"\n{aviso}\n" + "\n".join(linhas_indisp)
         
         set_chat_state(telefone_normalizado, 'selecionando_oponente', {
             'possiveis': disponiveis

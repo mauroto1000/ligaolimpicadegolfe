@@ -552,6 +552,21 @@
                                 </div>
                             </div>
                             
+                            {% elif potential['desafio_recente'] %}
+                            <!-- JOGADOR DESAFIADO RECENTEMENTE - NÃO CLICÁVEL -->
+                            <div class="list-group-item" style="opacity: 0.6; cursor: not-allowed;">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1 text-muted">{{ potential['name'] }}</h6>
+                                    <small class="text-muted">Tier {{ potential['tier'] }}</small>
+                                </div>
+                                <div class="d-flex w-100 justify-content-between">
+                                    <small class="text-muted">Posição #{{ potential['position'] }}</small>
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="fas fa-calendar-times me-1"></i>Aguardar 7 dias
+                                    </span>
+                                </div>
+                            </div>
+                            
                             {% else %}
                             <!-- JOGADOR DISPONÍVEL - CLICÁVEL -->
                             <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}&challenged_id={{ potential['id'] }}" class="list-group-item list-group-item-action">
