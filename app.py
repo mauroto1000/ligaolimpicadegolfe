@@ -1892,8 +1892,9 @@ def process_challenge_result(conn, challenge_id, status, result):
     
     REGRAS DE W.O.:
     - wo_challenger (desafiado não compareceu - desafiante vence por WO):
-      * Desafiante ganha 1 posição (permuta com quem está acima dele)
+      * Desafiante ganha 1 posição
       * Desafiado assume a posição antiga do desafiante
+      * Todos os jogadores entre eles sobem 1 para preencher o espaço
     
     - wo_challenged (desafiante não compareceu - desafiado vence por WO):
       * Desafiante perde 4 posições no ranking
@@ -1942,125 +1943,64 @@ def process_challenge_result(conn, challenge_id, status, result):
             # =====================================================
             # W.O. - DESAFIADO NÃO COMPARECEU (wo_challenger)
             # Desafiante vence por WO
-            # Desafiante ganha 1 posição, desafiado vai para posição do desafiante
+            # REGRA: Desafiante ganha 1 posição, desafiado assume
+            #        a posição antiga do desafiante. Todos os
+            #        jogadores entre eles sobem 1 para preencher
+            #        o espaço deixado pelo desafiado.
+            #
+            # Exemplo: Antonio(pos14) desafia Rafael(pos10)
+            #   Rafael não comparece → W.O.
+            #   Resultado: Antonio 14→13, Rafael 10→14
+            #   Manel(11→10), Marcelo(12→11), John(13→12)
             # =====================================================
             if result_type == 'wo_challenger' and result == 'challenger_win':
                 print(f"🔴 Processando W.O. - DESAFIADO não compareceu")
                 print(f"   Posições antes: Desafiante={challenger_old_pos}, Desafiado={challenged_old_pos}")
                 
-                # O desafiante sobe 1 posição (permuta com quem está imediatamente acima dele)
-                if challenger_old_pos > 1:
-                    # Buscar o jogador que está 1 posição acima do desafiante
-                    player_above = conn.execute('''
-                        SELECT id, position, tier FROM players 
-                        WHERE position = ? AND active = 1
-                        AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
-                    ''', (challenger_old_pos - 1, player_sexo, player_sexo)).fetchone()
-                    
-                    if player_above:
-                        player_above_id = player_above['id']
-                        player_above_old_pos = player_above['position']
-                        player_above_old_tier = player_above['tier']
-                        
-                        new_challenger_pos = challenger_old_pos - 1  # Desafiante sobe 1
-                        new_challenged_pos = challenger_old_pos  # Desafiado vai para posição antiga do desafiante
-                        
-                        # Se o jogador acima for o próprio desafiado
-                        if player_above_id == challenged_id:
-                            # Permuta direta: desafiante sobe, desafiado desce
-                            conn.execute('UPDATE players SET position = ? WHERE id = ?', 
-                                       (new_challenger_pos, challenger_id))
-                            conn.execute('UPDATE players SET position = ? WHERE id = ?', 
-                                       (new_challenged_pos, challenged_id))
-                        else:
-                            # Há um jogador diferente acima do desafiante
-                            # Desafiante permuta com ele
-                            # Desafiado vai para a posição antiga do desafiante
-                            
-                            # Jogador que estava acima do desafiante desce para posição do desafiante
-                            conn.execute('UPDATE players SET position = ? WHERE id = ?', 
-                                       (challenger_old_pos, player_above_id))
-                            
-                            # Desafiante sobe 1
-                            conn.execute('UPDATE players SET position = ? WHERE id = ?', 
-                                       (new_challenger_pos, challenger_id))
-                            
-                            # Desafiado vai para posição após o jogador que desceu (se aplicável)
-                            # Precisamos recalcular a posição do desafiado
-                            if challenged_old_pos < challenger_old_pos:
-                                # Desafiado estava acima do desafiante, vai para posição do desafiante
-                                new_challenged_pos = challenger_old_pos
-                            else:
-                                # Desafiado estava abaixo ou na mesma posição (não deveria acontecer)
-                                new_challenged_pos = challenger_old_pos
-                            
-                            conn.execute('UPDATE players SET position = ? WHERE id = ?', 
-                                       (new_challenged_pos, challenged_id))
-                            
-                            # Registrar no histórico - Jogador que foi deslocado
-                            conn.execute('''
-                                INSERT INTO ranking_history 
-                                (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
-                                VALUES (?, ?, ?, ?, ?, ?, ?)
-                            ''', (player_above_id, player_above_old_pos, challenger_old_pos, 
-                                 player_above_old_tier, get_tier_from_position(challenger_old_pos), 
-                                 'displaced_by_wo', challenge_id))
-                        
-                        # Registrar no histórico - Desafiante
-                        conn.execute('''
-                            INSERT INTO ranking_history 
-                            (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        ''', (challenger_id, challenger_old_pos, new_challenger_pos, 
-                             challenger_old_tier, get_tier_from_position(new_challenger_pos), 
-                             'wo_win_promoted', challenge_id))
-                        
-                        # Registrar no histórico - Desafiado
-                        conn.execute('''
-                            INSERT INTO ranking_history 
-                            (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        ''', (challenged_id, challenged_old_pos, new_challenged_pos, 
-                             challenged_old_tier, get_tier_from_position(new_challenged_pos), 
-                             'wo_loss_demoted', challenge_id))
-                        
-                        print(f"✅ W.O. Desafiado não compareceu:")
-                        print(f"   Desafiante {challenger_id}: {challenger_old_pos} → {new_challenger_pos}")
-                        print(f"   Desafiado {challenged_id}: {challenged_old_pos} → {new_challenged_pos}")
-                    else:
-                        # Não há ninguém acima do desafiante
-                        # Apenas o desafiado vai para posição do desafiante + 1
-                        new_challenged_pos = challenger_old_pos + 1
-                        
-                        conn.execute('UPDATE players SET position = ? WHERE id = ?', 
-                                   (new_challenged_pos, challenged_id))
-                        
-                        conn.execute('''
-                            INSERT INTO ranking_history 
-                            (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        ''', (challenged_id, challenged_old_pos, new_challenged_pos, 
-                             challenged_old_tier, get_tier_from_position(new_challenged_pos), 
-                             'wo_loss_demoted', challenge_id))
-                        
-                        print(f"✅ W.O. (sem jogador acima): Desafiado {challenged_id} ({challenged_old_pos} → {new_challenged_pos})")
-                else:
-                    # Desafiante já está na posição 1
-                    # Apenas o desafiado vai para posição do desafiante + 1
-                    new_challenged_pos = challenger_old_pos + 1
-                    
-                    conn.execute('UPDATE players SET position = ? WHERE id = ?', 
-                               (new_challenged_pos, challenged_id))
-                    
-                    conn.execute('''
-                        INSERT INTO ranking_history 
-                        (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ''', (challenged_id, challenged_old_pos, new_challenged_pos, 
-                         challenged_old_tier, get_tier_from_position(new_challenged_pos), 
-                         'wo_loss_demoted', challenge_id))
-                    
-                    print(f"✅ W.O. (desafiante já no topo): Desafiado {challenged_id} ({challenged_old_pos} → {new_challenged_pos})")
+                new_challenger_pos = challenger_old_pos - 1  # Desafiante ganha 1 posição
+                new_challenged_pos = challenger_old_pos       # Desafiado vai para posição antiga do desafiante
+                
+                # Deslocar todos os jogadores entre o desafiado e o desafiante
+                # (de challenged_old_pos+1 até challenger_old_pos-1) sobem 1 posição
+                # para preencher o espaço deixado pelo desafiado
+                conn.execute('''
+                    UPDATE players 
+                    SET position = position - 1 
+                    WHERE position > ? AND position < ?
+                    AND id != ? AND id != ?
+                    AND active = 1
+                    AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+                ''', (challenged_old_pos, challenger_old_pos, challenger_id, challenged_id, player_sexo, player_sexo))
+                
+                # Desafiante ganha 1 posição
+                conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                           (new_challenger_pos, challenger_id))
+                
+                # Desafiado vai para posição antiga do desafiante
+                conn.execute('UPDATE players SET position = ? WHERE id = ?', 
+                           (new_challenged_pos, challenged_id))
+                
+                # Registrar no histórico - Desafiante
+                conn.execute('''
+                    INSERT INTO ranking_history 
+                    (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (challenger_id, challenger_old_pos, new_challenger_pos, 
+                     challenger_old_tier, get_tier_from_position(new_challenger_pos), 
+                     'wo_win_promoted', challenge_id))
+                
+                # Registrar no histórico - Desafiado
+                conn.execute('''
+                    INSERT INTO ranking_history 
+                    (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (challenged_id, challenged_old_pos, new_challenged_pos, 
+                     challenged_old_tier, get_tier_from_position(new_challenged_pos), 
+                     'wo_loss_demoted', challenge_id))
+                
+                print(f"✅ W.O. Desafiado não compareceu:")
+                print(f"   Desafiante {challenger_id}: {challenger_old_pos} → {new_challenger_pos}")
+                print(f"   Desafiado {challenged_id}: {challenged_old_pos} → {new_challenged_pos}")
             
             # =====================================================
             # W.O. - DESAFIANTE NÃO COMPARECEU (wo_challenged)
@@ -8145,6 +8085,11 @@ def update_player_whatsapp(player_id):
     # Se vazio, define como NULL
     if not new_whatsapp:
         new_whatsapp = None
+    else:
+        # Normalizar: números com até 11 dígitos são brasileiros, adiciona 55
+        # Números com 12+ dígitos já têm código do país
+        if len(new_whatsapp) <= 11:
+            new_whatsapp = '55' + new_whatsapp
     
     conn = get_db_connection()
     conn.execute(
@@ -8160,6 +8105,57 @@ def update_player_whatsapp(player_id):
         flash('WhatsApp removido. Você não receberá mais notificações.', 'info')
     
     return redirect(url_for('player_detail', player_id=player_id))
+
+
+# ============================================================
+# MIGRAÇÃO: NORMALIZAR TELEFONES EXISTENTES
+# Adiciona código do país 55 aos números brasileiros antigos
+# ============================================================
+
+@app.route('/admin/migrar-telefones')
+@login_required
+def migrar_telefones():
+    """Migra telefones antigos adicionando código do país 55 aos brasileiros"""
+    if not session.get('is_admin'):
+        return "Acesso negado", 403
+    
+    conn = get_db_connection()
+    
+    # Buscar todos os jogadores com telefone cadastrado
+    players = conn.execute('''
+        SELECT id, name, telefone FROM players 
+        WHERE telefone IS NOT NULL AND telefone != ''
+    ''').fetchall()
+    
+    migrados = []
+    ignorados = []
+    
+    for p in players:
+        telefone = ''.join(filter(str.isdigit, p['telefone'] or ''))
+        
+        if not telefone:
+            continue
+        
+        if len(telefone) <= 11:
+            # Número brasileiro sem código do país → adicionar 55
+            novo = '55' + telefone
+            conn.execute('UPDATE players SET telefone = ? WHERE id = ?', (novo, p['id']))
+            migrados.append(f"{p['name']}: {telefone} → {novo}")
+        else:
+            # Já tem código do país
+            ignorados.append(f"{p['name']}: {telefone} (já tem código do país)")
+    
+    conn.commit()
+    conn.close()
+    
+    resultado = f"<h3>Migração de Telefones</h3>"
+    resultado += f"<p><strong>{len(migrados)}</strong> números atualizados (adicionado 55):</p>"
+    resultado += "<ul>" + "".join(f"<li>{m}</li>" for m in migrados) + "</ul>"
+    resultado += f"<p><strong>{len(ignorados)}</strong> números já com código do país:</p>"
+    resultado += "<ul>" + "".join(f"<li>{i}</li>" for i in ignorados) + "</ul>"
+    resultado += '<br><a href="/admin">Voltar ao Admin</a>'
+    
+    return resultado
 
 
 # ============================================================
@@ -8451,7 +8447,7 @@ Você foi desafiado por *{challenge['challenger_name']}* (#{challenge['challenge
 ⏰ Prazo para responder: *2 dias*"""
         
         telefone_norm = normalizar_telefone(telefone_desafiado)
-        enviar_mensagem_whatsapp(f"55{telefone_norm}@s.whatsapp.net", msg)
+        enviar_mensagem_whatsapp(formatar_jid_whatsapp(telefone_norm), msg)
     
     # Notificar no grupo
     msg_grupo = f"""🏆 *NOVO DESAFIO CRIADO*
@@ -8517,15 +8513,50 @@ Boa sorte aos dois! 🏆"""
 
 
 def normalizar_telefone(telefone):
-    """Remove caracteres não numéricos e padroniza o telefone"""
+    """
+    Normaliza telefone para formato internacional completo (com código do país).
+    
+    Regras:
+    - Remove caracteres não numéricos
+    - Números com até 11 dígitos são assumidos como brasileiros → adiciona 55
+    - Números com 12+ dígitos já possuem código do país → mantém como estão
+    
+    Exemplos:
+        '21999998888'     → '5521999998888'   (brasileiro)
+        '5521999998888'   → '5521999998888'   (brasileiro com código)
+        '573156480422'    → '573156480422'    (Colômbia)
+        '4917661734091'   → '4917661734091'   (Alemanha)
+    """
     if not telefone:
         return None
     # Remove tudo que não é número
     apenas_numeros = re.sub(r'\D', '', telefone)
-    # Remove 55 do início se tiver (código do Brasil)
-    if apenas_numeros.startswith('55') and len(apenas_numeros) > 11:
-        apenas_numeros = apenas_numeros[2:]
+    
+    if not apenas_numeros:
+        return None
+    
+    # Números com até 11 dígitos são brasileiros (DDD + número)
+    # Adiciona código do país 55
+    if len(apenas_numeros) <= 11:
+        apenas_numeros = '55' + apenas_numeros
+    
     return apenas_numeros
+
+
+def formatar_jid_whatsapp(telefone):
+    """
+    Formata telefone para JID do WhatsApp.
+    Aceita qualquer formato, normaliza e retorna no formato correto.
+    
+    Exemplos:
+        '21999998888'    → '5521999998888@s.whatsapp.net'
+        '573156480422'   → '573156480422@s.whatsapp.net'
+        '4917661734091'  → '4917661734091@s.whatsapp.net'
+    """
+    telefone_norm = normalizar_telefone(telefone)
+    if not telefone_norm:
+        return None
+    return f"{telefone_norm}@s.whatsapp.net"
 
 
 def extrair_telefone_do_jid(jid):
@@ -9774,7 +9805,7 @@ def webhook_whatsapp():
             # Enviar resposta
             if resposta:
                 rodape = "\n\n━━━━━━━━━━━━━━━━━━━━━\n🌐 Visite: www.ligaolimpicadegolfe.com.br"
-                enviar_mensagem_whatsapp(f"55{telefone}@s.whatsapp.net", resposta + rodape)
+                enviar_mensagem_whatsapp(formatar_jid_whatsapp(telefone), resposta + rodape)
             
             return jsonify({'status': 'processed'})
         
@@ -9894,7 +9925,7 @@ Vocês podem criar um novo desafio quando quiserem! 🏌️
 _Digite *0* para voltar ao menu._"""
         
         telefone_norm = normalizar_telefone(telefone_desafiado)
-        enviar_mensagem_whatsapp(f"55{telefone_norm}@s.whatsapp.net", msg_desafiado)
+        enviar_mensagem_whatsapp(formatar_jid_whatsapp(telefone_norm), msg_desafiado)
     
     # Notificar no grupo da liga
     msg_grupo = f"""❌ *DESAFIO CANCELADO*
@@ -9962,7 +9993,7 @@ Digite *A*, *B* ou *C* para responder.
 ⏰ _Você tem 2 dias para responder._"""
         
         telefone_normalizado = normalizar_telefone(telefone_desafiante)
-        enviar_mensagem_whatsapp(f"55{telefone_normalizado}@s.whatsapp.net", msg)
+        enviar_mensagem_whatsapp(formatar_jid_whatsapp(telefone_normalizado), msg)
     
     # Notificar no grupo da liga
     msg_grupo = f"""📅 *PROPOSTA DE NOVAS DATAS*
@@ -10024,7 +10055,7 @@ Boa sorte a ambos! 🏌️"""
     telefone_desafiado = challenge['challenged_telefone']
     if telefone_desafiado:
         telefone_norm = normalizar_telefone(telefone_desafiado)
-        enviar_mensagem_whatsapp(f"55{telefone_norm}@s.whatsapp.net", msg)
+        enviar_mensagem_whatsapp(formatar_jid_whatsapp(telefone_norm), msg)
     
     # Notificar no grupo
     enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg)
