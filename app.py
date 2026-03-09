@@ -1006,6 +1006,9 @@ def dashboard():
     if session.get('is_admin', False):
         return redirect(url_for('admin_dashboard'))
     
+    # Verificar e aplicar penalidades de bloqueio (a cada 7 dias)
+    aplicar_penalidade_bloqueio()
+    
     conn = get_db_connection()
     
     # Buscar informações do jogador
@@ -2908,12 +2911,146 @@ def update_player_sexo(player_id):
 
 
 # ============================================
+# PENALIDADE POR BLOQUEIO: -1 posição a cada 7 dias
+# ============================================
+
+def aplicar_penalidade_bloqueio():
+    """
+    Verifica jogadores bloqueados e aplica penalidade de -1 posição 
+    a cada 7 dias de bloqueio.
+    
+    Regra: Para cada 7 dias corridos bloqueado (saúde/viagem), 
+    o jogador perde 1 posição no ranking. Os jogadores abaixo dele 
+    sobem para preencher o espaço.
+    """
+    conn = get_db_connection()
+    
+    try:
+        # Buscar jogadores bloqueados
+        bloqueados = conn.execute('''
+            SELECT id, name, position, sexo, bloqueio_inicio, 
+                   bloqueio_ultima_penalidade, bloqueio_motivo
+            FROM players 
+            WHERE bloqueado = 1 
+            AND active = 1 
+            AND position > 0
+            AND bloqueio_inicio IS NOT NULL
+        ''').fetchall()
+        
+        hoje = datetime.now().date()
+        
+        for jogador in bloqueados:
+            # Data de referência: última penalidade aplicada, ou início do bloqueio
+            referencia_str = jogador['bloqueio_ultima_penalidade'] or jogador['bloqueio_inicio']
+            
+            try:
+                referencia = datetime.strptime(referencia_str, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                continue
+            
+            dias_desde_referencia = (hoje - referencia).days
+            
+            # Quantas penalidades aplicar (1 por cada 7 dias completos)
+            penalidades = dias_desde_referencia // 7
+            
+            if penalidades <= 0:
+                continue
+            
+            player_id = jogador['id']
+            player_pos = jogador['position']
+            player_sexo = jogador['sexo'] or 'masculino'
+            
+            # Buscar posição máxima do mesmo sexo
+            max_pos_result = conn.execute('''
+                SELECT MAX(position) as max_pos FROM players 
+                WHERE active = 1 
+                AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+            ''', (player_sexo, player_sexo)).fetchone()
+            
+            max_position = max_pos_result['max_pos'] if max_pos_result and max_pos_result['max_pos'] else player_pos
+            
+            # Calcular nova posição (desce N posições, limitado ao máximo)
+            nova_pos = min(player_pos + penalidades, max_position)
+            posicoes_perdidas = nova_pos - player_pos
+            
+            if posicoes_perdidas <= 0:
+                # Já está na última posição, apenas atualizar data de referência
+                nova_referencia = (referencia + timedelta(days=penalidades * 7)).strftime('%Y-%m-%d')
+                conn.execute('''
+                    UPDATE players SET bloqueio_ultima_penalidade = ? WHERE id = ?
+                ''', (nova_referencia, player_id))
+                continue
+            
+            # Puxar jogadores entre as posições para cima (ocupar espaço)
+            conn.execute('''
+                UPDATE players 
+                SET position = position - 1 
+                WHERE position > ? AND position <= ?
+                AND id != ?
+                AND active = 1
+                AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+            ''', (player_pos, nova_pos, player_id, player_sexo, player_sexo))
+            
+            # Atualizar posição do jogador penalizado
+            old_tier = get_tier_from_position(player_pos)
+            new_tier = get_tier_from_position(nova_pos)
+            
+            conn.execute('UPDATE players SET position = ?, tier = ? WHERE id = ?', 
+                       (nova_pos, new_tier, player_id))
+            
+            # Registrar no histórico
+            conn.execute('''
+                INSERT INTO ranking_history 
+                (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                VALUES (?, ?, ?, ?, ?, ?, NULL)
+            ''', (player_id, player_pos, nova_pos, old_tier, new_tier, 
+                 f'bloqueio_penalidade_{posicoes_perdidas}pos'))
+            
+            # Atualizar data da última penalidade (avança 7 dias por penalidade)
+            nova_referencia = (referencia + timedelta(days=penalidades * 7)).strftime('%Y-%m-%d')
+            conn.execute('''
+                UPDATE players SET bloqueio_ultima_penalidade = ? WHERE id = ?
+            ''', (nova_referencia, player_id))
+            
+            # Normalizar tiers dos jogadores afetados
+            players_to_fix = conn.execute('''
+                SELECT id, position FROM players 
+                WHERE active = 1 
+                AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+                AND position > 0
+                ORDER BY position
+            ''', (player_sexo, player_sexo)).fetchall()
+            
+            for p in players_to_fix:
+                correct_tier = get_tier_from_position(p['position'])
+                conn.execute('UPDATE players SET tier = ? WHERE id = ?', 
+                           (correct_tier, p['id']))
+            
+            print(f"⚠️ PENALIDADE BLOQUEIO: {jogador['name']} ({jogador['bloqueio_motivo']}) "
+                  f"perdeu {posicoes_perdidas} posição(ões): {player_pos} → {nova_pos} "
+                  f"({penalidades}x 7 dias)")
+        
+        conn.commit()
+        
+    except Exception as e:
+        print(f"Erro ao aplicar penalidade de bloqueio: {e}")
+        import traceback
+        traceback.print_exc()
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+# ============================================
 # ROTA INDEX COMPLETA - Substitua no app.py
 # ============================================
 
 @app.route('/')
 @login_required
 def index():
+    # Verificar e aplicar penalidades de bloqueio (a cada 7 dias)
+    aplicar_penalidade_bloqueio()
+    
     conn = get_db_connection()
     
     # Jogadores masculinos ativos (exclui VIPs com position = 0)
@@ -7871,6 +8008,24 @@ def criar_coluna_bloqueio():
             conn.execute('ALTER TABLE players ADD COLUMN bloqueio_ate DATE')
             conn.commit()
             flash('✅ Coluna "bloqueio_ate" criada!', 'success')
+        
+        if 'bloqueio_inicio' not in columns:
+            conn.execute('ALTER TABLE players ADD COLUMN bloqueio_inicio DATE')
+            conn.commit()
+            flash('✅ Coluna "bloqueio_inicio" criada!', 'success')
+        
+        if 'bloqueio_ultima_penalidade' not in columns:
+            conn.execute('ALTER TABLE players ADD COLUMN bloqueio_ultima_penalidade DATE')
+            conn.commit()
+            flash('✅ Coluna "bloqueio_ultima_penalidade" criada!', 'success')
+        
+        # Migrar jogadores já bloqueados que não têm data de início
+        conn.execute('''
+            UPDATE players 
+            SET bloqueio_inicio = date('now'), bloqueio_ultima_penalidade = date('now')
+            WHERE bloqueado = 1 AND bloqueio_inicio IS NULL
+        ''')
+        conn.commit()
             
         flash('✅ Sistema de bloqueio configurado com sucesso!', 'success')
         
@@ -7908,7 +8063,8 @@ def toggle_bloqueio_jogador(player_id):
         if player['bloqueado'] == 1:
             conn.execute('''
                 UPDATE players 
-                SET bloqueado = 0, bloqueio_motivo = NULL, bloqueio_ate = NULL 
+                SET bloqueado = 0, bloqueio_motivo = NULL, bloqueio_ate = NULL,
+                    bloqueio_inicio = NULL, bloqueio_ultima_penalidade = NULL
                 WHERE id = ?
             ''', (player_id,))
             conn.commit()
@@ -7917,12 +8073,14 @@ def toggle_bloqueio_jogador(player_id):
             # Se não está bloqueado, pega os dados do formulário
             motivo = request.form.get('motivo', 'Não especificado')
             data_ate = request.form.get('data_ate', None)
+            hoje = datetime.now().strftime('%Y-%m-%d')
             
             conn.execute('''
                 UPDATE players 
-                SET bloqueado = 1, bloqueio_motivo = ?, bloqueio_ate = ? 
+                SET bloqueado = 1, bloqueio_motivo = ?, bloqueio_ate = ?,
+                    bloqueio_inicio = ?, bloqueio_ultima_penalidade = ?
                 WHERE id = ?
-            ''', (motivo, data_ate, player_id))
+            ''', (motivo, data_ate, hoje, hoje, player_id))
             conn.commit()
             
             msg_data = f" até {data_ate}" if data_ate else ""
