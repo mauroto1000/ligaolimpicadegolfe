@@ -1,49 +1,839 @@
-<!-- ============================================================ -->
-<!-- TRECHO MODIFICADO para player_detail.html                    -->
-<!-- Substitua a seção "Jogadores Disponíveis para Desafiar"      -->
-<!-- ============================================================ -->
+{% extends 'base.html' %}
 
-<!-- JOGADORES DISPONÍVEIS PARA DESAFIAR -->
-{% if player.active == 1 and potential_challenges %}
-<div class="card mb-3">
-    <div class="card-header bg-warning">
-        <h5 class="mb-0">Jogadores Disponíveis para Desafiar</h5>
+{% block title %}Detalhes do Jogador - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>Detalhes do Jogador</h2>
+            <div>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left"></i> Voltar para Ranking
+                </a>
+            </div>
+        </div>
     </div>
-    <div class="card-body">
-        <div class="list-group">
-            {% for potential in potential_challenges %}
-            
-            {% if potential['tem_desafio'] %}
-            <!-- JOGADOR COM DESAFIO ATIVO - NÃO CLICÁVEL -->
-            <div class="list-group-item" style="opacity: 0.6; cursor: not-allowed;">
-                <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1 text-muted">{{ potential['name'] }}</h6>
-                    <small class="text-muted">Tier {{ potential['tier'] }}</small>
+    
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Informações do Jogador</h4>
+            </div>
+            <div class="card-body">
+                <!-- Foto de Perfil -->
+                <div class="text-center mb-4">
+                    {% if player['profile_photo'] %}
+                    <div class="position-relative mx-auto" style="width: 150px; height: 150px;">
+                        <img src="{{ url_for('static', filename='profile_photos/' + player['profile_photo']) }}" 
+                             alt="Foto de {{ player['name'] }}" 
+                             class="img-thumbnail rounded-circle" 
+                             style="width: 150px; height: 150px; object-fit: cover;">
+                        
+                        {% if is_own_profile or is_admin %}
+                        <button type="button" class="btn btn-sm btn-danger position-absolute" 
+                                style="top: 0; right: 0;" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#removePhotoModal" 
+                                title="Remover foto">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="mx-auto bg-light rounded-circle d-flex align-items-center justify-content-center" 
+                         style="width: 150px; height: 150px;">
+                        <i class="fas fa-user fa-5x text-secondary"></i>
+                    </div>
+                    {% endif %}
+                    
+                    {% if is_own_profile or is_admin %}
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#uploadPhotoModal">
+                            {% if player['profile_photo'] %}
+                            <i class="fas fa-camera-retro me-1"></i> Alterar foto
+                            {% else %}
+                            <i class="fas fa-camera-retro me-1"></i> Adicionar foto
+                            {% endif %}
+                        </button>
+                    </div>
+                    {% endif %}
                 </div>
-                <div class="d-flex w-100 justify-content-between">
-                    <small class="text-muted">Posição #{{ potential['position'] }}</small>
-                    <span class="badge bg-secondary">
-                        <i class="fas fa-clock me-1"></i>Desafio em andamento
-                    </span>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h5>Nome</h5>
+                        <p class="d-flex align-items-center">
+                            <strong id="playerNameDisplay">{{ player['name'] }}</strong>
+                            <button type="button" class="btn btn-sm text-primary border-0 px-1" 
+                                    onclick="toggleEditName()" title="Editar nome">
+                                <i class="fas fa-pencil-alt fa-sm"></i>
+                            </button>
+                        </p>
+                        
+                        <form id="editNameForm" action="{{ url_for('update_player_name', player_id=player.id) }}" 
+                              method="post" class="d-none mb-3">
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="new_name" 
+                                       value="{{ player['name'] }}" required>
+                                <button type="submit" class="btn btn-primary">Salvar</button>
+                                <button type="button" class="btn btn-secondary" 
+                                        onclick="toggleEditName()">Cancelar</button>
+                            </div>
+                            <div class="form-group mt-2">
+                                <label for="senha" class="small">Senha de Administrador:</label>
+                                <input type="password" class="form-control form-control-sm" 
+                                       id="senha" name="senha" required>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h5>Contato (email/celular)</h5>
+                        <p class="d-flex align-items-center">
+                            <span id="playerContactDisplay">{{ player['email'] or 'Adicionar contato' }}</span>
+                            <button type="button" class="btn btn-sm text-primary border-0 px-1" 
+                                    onclick="toggleEditContact()" title="Editar contato">
+                                <i class="fas fa-pencil-alt fa-sm"></i>
+                            </button>
+                        </p>
+                        
+                        <form id="editContactForm" action="{{ url_for('update_player_contact', player_id=player.id) }}" 
+                              method="post" class="d-none mb-3">
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="new_contact" 
+                                       value="{{ player['email'] or '' }}">
+                                <button type="submit" class="btn btn-primary">Salvar</button>
+                                <button type="button" class="btn btn-secondary" 
+                                        onclick="toggleEditContact()">Cancelar</button>
+                            </div>
+                            <div class="form-group mt-2">
+                                <label for="senha_contact" class="small">Senha de Administrador:</label>
+                                <input type="password" class="form-control form-control-sm" 
+                                       id="senha_contact" name="senha" required>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h5>País</h5>
+                        <p class="d-flex align-items-center">
+                            <span id="playerCountryDisplay">
+                                {% if player['country'] %}
+                                    <img src="https://flagcdn.com/16x12/{{ player['country']|country_code }}.png" 
+                                         alt="{{ player['country'] }}" class="me-1" width="16" height="12">
+                                    {{ player['country'] }}
+                                {% else %}
+                                    Não informado
+                                {% endif %}
+                            </span>
+                            <button type="button" class="btn btn-sm text-primary border-0 px-1" 
+                                    onclick="toggleEditCountry()" title="Editar país">
+                                <i class="fas fa-pencil-alt fa-sm"></i>
+                            </button>
+                        </p>
+                        
+                        <form id="editCountryForm" action="{{ url_for('update_player_country', player_id=player.id) }}" 
+                            method="post" class="d-none mb-3">
+                            <div class="input-group">
+                                <select class="form-control" name="new_country">
+                                    <option value="" {% if not player['country'] %}selected{% endif %}>Selecione um país</option>
+                                    <option value="Brasil" {% if player['country'] == 'Brasil' %}selected{% endif %}>Brasil</option>
+                                    <option value="Argentina" {% if player['country'] == 'Argentina' %}selected{% endif %}>Argentina</option>
+                                    <option value="Portugal" {% if player['country'] == 'Portugal' %}selected{% endif %}>Portugal</option>
+                                    <option value="Estados Unidos" {% if player['country'] == 'Estados Unidos' %}selected{% endif %}>Estados Unidos</option>
+                                    <option value="Espanha" {% if player['country'] == 'Espanha' %}selected{% endif %}>Espanha</option>
+                                    <option value="Itália" {% if player['country'] == 'Itália' %}selected{% endif %}>Itália</option>
+                                    <option value="França" {% if player['country'] == 'França' %}selected{% endif %}>França</option>
+                                    <option value="Alemanha" {% if player['country'] == 'Alemanha' %}selected{% endif %}>Alemanha</option>
+                                    <option value="Reino Unido" {% if player['country'] == 'Reino Unido' %}selected{% endif %}>Reino Unido</option>
+                                    <option value="Japão" {% if player['country'] == 'Japão' %}selected{% endif %}>Japão</option>
+                                    <option value="Coreia do Sul" {% if player['country'] == 'Coreia do Sul' %}selected{% endif %}>Coreia do Sul</option>
+                                    <option value="China" {% if player['country'] == 'China' %}selected{% endif %}>China</option>
+                                    <option value="Austrália" {% if player['country'] == 'Austrália' %}selected{% endif %}>Austrália</option>
+                                    <option value="Canadá" {% if player['country'] == 'Canadá' %}selected{% endif %}>Canadá</option>
+                                    <option value="México" {% if player['country'] == 'México' %}selected{% endif %}>México</option>
+                                    <option value="Chile" {% if player['country'] == 'Chile' %}selected{% endif %}>Chile</option>
+                                    <option value="Colômbia" {% if player['country'] == 'Colômbia' %}selected{% endif %}>Colômbia</option>
+                                    <option value="Uruguai" {% if player['country'] == 'Uruguai' %}selected{% endif %}>Uruguai</option>
+                                    <option value="Paraguai" {% if player['country'] == 'Paraguai' %}selected{% endif %}>Paraguai</option>
+                                    <option value="Peru" {% if player['country'] == 'Peru' %}selected{% endif %}>Peru</option>
+                                    <option value="Venezuela" {% if player['country'] == 'Venezuela' %}selected{% endif %}>Venezuela</option>
+                                    <option value="África do Sul" {% if player['country'] == 'África do Sul' %}selected{% endif %}>África do Sul</option>
+                                    <option value="Suíça" {% if player['country'] == 'Suíça' %}selected{% endif %}>Suíça</option>
+                                    <option value="Suécia" {% if player['country'] == 'Suécia' %}selected{% endif %}>Suécia</option>
+                                    <option value="Noruega" {% if player['country'] == 'Noruega' %}selected{% endif %}>Noruega</option>
+                                    <option value="Dinamarca" {% if player['country'] == 'Dinamarca' %}selected{% endif %}>Dinamarca</option>
+                                    <option value="Holanda" {% if player['country'] == 'Holanda' %}selected{% endif %}>Holanda</option>
+                                    <option value="Bélgica" {% if player['country'] == 'Bélgica' %}selected{% endif %}>Bélgica</option>
+                                    <option value="Escócia" {% if player['country'] == 'Escócia' %}selected{% endif %}>Escócia</option>
+                                    <option value="Irlanda" {% if player['country'] == 'Irlanda' %}selected{% endif %}>Irlanda</option>
+                                </select>
+                                <button type="submit" class="btn btn-primary">Salvar</button>
+                                <button type="button" class="btn btn-secondary" 
+                                        onclick="toggleEditCountry()">Cancelar</button>
+                            </div>
+                            {% if not is_own_profile %}
+                            <div class="form-group mt-2">
+                                <label for="senha_country" class="small">Senha de Administrador:</label>
+                                <input type="password" class="form-control form-control-sm" 
+                                    id="senha_country" name="senha" required>
+                            </div>
+                            {% endif %}
+                        </form>
+                    </div>
+
+                    <div class="col-md-6">
+                        <h5>Sexo</h5>
+                        <p class="d-flex align-items-center">
+                            <span id="playerSexoDisplay">
+                                {% if player['sexo'] %}
+                                    {% if player['sexo'] == 'masculino' %}
+                                        <i class="fas fa-mars text-primary me-1"></i> Masculino
+                                    {% else %}
+                                        <i class="fas fa-venus text-danger me-1"></i> Feminino
+                                    {% endif %}
+                                {% else %}
+                                    Não informado
+                                {% endif %}
+                            </span>
+                            <button type="button" class="btn btn-sm text-primary border-0 px-1" 
+                                    onclick="toggleEditSexo()" title="Editar sexo">
+                                <i class="fas fa-pencil-alt fa-sm"></i>
+                            </button>
+                        </p>
+                        
+                        <form id="editSexoForm" action="{{ url_for('update_player_sexo', player_id=player.id) }}" 
+                            method="post" class="d-none mb-3">
+                            <div class="input-group">
+                                <select class="form-control" name="new_sexo" required>
+                                    <option value="masculino" {% if player['sexo'] == 'masculino' %}selected{% endif %}>Masculino</option>
+                                    <option value="feminino" {% if player['sexo'] == 'feminino' %}selected{% endif %}>Feminino</option>
+                                </select>
+                                <button type="submit" class="btn btn-primary">Salvar</button>
+                                <button type="button" class="btn btn-secondary" 
+                                        onclick="toggleEditSexo()">Cancelar</button>
+                            </div>
+                            {% if not is_own_profile %}
+                            <div class="form-group mt-2">
+                                <label for="senha_sexo" class="small">Senha de Administrador:</label>
+                                <input type="password" class="form-control form-control-sm" 
+                                    id="senha_sexo" name="senha" required>
+                            </div>
+                            {% endif %}
+                        </form>
+                    </div>
+                </div>
+
+                <!-- ============================================================ -->
+                <!-- WHATSAPP PARA NOTIFICAÇÕES -->
+                <!-- ============================================================ -->
+                <!-- WhatsApp para Notificações -->
+                {% if is_own_profile or session.is_admin %}
+                <div class="card mb-3 border-success">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="fab fa-whatsapp me-2"></i>WhatsApp para Notificações</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="small text-muted mb-2">
+                            Cadastre seu WhatsApp para receber notificações de desafios e interagir com o bot da Liga.
+                        </p>
+                        
+                        <form action="{{ url_for('update_player_whatsapp', player_id=player.id) }}" method="POST">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fab fa-whatsapp"></i></span>
+                                <input type="text" 
+                                    name="new_whatsapp" 
+                                    class="form-control" 
+                                    placeholder="Ex: 21999998888"
+                                    value="{{ player.telefone or '' }}"
+                                    pattern="[0-9]*"
+                                    inputmode="numeric"
+                                    maxlength="11">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save me-1"></i>Salvar
+                                </button>
+                            </div>
+                            <small class="text-muted">Digite apenas números: DDD + número (ex: 21999998888)</small>
+                        </form>
+                        
+                        {% if player.telefone %}
+                        <div class="mt-2">
+                            <span class="badge bg-success">
+                                <i class="fas fa-check me-1"></i>Cadastrado: {{ player.telefone }}
+                            </span>
+                        </div>
+                        {% else %}
+                        <div class="mt-2">
+                            <span class="badge bg-secondary">
+                                <i class="fas fa-times me-1"></i>Não cadastrado
+                            </span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h5>Posição Atual</h5>
+                        <p class="d-flex align-items-center">
+                            <span class="me-2">{{ player['position'] or 'N/A' }}</span>
+                            {% if is_admin and player.active == 1 %}
+                            <a href="{{ url_for('adjust_player_position', player_id=player.id) }}" 
+                               class="btn btn-sm btn-outline-warning" title="Ajustar Posição">
+                                <i class="fas fa-sort-numeric-down"></i>
+                            </a>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Nível (Tier)</h5>
+                        <p>{{ player['tier'] or 'N/A' }}</p>
+                    </div>
+                </div>
+
+                <!-- CARTEIRINHA DIGITAL - PARA O PRÓPRIO JOGADOR -->
+                {% if is_own_profile and player.active == 1 %}
+                <div class="card mb-3 border-success">
+                    <div class="card-header text-white" style="background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 100%);">
+                        <h5 class="mb-0">
+                            <i class="fas fa-id-card me-2"></i>Carteirinha Digital
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Acesse sua carteirinha digital para obter descontos em estabelecimentos parceiros.</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a href="{{ url_for('carteirinha') }}" class="btn btn-success">
+                                <i class="fas fa-qrcode me-2"></i>Abrir Carteirinha
+                            </a>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Apresente o QR Code da carteirinha nos estabelecimentos parceiros para validar sua identidade.
+                        </small>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- ACESSO À CONTA - PARA O PRÓPRIO JOGADOR -->
+                {% if is_own_profile %}
+                <div class="card mb-3">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Acesso à Conta</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Código do jogador: <strong>{{ player['player_code'] }}</strong></p>
+                        <p>Use este código e sua senha para acessar a plataforma.</p>
+                        <a href="{{ url_for('change_password') }}" class="btn btn-primary">
+                            <i class="fas fa-key"></i> Alterar Minha Senha
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- ============================================================ -->
+                <!-- ÁREA DO ADMINISTRADOR -->
+                <!-- ============================================================ -->
+                {% if is_admin %}
+                
+                <!-- GERENCIAMENTO DE ACESSO -->
+                <div class="card mb-3">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="fas fa-user-cog me-2"></i>Gerenciamento de Acesso</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Código do jogador: <strong>{{ player['player_code'] }}</strong></p>
+                        
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#resetPasswordModal">
+                                <i class="fas fa-key me-1"></i> Resetar Senha
+                            </button>
+                            
+                            {% if player.active == 1 %}
+                            <a href="{{ url_for('adjust_player_position', player_id=player.id) }}" class="btn btn-info">
+                                <i class="fas fa-sort-numeric-down me-1"></i> Ajustar Posição
+                            </a>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Modal Resetar Senha -->
+                        <div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-warning">
+                                        <h5 class="modal-title" id="resetPasswordModalLabel">Resetar Senha</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <form action="{{ url_for('reset_player_password', player_id=player.id) }}" method="post">
+                                        <div class="modal-body">
+                                            <p>Você está prestes a resetar a senha do jogador <strong>{{ player.name }}</strong>.</p>
+                                            <p>A nova senha será as 3 primeiras letras do nome do jogador em minúsculas.</p>
+                                            <p>Para este jogador, a senha será: <strong>{{ player.name.strip().lower()[:3] }}</strong></p>
+                                            
+                                            <div class="form-group mt-3">
+                                                <label for="senha_reset">Senha de Administrador:</label>
+                                                <input type="password" class="form-control" id="senha_reset" name="senha" required>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-warning">Resetar Senha</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================================ -->
+                <!-- CONTROLE MANUAL DA CARTEIRINHA (ADMIN) -->
+                <!-- ============================================================ -->
+                {% if player.active == 1 %}
+                <div class="card mb-3 border-success">
+                    <div class="card-header text-white" style="background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 100%);">
+                        <h5 class="mb-0">
+                            <i class="fas fa-id-card me-2"></i>Controle da Carteirinha (Admin)
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% set is_forcada = player.carteirinha_forcada == 1 %}
+                        
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <div>
+                                <strong>Status atual:</strong>
+                                {% if is_forcada %}
+                                    <span class="badge bg-success ms-2">
+                                        <i class="fas fa-lock me-1"></i> ATIVA (Forçada pelo Admin)
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary ms-2">
+                                        <i class="fas fa-sync me-1"></i> Automático
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <p class="text-muted small mb-3">
+                            {% if is_forcada %}
+                                A carteirinha está <strong>forçadamente ativa</strong> pelo admin, 
+                                independente de ter jogado nos últimos 30 dias.
+                            {% else %}
+                                A carteirinha segue a regra automática: 
+                                <strong>ativa se jogou nos últimos 30 dias</strong>.
+                            {% endif %}
+                        </p>
+                        
+                        <form action="{{ url_for('toggle_carteirinha_forcada', player_id=player.id) }}" method="POST">
+                            {% if is_forcada %}
+                                <button type="submit" class="btn btn-outline-secondary w-100">
+                                    <i class="fas fa-sync me-2"></i> Voltar ao Modo Automático
+                                </button>
+                            {% else %}
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="fas fa-check-circle me-2"></i> Forçar Carteirinha ATIVA
+                                </button>
+                            {% endif %}
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- ============================================================ -->
+                <!-- CONTROLE DE BLOQUEIO TEMPORÁRIO (ADMIN) -->
+                <!-- ============================================================ -->
+                {% if player.active == 1 %}
+                <div class="card mb-3 border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">
+                            <i class="fas fa-ban me-2"></i>Bloqueio Temporário (Saúde/Viagem)
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% set is_bloqueado = player.bloqueado == 1 %}
+                        
+                        {% if is_bloqueado %}
+                            <div class="alert alert-danger mb-3">
+                                <i class="fas fa-lock me-2"></i>
+                                <strong>JOGADOR BLOQUEADO</strong>
+                                <br>
+                                <small>
+                                    Motivo: {{ player.bloqueio_motivo or 'Não especificado' }}
+                                    {% if player.bloqueio_ate %}
+                                    <br>Até: {{ player.bloqueio_ate }}
+                                    {% endif %}
+                                </small>
+                            </div>
+                            
+                            <form action="{{ url_for('toggle_bloqueio_jogador', player_id=player.id) }}" method="POST">
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="fas fa-unlock me-2"></i> Desbloquear Jogador
+                                </button>
+                            </form>
+                        {% else %}
+                            <p class="text-muted small mb-3">
+                                Bloquear jogador temporariamente impede que ele receba ou faça desafios.
+                                Use para casos de viagem, lesão, ou outros motivos.
+                            </p>
+                            
+                            <form action="{{ url_for('toggle_bloqueio_jogador', player_id=player.id) }}" method="POST">
+                                <div class="mb-3">
+                                    <label class="form-label">Motivo do bloqueio:</label>
+                                    <select name="motivo" class="form-select" required>
+                                        <option value="Viagem">🧳 Viagem</option>
+                                        <option value="Saúde">🏥 Saúde / Lesão</option>
+                                        <option value="Licença">📋 Licença</option>
+                                        <option value="Outro">📝 Outro motivo</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Bloqueado até (opcional):</label>
+                                    <input type="date" name="data_ate" class="form-control">
+                                </div>
+                                
+                                <button type="submit" class="btn btn-warning w-100">
+                                    <i class="fas fa-ban me-2"></i> Bloquear Jogador
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% endif %}
+                <!-- FIM ÁREA DO ADMINISTRADOR -->
+
+                <!-- ============================================================ -->
+                <!-- JOGADORES DISPONÍVEIS PARA DESAFIAR (COM FLAG DE DESAFIO) -->
+                <!-- ============================================================ -->
+                {% if player.active == 1 and potential_challenges %}
+                <div class="card mb-3">
+                    <div class="card-header bg-warning">
+                        <h5 class="mb-0">Jogadores Disponíveis para Desafiar</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group">
+                            {% for potential in potential_challenges %}
+                            
+                            {% if potential['tem_desafio'] %}
+                            <!-- JOGADOR COM DESAFIO ATIVO - NÃO CLICÁVEL -->
+                            <div class="list-group-item" style="opacity: 0.6; cursor: not-allowed;">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1 text-muted">{{ potential['name'] }}</h6>
+                                    <small class="text-muted">Tier {{ potential['tier'] }}</small>
+                                </div>
+                                <div class="d-flex w-100 justify-content-between">
+                                    <small class="text-muted">Posição #{{ potential['position'] }}</small>
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-clock me-1"></i>Desafio em andamento
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            {% else %}
+                            <!-- JOGADOR DISPONÍVEL - CLICÁVEL -->
+                            <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}&challenged_id={{ potential['id'] }}" class="list-group-item list-group-item-action">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">{{ potential['name'] }}</h6>
+                                    <small>Tier {{ potential['tier'] }}</small>
+                                </div>
+                                <div class="d-flex w-100 justify-content-between">
+                                    <small>Posição #{{ potential['position'] }}</small>
+                                    <span class="badge bg-success">Desafiar</span>
+                                </div>
+                            </a>
+                            {% endif %}
+                            
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- STATUS ATIVO/INATIVO -->
+                {% if player.active == 1 %}
+                <div class="card mb-3">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Status: Ativo</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Este jogador está participando ativamente da liga.</p>
+                        <a href="{{ url_for('deactivate_player', player_id=player.id) }}" class="btn btn-danger">
+                            <i class="fas fa-user-slash"></i> Desativar Jogador
+                        </a>
+                    </div>
+                </div>
+                {% else %}
+                <div class="card mb-3">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">Status: Inativo</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Este jogador está atualmente inativo e não aparece no ranking.</p>
+                        {% if player.notes %}
+                        <div class="mb-3">
+                            <h6>Histórico:</h6>
+                            <p>{{ player.notes }}</p>
+                        </div>
+                        {% endif %}
+                        <a href="{{ url_for('reactivate_player', player_id=player.id) }}" class="btn btn-success">
+                            <i class="fas fa-user-check"></i> Reativar Jogador
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <div class="card border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <h5 class="mb-0">Zona de Perigo</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Este jogador está inativo.</strong> Se você deseja removê-lo permanentemente do sistema:</p>
+                            <a href="{{ url_for('delete_player', player_id=player.id) }}" class="btn btn-danger">
+                                <i class="fas fa-trash-alt me-2"></i>Excluir permanentemente
+                            </a>
+                            <p class="text-muted mt-2"><small>Atenção: Esta ação não pode ser desfeita.</small></p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+            </div>
+            <div class="card-footer">
+                {% if player.active == 1 %}
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}" class="btn btn-primary">
+                        <i class="fas fa-trophy"></i> Criar Novo Desafio
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <!-- DESAFIOS COMO DESAFIANTE -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h4 class="mb-0">Desafios como Desafiante</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for challenge in challenges_as_challenger %}
+                    <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">vs. {{ challenge['opponent_name'] }}</h6>
+                            <small>{{ challenge['scheduled_date'] }}</small>
+                        </div>
+                        <div class="d-flex w-100 justify-content-between">
+                            <small>Posição #{{ challenge['opponent_position'] }}</small>
+                            {% if challenge['status'] == 'pending' %}
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                            {% elif challenge['status'] == 'accepted' %}
+                            <span class="badge bg-info">Aceito</span>
+                            {% elif challenge['status'] == 'completed' %}
+                                {% if challenge['result'] == 'challenger_win' %}
+                                <span class="badge bg-success">Vitória</span>
+                                {% elif challenge['result'] == 'challenged_win' %}
+                                <span class="badge bg-danger">Derrota</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Concluído</span>
+                                {% endif %}
+                            {% elif challenge['status'] == 'rejected' %}
+                            <span class="badge bg-danger">Rejeitado</span>
+                            {% elif challenge['status'] == 'cancelled' %}
+                            <span class="badge bg-secondary">Cancelado</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    {% endfor %}
+                    
+                    {% if not challenges_as_challenger %}
+                    <div class="list-group-item py-3 text-center">
+                        <p class="mb-0">Nenhum desafio como desafiante</p>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
-            
-            {% else %}
-            <!-- JOGADOR DISPONÍVEL - CLICÁVEL -->
-            <a href="{{ url_for('new_challenge') }}?challenger_id={{ player['id'] }}&challenged_id={{ potential['id'] }}" class="list-group-item list-group-item-action">
-                <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1">{{ potential['name'] }}</h6>
-                    <small>Tier {{ potential['tier'] }}</small>
+        </div>
+
+        <!-- DESAFIOS COMO DESAFIADO -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0">Desafios como Desafiado</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for challenge in challenges_as_challenged %}
+                    <a href="{{ url_for('challenge_detail', challenge_id=challenge['id']) }}" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">de {{ challenge['opponent_name'] }}</h6>
+                            <small>{{ challenge['scheduled_date'] }}</small>
+                        </div>
+                        <div class="d-flex w-100 justify-content-between">
+                            <small>Posição #{{ challenge['opponent_position'] }}</small>
+                            {% if challenge['status'] == 'pending' %}
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                            {% elif challenge['status'] == 'accepted' %}
+                            <span class="badge bg-info">Aceito</span>
+                            {% elif challenge['status'] == 'completed' %}
+                                {% if challenge['result'] == 'challenged_win' %}
+                                <span class="badge bg-success">Vitória</span>
+                                {% elif challenge['result'] == 'challenger_win' %}
+                                <span class="badge bg-danger">Derrota</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Concluído</span>
+                                {% endif %}
+                            {% elif challenge['status'] == 'rejected' %}
+                            <span class="badge bg-danger">Rejeitado</span>
+                            {% elif challenge['status'] == 'cancelled' %}
+                            <span class="badge bg-secondary">Cancelado</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    {% endfor %}
+                    
+                    {% if not challenges_as_challenged %}
+                    <div class="list-group-item py-3 text-center">
+                        <p class="mb-0">Nenhum desafio como desafiado</p>
+                    </div>
+                    {% endif %}
                 </div>
-                <div class="d-flex w-100 justify-content-between">
-                    <small>Posição #{{ potential['position'] }}</small>
-                    <span class="badge bg-success">Desafiar</span>
-                </div>
-            </a>
-            {% endif %}
-            
-            {% endfor %}
+            </div>
         </div>
     </div>
 </div>
-{% endif %}
+
+<!-- MODAL UPLOAD FOTO -->
+<div class="modal fade" id="uploadPhotoModal" tabindex="-1" aria-labelledby="uploadPhotoModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="uploadPhotoModalLabel">Alterar Foto de Perfil</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('upload_profile_photo', player_id=player.id) }}" method="post" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="profile_photo" class="form-label">Selecione uma nova foto</label>
+                        <input class="form-control" type="file" id="profile_photo" name="profile_photo" accept="image/*" required>
+                        <div class="form-text">Formatos aceitos: JPG, PNG, GIF. Tamanho máximo: 5MB.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Pré-visualização</label>
+                        <div class="text-center">
+                            <img id="photoPreview" src="#" alt="Pré-visualização" style="max-width: 100%; max-height: 200px; display: none;">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Foto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL REMOVER FOTO -->
+<div class="modal fade" id="removePhotoModal" tabindex="-1" aria-labelledby="removePhotoModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="mb-0">Remover Foto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja remover sua foto de perfil?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form action="{{ url_for('remove_profile_photo', player_id=player.id) }}" method="post">
+                    <button type="submit" class="btn btn-danger">Remover</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleEditName() {
+    const displayElement = document.getElementById('playerNameDisplay');
+    const formElement = document.getElementById('editNameForm');
+    if (formElement.classList.contains('d-none')) {
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
+}
+
+function toggleEditContact() {
+    const displayElement = document.getElementById('playerContactDisplay');
+    const formElement = document.getElementById('editContactForm');
+    if (formElement.classList.contains('d-none')) {
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
+}
+
+function toggleEditCountry() {
+    const displayElement = document.getElementById('playerCountryDisplay');
+    const formElement = document.getElementById('editCountryForm');
+    if (formElement.classList.contains('d-none')) {
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
+}
+
+function toggleEditSexo() {
+    const displayElement = document.getElementById('playerSexoDisplay');
+    const formElement = document.getElementById('editSexoForm');
+    if (formElement.classList.contains('d-none')) {
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
+}
+
+function toggleEditWhatsApp() {
+    const displayElement = document.getElementById('playerWhatsAppDisplay');
+    const formElement = document.getElementById('editWhatsAppForm');
+    if (formElement.classList.contains('d-none')) {
+        displayElement.classList.add('d-none');
+        formElement.classList.remove('d-none');
+    } else {
+        displayElement.classList.remove('d-none');
+        formElement.classList.add('d-none');
+    }
+}
+
+document.getElementById('profile_photo').addEventListener('change', function(e) {
+    const preview = document.getElementById('photoPreview');
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+        }
+        reader.readAsDataURL(file);
+    } else {
+        preview.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}
