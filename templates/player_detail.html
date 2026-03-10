@@ -247,7 +247,7 @@
                                 <input type="text" 
                                     name="new_whatsapp" 
                                     class="form-control" 
-                                    placeholder="Ex: 5521999998888"
+                                    placeholder="Ex: 21999998888"
                                     value="{{ player.telefone or '' }}"
                                     pattern="[0-9]*"
                                     inputmode="numeric"
@@ -257,10 +257,8 @@
                                 </button>
                             </div>
                             <small class="text-muted">
-                                Digite o número completo com código do país:<br>
-                                🇧🇷 Brasil: <strong>55</strong> + DDD + número (ex: 5521999998888)<br>
-                                🇨🇴 Colômbia: <strong>57</strong> + número (ex: 573156480422)<br>
-                                🇩🇪 Alemanha: <strong>49</strong> + número (ex: 4917661734091)
+                                Digite DDD + número (ex: 21999998888). O código 55 será adicionado automaticamente.<br>
+                                <em>Para números internacionais, peça ao admin para ajustar.</em>
                             </small>
                         </form>
                         

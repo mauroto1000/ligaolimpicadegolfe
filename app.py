@@ -8350,8 +8350,7 @@ def update_player_whatsapp(player_id):
     if not new_whatsapp:
         new_whatsapp = None
     else:
-        # Normalizar: números com até 11 dígitos são brasileiros, adiciona 55
-        # Números com 12+ dígitos já têm código do país
+        # Padrão brasileiro: adiciona 55 se até 11 dígitos
         if len(new_whatsapp) <= 11:
             new_whatsapp = '55' + new_whatsapp
     
@@ -8364,7 +8363,7 @@ def update_player_whatsapp(player_id):
     conn.close()
     
     if new_whatsapp:
-        flash(f'WhatsApp atualizado para {new_whatsapp}. Você receberá notificações!', 'success')
+        flash(f'✅ WhatsApp atualizado para {new_whatsapp}. Você receberá notificações!', 'success')
     else:
         flash('WhatsApp removido. Você não receberá mais notificações.', 'info')
     
@@ -8385,7 +8384,6 @@ def migrar_telefones():
     
     conn = get_db_connection()
     
-    # Buscar todos os jogadores com telefone cadastrado
     players = conn.execute('''
         SELECT id, name, telefone FROM players 
         WHERE telefone IS NOT NULL AND telefone != ''
@@ -8401,13 +8399,11 @@ def migrar_telefones():
             continue
         
         if len(telefone) <= 11:
-            # Número brasileiro sem código do país → adicionar 55
             novo = '55' + telefone
             conn.execute('UPDATE players SET telefone = ? WHERE id = ?', (novo, p['id']))
             migrados.append(f"{p['name']}: {telefone} → {novo}")
         else:
-            # Já tem código do país
-            ignorados.append(f"{p['name']}: {telefone} (já tem código do país)")
+            ignorados.append(f"{p['name']}: {telefone} (já tem DDI)")
     
     conn.commit()
     conn.close()
@@ -8415,11 +8411,100 @@ def migrar_telefones():
     resultado = f"<h3>Migração de Telefones</h3>"
     resultado += f"<p><strong>{len(migrados)}</strong> números atualizados (adicionado 55):</p>"
     resultado += "<ul>" + "".join(f"<li>{m}</li>" for m in migrados) + "</ul>"
-    resultado += f"<p><strong>{len(ignorados)}</strong> números já com código do país:</p>"
+    resultado += f"<p><strong>{len(ignorados)}</strong> números já com DDI:</p>"
     resultado += "<ul>" + "".join(f"<li>{i}</li>" for i in ignorados) + "</ul>"
+    resultado += '<p>⚠️ Para corrigir números estrangeiros (EUA, etc), use '
+    resultado += '<a href="/admin/telefones-internacionais">Correção de Telefones Internacionais</a></p>'
     resultado += '<br><a href="/admin">Voltar ao Admin</a>'
     
     return resultado
+
+
+@app.route('/admin/telefones-internacionais')
+@login_required
+def telefones_internacionais():
+    """Lista jogadores com telefone para correção manual de números estrangeiros"""
+    if not session.get('is_admin'):
+        return "Acesso negado", 403
+    
+    conn = get_db_connection()
+    players = conn.execute('''
+        SELECT id, name, telefone FROM players 
+        WHERE telefone IS NOT NULL AND telefone != ''
+        ORDER BY name
+    ''').fetchall()
+    conn.close()
+    
+    html = """
+    <h3>📱 Correção de Telefones Internacionais</h3>
+    <p>Use esta página para corrigir manualmente números de jogadores estrangeiros.<br>
+    O sistema normaliza todos os números para o padrão brasileiro (DDI 55).<br>
+    Números de outros países (🇺🇸 EUA = 1, 🇨🇴 Colômbia = 57, 🇩🇪 Alemanha = 49, etc) 
+    precisam ser corrigidos aqui.</p>
+    <table border='1' cellpadding='8' cellspacing='0' style='border-collapse:collapse; width:100%; max-width:700px;'>
+    <tr style='background:#333;color:white;'>
+        <th>Jogador</th><th>Telefone Atual</th><th>Corrigir</th>
+    </tr>"""
+    
+    for p in players:
+        tel = p['telefone'] or ''
+        html += f"""<tr>
+            <td><strong>{p['name']}</strong></td>
+            <td><code>{tel}</code></td>
+            <td>
+                <form action='/admin/corrigir-telefone/{p['id']}' method='POST' style='display:flex;gap:4px;'>
+                    <input type='text' name='novo_telefone' value='{tel}' 
+                           style='width:160px;padding:4px;font-family:monospace;'
+                           placeholder='DDI + número'>
+                    <button type='submit' style='padding:4px 12px;background:#28a745;color:white;border:none;border-radius:4px;cursor:pointer;'>
+                        Salvar
+                    </button>
+                </form>
+            </td>
+        </tr>"""
+    
+    html += """</table>
+    <br>
+    <p><strong>Exemplos de DDI:</strong><br>
+    🇧🇷 Brasil = <code>55</code> (ex: 5521999998888)<br>
+    🇺🇸 EUA = <code>1</code> (ex: 12125551234)<br>
+    🇨🇴 Colômbia = <code>57</code> (ex: 573156480422)<br>
+    🇩🇪 Alemanha = <code>49</code> (ex: 4917661734091)<br>
+    🇦🇷 Argentina = <code>54</code> | 🇵🇹 Portugal = <code>351</code> | 🇪🇸 Espanha = <code>34</code>
+    </p>
+    <a href='/admin'>⬅ Voltar ao Admin</a>"""
+    
+    return html
+
+
+@app.route('/admin/corrigir-telefone/<int:player_id>', methods=['POST'])
+@login_required
+def corrigir_telefone(player_id):
+    """Salva o telefone exatamente como digitado (sem normalização)"""
+    if not session.get('is_admin'):
+        flash('Acesso restrito.', 'error')
+        return redirect(url_for('index'))
+    
+    novo_telefone = request.form.get('novo_telefone', '').strip()
+    # Apenas remove caracteres não numéricos
+    novo_telefone = ''.join(filter(str.isdigit, novo_telefone))
+    
+    if not novo_telefone:
+        novo_telefone = None
+    
+    conn = get_db_connection()
+    player = conn.execute('SELECT name FROM players WHERE id = ?', (player_id,)).fetchone()
+    conn.execute('UPDATE players SET telefone = ? WHERE id = ?', (novo_telefone, player_id))
+    conn.commit()
+    conn.close()
+    
+    nome = player['name'] if player else f'ID {player_id}'
+    if novo_telefone:
+        flash(f'✅ Telefone de {nome} atualizado para {novo_telefone}', 'success')
+    else:
+        flash(f'Telefone de {nome} removido.', 'info')
+    
+    return redirect(url_for('telefones_internacionais'))
 
 
 # ============================================================
@@ -8656,13 +8741,13 @@ def criar_desafio_via_whatsapp(challenger_id, challenged_id, scheduled_date):
 
 
 def get_player_phone(player_id):
-    """Busca o telefone de um jogador"""
+    """Busca o telefone de um jogador (retorna como está no banco, sem re-normalizar)"""
     conn = get_db_connection()
     player = conn.execute('SELECT telefone FROM players WHERE id = ?', (player_id,)).fetchone()
     conn.close()
     
     if player and player['telefone']:
-        return normalizar_telefone(player['telefone'])
+        return player['telefone']
     return None
 
 
@@ -8715,7 +8800,7 @@ Você foi desafiado por *{challenge['challenger_name']}* (#{challenge['challenge
 
 ⏰ Prazo para responder: *2 dias*"""
         
-        telefone_norm = normalizar_telefone(telefone_desafiado)
+        telefone_norm = telefone_desafiado  # Já correto no banco
         enviar_mensagem_whatsapp(formatar_jid_whatsapp(telefone_norm), msg)
     
     # Notificar no grupo
@@ -8783,29 +8868,22 @@ Boa sorte aos dois! 🏆"""
 
 def normalizar_telefone(telefone):
     """
-    Normaliza telefone para formato internacional completo (com código do país).
-    
-    Regras:
-    - Remove caracteres não numéricos
-    - Números com até 11 dígitos são assumidos como brasileiros → adiciona 55
-    - Números com 12+ dígitos já possuem código do país → mantém como estão
+    Normaliza telefone para padrão brasileiro (adiciona DDI 55).
+    Números com 12+ dígitos são assumidos como já tendo DDI.
     
     Exemplos:
         '21999998888'     → '5521999998888'   (brasileiro)
-        '5521999998888'   → '5521999998888'   (brasileiro com código)
-        '573156480422'    → '573156480422'    (Colômbia)
-        '4917661734091'   → '4917661734091'   (Alemanha)
+        '5521999998888'   → '5521999998888'   (já tem DDI)
+        '573156480422'    → '573156480422'    (estrangeiro, 12 dígitos)
     """
     if not telefone:
         return None
-    # Remove tudo que não é número
     apenas_numeros = re.sub(r'\D', '', telefone)
     
     if not apenas_numeros:
         return None
     
-    # Números com até 11 dígitos são brasileiros (DDD + número)
-    # Adiciona código do país 55
+    # Números com até 11 dígitos: brasileiro, adiciona 55
     if len(apenas_numeros) <= 11:
         apenas_numeros = '55' + apenas_numeros
     
@@ -8815,17 +8893,16 @@ def normalizar_telefone(telefone):
 def formatar_jid_whatsapp(telefone):
     """
     Formata telefone para JID do WhatsApp.
-    Aceita qualquer formato, normaliza e retorna no formato correto.
-    
-    Exemplos:
-        '21999998888'    → '5521999998888@s.whatsapp.net'
-        '573156480422'   → '573156480422@s.whatsapp.net'
-        '4917661734091'  → '4917661734091@s.whatsapp.net'
+    Apenas limpa caracteres e adiciona @s.whatsapp.net.
+    NÃO re-normaliza (não adiciona 55), pois o número já deve
+    estar correto no banco de dados.
     """
-    telefone_norm = normalizar_telefone(telefone)
-    if not telefone_norm:
+    if not telefone:
         return None
-    return f"{telefone_norm}@s.whatsapp.net"
+    apenas_numeros = re.sub(r'\D', '', str(telefone))
+    if not apenas_numeros:
+        return None
+    return f"{apenas_numeros}@s.whatsapp.net"
 
 
 def extrair_telefone_do_jid(jid):
@@ -10096,6 +10173,9 @@ def webhook_whatsapp():
             # Extrair telefone e mensagem
             telefone = extrair_telefone_do_jid(remote_jid)
             
+            # Guardar JID original para responder (sem re-normalizar)
+            jid_resposta = remote_jid
+            
             # Extrair texto da mensagem
             message_content = message_data.get('message', {})
             mensagem = (
@@ -10112,10 +10192,10 @@ def webhook_whatsapp():
             # Processar comando e obter resposta
             resposta = processar_comando_whatsapp_v2(mensagem, telefone)
             
-            # Enviar resposta
+            # Enviar resposta usando o JID original (sem re-normalizar)
             if resposta:
                 rodape = "\n\n━━━━━━━━━━━━━━━━━━━━━\n🌐 Visite: www.ligaolimpicadegolfe.com.br"
-                enviar_mensagem_whatsapp(formatar_jid_whatsapp(telefone), resposta + rodape)
+                enviar_mensagem_whatsapp(jid_resposta, resposta + rodape)
             
             return jsonify({'status': 'processed'})
         
@@ -10234,7 +10314,7 @@ Vocês podem criar um novo desafio quando quiserem! 🏌️
 
 _Digite *0* para voltar ao menu._"""
         
-        telefone_norm = normalizar_telefone(telefone_desafiado)
+        telefone_norm = telefone_desafiado  # Já correto no banco
         enviar_mensagem_whatsapp(formatar_jid_whatsapp(telefone_norm), msg_desafiado)
     
     # Notificar no grupo da liga
@@ -10302,7 +10382,7 @@ Digite *A*, *B* ou *C* para responder.
 
 ⏰ _Você tem 2 dias para responder._"""
         
-        telefone_normalizado = normalizar_telefone(telefone_desafiante)
+        telefone_normalizado = telefone_desafiante  # Já correto no banco
         enviar_mensagem_whatsapp(formatar_jid_whatsapp(telefone_normalizado), msg)
     
     # Notificar no grupo da liga
@@ -10364,7 +10444,7 @@ Boa sorte a ambos! 🏌️"""
     # Notificar desafiado
     telefone_desafiado = challenge['challenged_telefone']
     if telefone_desafiado:
-        telefone_norm = normalizar_telefone(telefone_desafiado)
+        telefone_norm = telefone_desafiado  # Já correto no banco
         enviar_mensagem_whatsapp(formatar_jid_whatsapp(telefone_norm), msg)
     
     # Notificar no grupo
