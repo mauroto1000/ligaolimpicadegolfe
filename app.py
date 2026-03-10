@@ -8342,6 +8342,7 @@ def update_player_whatsapp(player_id):
         return redirect(url_for('player_detail', player_id=player_id))
     
     new_whatsapp = request.form.get('new_whatsapp', '').strip()
+    internacional = 'internacional' in request.form  # Checkbox marcado?
     
     # Remover caracteres não numéricos
     new_whatsapp = ''.join(filter(str.isdigit, new_whatsapp))
@@ -8350,9 +8351,10 @@ def update_player_whatsapp(player_id):
     if not new_whatsapp:
         new_whatsapp = None
     else:
-        # Padrão brasileiro: adiciona 55 se até 11 dígitos
-        if len(new_whatsapp) <= 11:
+        # Se NÃO é internacional, aplica padrão brasileiro (adiciona 55)
+        if not internacional and len(new_whatsapp) <= 11:
             new_whatsapp = '55' + new_whatsapp
+        # Se é internacional, salva exatamente como digitado
     
     conn = get_db_connection()
     conn.execute(

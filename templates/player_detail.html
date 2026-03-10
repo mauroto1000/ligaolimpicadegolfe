@@ -256,9 +256,20 @@
                                     <i class="fas fa-save me-1"></i>Salvar
                                 </button>
                             </div>
-                            <small class="text-muted">
-                                Digite DDD + número (ex: 21999998888). O código 55 será adicionado automaticamente.<br>
-                                <em>Para números internacionais, peça ao admin para ajustar.</em>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" name="internacional" id="checkInternacional"
+                                       onchange="toggleInternacionalInfo()">
+                                <label class="form-check-label small" for="checkInternacional">
+                                    <i class="fas fa-globe me-1"></i>Número internacional (não adicionar 55)
+                                </label>
+                            </div>
+                            <small class="text-muted" id="infoBR">
+                                Digite DDD + número (ex: 21999998888). O código 55 será adicionado automaticamente.
+                            </small>
+                            <small class="text-muted d-none" id="infoIntl">
+                                Digite o número completo com DDI:<br>
+                                🇺🇸 EUA: <strong>1</strong> + número (ex: 13129526761)<br>
+                                🇨🇴 Colômbia: <strong>57</strong> + número | 🇩🇪 Alemanha: <strong>49</strong> + número
                             </small>
                         </form>
                         
@@ -991,6 +1002,19 @@ document.getElementById('profile_photo').addEventListener('change', function(e) 
         preview.style.display = 'none';
     }
 });
+
+function toggleInternacionalInfo() {
+    const checked = document.getElementById('checkInternacional').checked;
+    const infoBR = document.getElementById('infoBR');
+    const infoIntl = document.getElementById('infoIntl');
+    if (checked) {
+        infoBR.classList.add('d-none');
+        infoIntl.classList.remove('d-none');
+    } else {
+        infoBR.classList.remove('d-none');
+        infoIntl.classList.add('d-none');
+    }
+}
 
 function toggleEditDisponibilidade() {
     const viewEl = document.getElementById('disponibilidadeView');
