@@ -136,7 +136,7 @@ def é_comando_menu(msg):
     msg = msg.lower().strip()
     
     # Comandos numéricos
-    if msg in ['0', '1', '2', '3', '4', '5', '6', '7']:
+    if msg in ['0', '1', '2', '3', '4', '5', '6', '7', '8']:
         return True
     
     # Comandos com número (ex: "4 123")
@@ -158,7 +158,8 @@ def é_comando_menu(msg):
         'aceitar', 'aceito', 'accept',
         'rejeitar', 'rejeito', 'recusar', 'reject', 'decline',
         'criar desafio', 'novo desafio', 'create challenge',
-        'propor data', 'nova data', 'propose date'
+        'propor data', 'nova data', 'propose date',
+        'resultado', 'informar resultado', 'result', 'submit result'
     ]
     
     for palavra in palavras_comando:
@@ -1152,6 +1153,13 @@ def admin_dashboard():
     # Total de desafios pendentes
     pending_challenges = conn.execute('SELECT COUNT(*) as count FROM challenges WHERE status IN ("pending", "accepted")').fetchone()
     stats['pending_challenges'] = pending_challenges['count']
+    
+    # Total de resultados pendentes de confirmação
+    try:
+        pending_results = conn.execute('SELECT COUNT(*) as count FROM challenges WHERE status = "accepted" AND resultado_proposto IS NOT NULL').fetchone()
+        stats['pending_results'] = pending_results['count']
+    except:
+        stats['pending_results'] = 0
     
     # Verificar se a tabela system_settings existe
     table_exists = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='system_settings'").fetchone()
@@ -8200,6 +8208,263 @@ def update_player_disponibilidade(player_id):
     return redirect(url_for('player_detail', player_id=player_id))
 
 
+# ============================================================
+# SISTEMA DE SUBMISSÃO DE RESULTADO VIA CHATBOT
+# ============================================================
+
+@app.route('/criar-colunas-resultado-proposto')
+@login_required
+def criar_colunas_resultado_proposto():
+    """Cria colunas para resultado proposto via chatbot"""
+    if not session.get('is_admin'):
+        return "Acesso negado", 403
+    
+    conn = get_db_connection()
+    try:
+        columns = [col[1] for col in conn.execute("PRAGMA table_info(challenges)").fetchall()]
+        
+        criadas = []
+        if 'resultado_proposto' not in columns:
+            conn.execute('ALTER TABLE challenges ADD COLUMN resultado_proposto TEXT')
+            criadas.append('resultado_proposto')
+        if 'resultado_proposto_por' not in columns:
+            conn.execute('ALTER TABLE challenges ADD COLUMN resultado_proposto_por INTEGER')
+            criadas.append('resultado_proposto_por')
+        if 'resultado_proposto_em' not in columns:
+            conn.execute('ALTER TABLE challenges ADD COLUMN resultado_proposto_em DATETIME')
+            criadas.append('resultado_proposto_em')
+        
+        conn.commit()
+        
+        if criadas:
+            flash(f'✅ Colunas criadas: {", ".join(criadas)}', 'success')
+        else:
+            flash('ℹ️ Colunas já existem.', 'info')
+    except Exception as e:
+        flash(f'❌ Erro: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/resultados-pendentes')
+@login_required
+def resultados_pendentes():
+    """Página admin para confirmar resultados propostos via chatbot"""
+    if not session.get('is_admin'):
+        flash('Acesso restrito.', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    
+    pendentes = conn.execute('''
+        SELECT c.id, c.scheduled_date, c.resultado_proposto, 
+               c.resultado_proposto_por, c.resultado_proposto_em,
+               c.challenger_id, c.challenged_id,
+               p1.name as challenger_name, p1.position as challenger_position,
+               p2.name as challenged_name, p2.position as challenged_position,
+               p3.name as proposto_por_nome
+        FROM challenges c
+        JOIN players p1 ON c.challenger_id = p1.id
+        JOIN players p2 ON c.challenged_id = p2.id
+        LEFT JOIN players p3 ON c.resultado_proposto_por = p3.id
+        WHERE c.status = 'accepted'
+          AND c.resultado_proposto IS NOT NULL
+        ORDER BY c.resultado_proposto_em DESC
+    ''').fetchall()
+    
+    conn.close()
+    
+    html = """
+    {% extends 'base.html' %}
+    {% block title %}Resultados Pendentes{% endblock %}
+    {% block content %}
+    <div class="container">
+        <h2 class="mb-4"><i class="fas fa-clipboard-check me-2"></i>Resultados Pendentes de Confirmação</h2>
+    """
+    
+    if not pendentes:
+        html += '<div class="alert alert-info">Nenhum resultado pendente de confirmação.</div>'
+    else:
+        html += f'<div class="alert alert-warning"><strong>{len(pendentes)}</strong> resultado(s) aguardando confirmação.</div>'
+        
+        for p in pendentes:
+            # Determinar quem venceu segundo a proposta
+            if p['resultado_proposto'] == 'challenger_win':
+                vencedor = p['challenger_name']
+                perdedor = p['challenged_name']
+            else:
+                vencedor = p['challenged_name']
+                perdedor = p['challenger_name']
+            
+            # Formatar data
+            try:
+                data_obj = datetime.strptime(p['scheduled_date'], '%Y-%m-%d')
+                data_fmt = data_obj.strftime('%d/%m/%Y')
+            except:
+                data_fmt = p['scheduled_date'] or 'N/A'
+            
+            # Formatar timestamp
+            proposto_em = ''
+            if p['resultado_proposto_em']:
+                try:
+                    dt = datetime.strptime(p['resultado_proposto_em'], '%Y-%m-%d %H:%M:%S')
+                    proposto_em = dt.strftime('%d/%m/%Y %H:%M')
+                except:
+                    proposto_em = p['resultado_proposto_em']
+            
+            html += f"""
+            <div class="card mb-3 border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <strong>Desafio #{p['id']}</strong> — {data_fmt}
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Desafiante:</strong> {p['challenger_name']} (#{p['challenger_position']})</p>
+                            <p><strong>Desafiado:</strong> {p['challenged_name']} (#{p['challenged_position']})</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Resultado proposto:</strong></p>
+                            <p class="fs-5">🏆 <strong>{vencedor}</strong> venceu</p>
+                            <p class="text-muted small">
+                                Informado por: {p['proposto_por_nome'] or 'N/A'}<br>
+                                Em: {proposto_em}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 mt-2">
+                        <form action="/admin/aprovar-resultado/{p['id']}" method="POST" class="d-inline">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-check me-1"></i>Confirmar Resultado
+                            </button>
+                        </form>
+                        <form action="/admin/rejeitar-resultado/{p['id']}" method="POST" class="d-inline">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-times me-1"></i>Rejeitar
+                            </button>
+                        </form>
+                        <a href="/challenge_detail/{p['id']}" class="btn btn-outline-primary">
+                            <i class="fas fa-eye me-1"></i>Ver Desafio
+                        </a>
+                    </div>
+                </div>
+            </div>"""
+    
+    html += """
+        <a href="/admin" class="btn btn-outline-secondary mt-3">
+            <i class="fas fa-arrow-left me-1"></i>Voltar ao Admin
+        </a>
+    </div>
+    {% endblock %}
+    """
+    
+    # Render from string
+    from flask import render_template_string
+    return render_template_string(html)
+
+
+@app.route('/admin/aprovar-resultado/<int:challenge_id>', methods=['POST'])
+@login_required
+def aprovar_resultado(challenge_id):
+    """Admin confirma o resultado proposto pelo jogador"""
+    if not session.get('is_admin'):
+        flash('Acesso restrito.', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    
+    try:
+        challenge = conn.execute('''
+            SELECT id, resultado_proposto, challenger_id, challenged_id,
+                   resultado_proposto_por
+            FROM challenges WHERE id = ? AND status = 'accepted'
+        ''', (challenge_id,)).fetchone()
+        
+        if not challenge or not challenge['resultado_proposto']:
+            flash('❌ Desafio não encontrado ou sem resultado proposto.', 'error')
+            conn.close()
+            return redirect(url_for('resultados_pendentes'))
+        
+        resultado = challenge['resultado_proposto']
+        
+        # Processar o resultado oficialmente
+        process_challenge_result(conn, challenge_id, 'completed', resultado)
+        
+        # Limpar campos de proposta
+        conn.execute('''
+            UPDATE challenges 
+            SET resultado_proposto = NULL, 
+                resultado_proposto_por = NULL, 
+                resultado_proposto_em = NULL,
+                result_type = 'normal'
+            WHERE id = ?
+        ''', (challenge_id,))
+        
+        conn.commit()
+        
+        # Buscar nomes para a mensagem
+        challenger = conn.execute('SELECT name FROM players WHERE id = ?', 
+                                (challenge['challenger_id'],)).fetchone()
+        challenged = conn.execute('SELECT name FROM players WHERE id = ?', 
+                                (challenge['challenged_id'],)).fetchone()
+        
+        if resultado == 'challenger_win':
+            vencedor = challenger['name']
+        else:
+            vencedor = challenged['name']
+        
+        # Notificar no grupo
+        msg_grupo = f"""✅ *RESULTADO CONFIRMADO*
+
+⚔️ *{challenger['name']}* vs *{challenged['name']}*
+
+🏆 Vencedor: *{vencedor}*
+
+_Resultado confirmado pelo administrador._"""
+        
+        enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
+        
+        flash(f'✅ Resultado confirmado! {vencedor} venceu. Ranking atualizado.', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'❌ Erro ao confirmar resultado: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('resultados_pendentes'))
+
+
+@app.route('/admin/rejeitar-resultado/<int:challenge_id>', methods=['POST'])
+@login_required
+def rejeitar_resultado(challenge_id):
+    """Admin rejeita o resultado proposto"""
+    if not session.get('is_admin'):
+        flash('Acesso restrito.', 'error')
+        return redirect(url_for('index'))
+    
+    conn = get_db_connection()
+    
+    try:
+        conn.execute('''
+            UPDATE challenges 
+            SET resultado_proposto = NULL, 
+                resultado_proposto_por = NULL, 
+                resultado_proposto_em = NULL
+            WHERE id = ?
+        ''', (challenge_id,))
+        conn.commit()
+        flash('⚠️ Resultado rejeitado. O jogador pode informar novamente.', 'warning')
+    except Exception as e:
+        flash(f'❌ Erro: {str(e)}', 'error')
+    finally:
+        conn.close()
+    
+    return redirect(url_for('resultados_pendentes'))
+
+
 @app.route('/criar-colunas-posicao-desafio')
 def criar_colunas_posicao_desafio():
     """Cria as colunas para armazenar as posições no momento do desafio"""
@@ -9111,6 +9376,76 @@ def get_meus_desafios(player_id):
     return desafios
 
 
+def get_desafios_para_resultado(player_id):
+    """Retorna desafios aceitos do jogador que ainda não têm resultado proposto"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT 
+            c.id,
+            c.challenger_id,
+            c.challenged_id,
+            c.scheduled_date,
+            c.resultado_proposto,
+            c.resultado_proposto_por,
+            challenger.name as challenger_name,
+            challenger.position as challenger_position,
+            challenged.name as challenged_name,
+            challenged.position as challenged_position
+        FROM challenges c
+        JOIN players challenger ON c.challenger_id = challenger.id
+        JOIN players challenged ON c.challenged_id = challenged.id
+        WHERE (c.challenger_id = ? OR c.challenged_id = ?)
+          AND c.status = 'accepted'
+        ORDER BY c.scheduled_date ASC
+    """, (player_id, player_id))
+    
+    desafios = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    
+    return desafios
+
+
+def submeter_resultado_proposto(challenge_id, player_id, resultado):
+    """
+    Salva o resultado proposto pelo jogador para confirmação do admin.
+    resultado: 'challenger_win' ou 'challenged_win'
+    """
+    conn = get_db_connection()
+    try:
+        # Verificar se o desafio existe e o jogador está envolvido
+        challenge = conn.execute('''
+            SELECT id, challenger_id, challenged_id, status
+            FROM challenges WHERE id = ? AND status = 'accepted'
+        ''', (challenge_id,)).fetchone()
+        
+        if not challenge:
+            conn.close()
+            return False, "Desafio não encontrado ou não está aceito."
+        
+        if player_id not in (challenge['challenger_id'], challenge['challenged_id']):
+            conn.close()
+            return False, "Você não está envolvido neste desafio."
+        
+        agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        conn.execute('''
+            UPDATE challenges 
+            SET resultado_proposto = ?,
+                resultado_proposto_por = ?,
+                resultado_proposto_em = ?
+            WHERE id = ?
+        ''', (resultado, player_id, agora, challenge_id))
+        
+        conn.commit()
+        conn.close()
+        return True, "Resultado enviado para confirmação do administrador."
+    except Exception as e:
+        conn.close()
+        return False, f"Erro: {str(e)}"
+
+
 def aceitar_desafio(challenge_id, player_id):
     """Aceita um desafio pendente"""
     conn = get_db_connection()
@@ -9374,6 +9709,119 @@ _Digite *0* para voltar ao menu._"""
                 return f"""❌ *Erro ao criar desafio*
 
 {mensagem_retorno}
+
+_Digite *0* para voltar ao menu._"""
+    
+        # ---------------------------------------------------------
+        # ESTADO: Selecionando desafio para informar resultado
+        # ---------------------------------------------------------
+        elif estado == 'selecionando_desafio_resultado':
+            if msg == '0' or 'cancelar' in msg:
+                clear_chat_state(telefone_normalizado)
+                return "❌ Cancelado.\n\n_Digite *0* para ver o menu._"
+            
+            try:
+                opcao = int(msg)
+                desafios = dados.get('desafios', [])
+                
+                if opcao < 1 or opcao > len(desafios):
+                    return f"⚠️ Opção inválida! Digite de *1* a *{len(desafios)}*."
+                
+                d = desafios[opcao - 1]
+                
+                if d['challenger_id'] == jogador['id']:
+                    oponente_nome = d['challenged_name']
+                else:
+                    oponente_nome = d['challenger_name']
+                
+                set_chat_state(telefone_normalizado, 'informando_resultado', {
+                    'challenge_id': d['id'],
+                    'challenger_id': d['challenger_id'],
+                    'challenged_id': d['challenged_id'],
+                    'oponente_nome': oponente_nome
+                })
+                
+                return f"""📊 *Informar Resultado*
+
+Desafio vs *{oponente_nome}*
+
+Qual foi o resultado?
+
+*[1]* 🏆 Eu venci
+*[2]* 😔 Eu perdi
+
+_Digite *0* para cancelar._"""
+                
+            except ValueError:
+                return "⚠️ Digite apenas o número da opção."
+        
+        # ---------------------------------------------------------
+        # ESTADO: Informando resultado (venci/perdi)
+        # ---------------------------------------------------------
+        elif estado == 'informando_resultado':
+            if msg == '0' or 'cancelar' in msg:
+                clear_chat_state(telefone_normalizado)
+                return "❌ Cancelado.\n\n_Digite *0* para ver o menu._"
+            
+            challenge_id = dados['challenge_id']
+            challenger_id = dados['challenger_id']
+            challenged_id = dados['challenged_id']
+            oponente_nome = dados['oponente_nome']
+            
+            if msg == '1' or 'venci' in msg:
+                # Jogador diz que venceu
+                if jogador['id'] == challenger_id:
+                    resultado = 'challenger_win'
+                else:
+                    resultado = 'challenged_win'
+            elif msg == '2' or 'perdi' in msg:
+                # Jogador diz que perdeu
+                if jogador['id'] == challenger_id:
+                    resultado = 'challenged_win'
+                else:
+                    resultado = 'challenger_win'
+            else:
+                return """⚠️ Opção inválida!
+
+*[1]* 🏆 Eu venci
+*[2]* 😔 Eu perdi
+
+_Digite *0* para cancelar._"""
+            
+            clear_chat_state(telefone_normalizado)
+            
+            sucesso, msg_retorno = submeter_resultado_proposto(challenge_id, jogador['id'], resultado)
+            
+            if sucesso:
+                # Notificar admin no grupo
+                if resultado == 'challenger_win':
+                    vencedor_txt = 'Desafiante'
+                else:
+                    vencedor_txt = 'Desafiado'
+                
+                msg_admin = f"""📊 *RESULTADO INFORMADO*
+
+⚔️ Desafio #{challenge_id}
+Informado por: *{jogador['name']}*
+Resultado: *{jogador['name']}* {'venceu' if (msg == '1' or 'venci' in mensagem.lower()) else 'perdeu'}
+
+⏳ _Aguardando confirmação do administrador._
+
+🔗 Acesse /admin/resultados-pendentes para confirmar."""
+                
+                enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_admin)
+                
+                return f"""✅ *Resultado Enviado!*
+
+Você informou o resultado do desafio vs *{oponente_nome}*.
+
+⏳ O administrador irá confirmar o resultado e o ranking será atualizado.
+
+_Digite *0* para voltar ao menu._"""
+            else:
+                return f"""❌ *Erro ao enviar resultado*
+
+{msg_retorno}
 
 _Digite *0* para voltar ao menu._"""
     
@@ -9666,6 +10114,79 @@ Digite o *número* do oponente (ex: *1*)
 
 _Digite *0* para cancelar._"""
     
+    # COMANDO [8]: Informar resultado
+    if msg == '8' or any(palavra in msg for palavra in ['resultado', 'informar resultado', 'quem ganhou', 'quem venceu']):
+        desafios_aceitos = get_desafios_para_resultado(jogador['id'])
+        
+        if not desafios_aceitos:
+            return """📊 *Informar Resultado*
+
+Você não tem nenhum desafio aceito para informar resultado.
+
+_Digite *0* para voltar ao menu._"""
+        
+        # Verificar se algum já tem resultado proposto
+        sem_resultado = [d for d in desafios_aceitos if not d.get('resultado_proposto')]
+        
+        if not sem_resultado:
+            return """📊 *Informar Resultado*
+
+⏳ Todos os seus desafios já têm resultado informado e estão aguardando confirmação do administrador.
+
+_Digite *0* para voltar ao menu._"""
+        
+        if len(sem_resultado) == 1:
+            d = sem_resultado[0]
+            # Determinar quem é o oponente
+            if d['challenger_id'] == jogador['id']:
+                oponente_nome = d['challenged_name']
+            else:
+                oponente_nome = d['challenger_name']
+            
+            try:
+                data_fmt = datetime.strptime(d['scheduled_date'], '%Y-%m-%d').strftime('%d/%m/%Y')
+            except:
+                data_fmt = d['scheduled_date'] or 'N/A'
+            
+            set_chat_state(telefone_normalizado, 'informando_resultado', {
+                'challenge_id': d['id'],
+                'challenger_id': d['challenger_id'],
+                'challenged_id': d['challenged_id'],
+                'oponente_nome': oponente_nome
+            })
+            
+            return f"""📊 *Informar Resultado*
+
+Desafio vs *{oponente_nome}* ({data_fmt})
+
+Qual foi o resultado?
+
+*[1]* 🏆 Eu venci
+*[2]* 😔 Eu perdi
+
+_Digite *0* para cancelar._"""
+        
+        # Múltiplos desafios aceitos
+        linhas = []
+        for i, d in enumerate(sem_resultado, 1):
+            if d['challenger_id'] == jogador['id']:
+                oponente = d['challenged_name']
+            else:
+                oponente = d['challenger_name']
+            linhas.append(f"   *{i}* - vs {oponente}")
+        lista = "\n".join(linhas)
+        
+        set_chat_state(telefone_normalizado, 'selecionando_desafio_resultado', {
+            'desafios': sem_resultado
+        })
+        
+        return f"""📊 *Informar Resultado*
+
+Selecione o desafio:
+{lista}
+
+_Digite *0* para cancelar._"""
+    
     # MENU PRINCIPAL [0]
     return f"""🏌️ *Liga Olímpica de Golfe*
 
@@ -9682,6 +10203,7 @@ Olá, *{jogador['name']}*!
 *[4]* ✅ Aceitar desafio
 *[5]* ❌ Rejeitar desafio
 *[6]* ⚔️ *Criar desafio*
+*[8]* 📊 Informar resultado
 
 ━━━━━━━━━━━━━━━━━━━━━
 
@@ -11049,6 +11571,7 @@ Olá, *{nome}*!
 *[5]* ❌ Rejeitar desafio
 *[6]* ⚔️ Criar desafio
 *[7]* 📅 Propor novas datas
+*[8]* 📊 Informar resultado
 
 ━━━━━━━━━━━━━━━━━━━━━
 🌐 _Type *EN* for English_
@@ -11071,6 +11594,7 @@ Hello, *{nome}*!
 *[5]* ❌ Reject challenge
 *[6]* ⚔️ Create challenge
 *[7]* 📅 Propose new dates
+*[8]* 📊 Submit result
 
 ━━━━━━━━━━━━━━━━━━━━━
 🌐 _Digite *PT* para Português_
@@ -11376,6 +11900,153 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
                           data1=data1_fmt,
                           data2=data2.strftime('%d/%m/%Y'),
                           status=status_msg)
+        
+        # ---------------------------------------------------------
+        # ESTADO: Selecionando desafio para informar resultado (v2)
+        # ---------------------------------------------------------
+        elif estado == 'selecionando_desafio_resultado':
+            if msg == '0' or 'cancelar' in msg or 'cancel' in msg:
+                clear_chat_state(telefone_normalizado)
+                if idioma == 'pt':
+                    return "❌ Cancelado.\n\n_Digite *0* para ver o menu._"
+                else:
+                    return "❌ Cancelled.\n\n_Type *0* for the menu._"
+            
+            try:
+                opcao = int(msg)
+                desafios = dados.get('desafios', [])
+                
+                if opcao < 1 or opcao > len(desafios):
+                    if idioma == 'pt':
+                        return f"⚠️ Opção inválida! Digite de *1* a *{len(desafios)}*."
+                    else:
+                        return f"⚠️ Invalid option! Enter *1* to *{len(desafios)}*."
+                
+                d = desafios[opcao - 1]
+                
+                if d['challenger_id'] == jogador['id']:
+                    oponente_nome = d['challenged_name']
+                else:
+                    oponente_nome = d['challenger_name']
+                
+                set_chat_state(telefone_normalizado, 'informando_resultado', {
+                    'challenge_id': d['id'],
+                    'challenger_id': d['challenger_id'],
+                    'challenged_id': d['challenged_id'],
+                    'oponente_nome': oponente_nome
+                })
+                
+                if idioma == 'pt':
+                    return f"""📊 *Informar Resultado*
+
+Desafio vs *{oponente_nome}*
+
+Qual foi o resultado?
+
+*[1]* 🏆 Eu venci
+*[2]* 😔 Eu perdi
+
+_Digite *0* para cancelar._"""
+                else:
+                    return f"""📊 *Submit Result*
+
+Challenge vs *{oponente_nome}*
+
+What was the result?
+
+*[1]* 🏆 I won
+*[2]* 😔 I lost
+
+_Type *0* to cancel._"""
+                
+            except ValueError:
+                if idioma == 'pt':
+                    return "⚠️ Digite apenas o número da opção."
+                else:
+                    return "⚠️ Enter only the option number."
+        
+        # ---------------------------------------------------------
+        # ESTADO: Informando resultado venci/perdi (v2)
+        # ---------------------------------------------------------
+        elif estado == 'informando_resultado':
+            if msg == '0' or 'cancelar' in msg or 'cancel' in msg:
+                clear_chat_state(telefone_normalizado)
+                if idioma == 'pt':
+                    return "❌ Cancelado.\n\n_Digite *0* para ver o menu._"
+                else:
+                    return "❌ Cancelled.\n\n_Type *0* for the menu._"
+            
+            challenge_id = dados['challenge_id']
+            challenger_id = dados['challenger_id']
+            challenged_id = dados['challenged_id']
+            oponente_nome = dados['oponente_nome']
+            
+            eu_venci = (msg == '1' or 'venci' in msg or 'won' in msg or 'win' in msg)
+            eu_perdi = (msg == '2' or 'perdi' in msg or 'lost' in msg or 'lose' in msg)
+            
+            if eu_venci:
+                if jogador['id'] == challenger_id:
+                    resultado = 'challenger_win'
+                else:
+                    resultado = 'challenged_win'
+            elif eu_perdi:
+                if jogador['id'] == challenger_id:
+                    resultado = 'challenged_win'
+                else:
+                    resultado = 'challenger_win'
+            else:
+                if idioma == 'pt':
+                    return """⚠️ Opção inválida!
+
+*[1]* 🏆 Eu venci
+*[2]* 😔 Eu perdi
+
+_Digite *0* para cancelar._"""
+                else:
+                    return """⚠️ Invalid option!
+
+*[1]* 🏆 I won
+*[2]* 😔 I lost
+
+_Type *0* to cancel._"""
+            
+            clear_chat_state(telefone_normalizado)
+            
+            sucesso, msg_retorno = submeter_resultado_proposto(challenge_id, jogador['id'], resultado)
+            
+            if sucesso:
+                # Notificar admin no grupo
+                msg_admin = f"""📊 *RESULTADO INFORMADO*
+
+⚔️ Desafio #{challenge_id}
+Informado por: *{jogador['name']}*
+Resultado: *{jogador['name']}* {'venceu' if eu_venci else 'perdeu'}
+
+⏳ _Aguardando confirmação do administrador._"""
+                
+                enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_admin)
+                
+                if idioma == 'pt':
+                    return f"""✅ *Resultado Enviado!*
+
+Você informou o resultado do desafio vs *{oponente_nome}*.
+
+⏳ O administrador irá confirmar o resultado e o ranking será atualizado.
+
+_Digite *0* para voltar ao menu._"""
+                else:
+                    return f"""✅ *Result Submitted!*
+
+You submitted the result for the challenge vs *{oponente_nome}*.
+
+⏳ The admin will confirm and the ranking will be updated.
+
+_Type *0* to return to menu._"""
+            else:
+                if idioma == 'pt':
+                    return f"❌ Erro: {msg_retorno}\n\n_Digite *0* para voltar ao menu._"
+                else:
+                    return f"❌ Error: {msg_retorno}\n\n_Type *0* to return to menu._"
     
     # ---------------------------------------------------------
     # COMANDOS NORMAIS (sem estado pendente)
@@ -11646,6 +12317,111 @@ _Type *0* to return to menu._"""
         
         lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} ({d['challenger_position']}º)" for d in desafios_pendentes])
         return get_msg('propor_lista', idioma, qtd=len(desafios_pendentes), lista=lista)
+
+    # COMANDO [8]: Informar resultado
+    if msg == '8' or any(palavra in msg for palavra in ['resultado', 'informar resultado', 'quem ganhou', 'quem venceu', 'result', 'submit result', 'who won']):
+        desafios_aceitos = get_desafios_para_resultado(jogador['id'])
+        
+        if not desafios_aceitos:
+            if idioma == 'pt':
+                return """📊 *Informar Resultado*
+
+Você não tem nenhum desafio aceito para informar resultado.
+
+_Digite *0* para voltar ao menu._"""
+            else:
+                return """📊 *Submit Result*
+
+You have no accepted challenges to submit a result for.
+
+_Type *0* to return to menu._"""
+        
+        sem_resultado = [d for d in desafios_aceitos if not d.get('resultado_proposto')]
+        
+        if not sem_resultado:
+            if idioma == 'pt':
+                return """📊 *Informar Resultado*
+
+⏳ Todos os seus desafios já têm resultado informado e estão aguardando confirmação do administrador.
+
+_Digite *0* para voltar ao menu._"""
+            else:
+                return """📊 *Submit Result*
+
+⏳ All your challenges already have a submitted result awaiting admin confirmation.
+
+_Type *0* to return to menu._"""
+        
+        if len(sem_resultado) == 1:
+            d = sem_resultado[0]
+            if d['challenger_id'] == jogador['id']:
+                oponente_nome = d['challenged_name']
+            else:
+                oponente_nome = d['challenger_name']
+            
+            try:
+                data_fmt = datetime.strptime(d['scheduled_date'], '%Y-%m-%d').strftime('%d/%m/%Y')
+            except:
+                data_fmt = d['scheduled_date'] or 'N/A'
+            
+            set_chat_state(telefone_normalizado, 'informando_resultado', {
+                'challenge_id': d['id'],
+                'challenger_id': d['challenger_id'],
+                'challenged_id': d['challenged_id'],
+                'oponente_nome': oponente_nome
+            })
+            
+            if idioma == 'pt':
+                return f"""📊 *Informar Resultado*
+
+Desafio vs *{oponente_nome}* ({data_fmt})
+
+Qual foi o resultado?
+
+*[1]* 🏆 Eu venci
+*[2]* 😔 Eu perdi
+
+_Digite *0* para cancelar._"""
+            else:
+                return f"""📊 *Submit Result*
+
+Challenge vs *{oponente_nome}* ({data_fmt})
+
+What was the result?
+
+*[1]* 🏆 I won
+*[2]* 😔 I lost
+
+_Type *0* to cancel._"""
+        
+        # Múltiplos desafios
+        linhas = []
+        for i, d in enumerate(sem_resultado, 1):
+            if d['challenger_id'] == jogador['id']:
+                oponente = d['challenged_name']
+            else:
+                oponente = d['challenger_name']
+            linhas.append(f"   *{i}* - vs {oponente}")
+        lista_desafios = "\n".join(linhas)
+        
+        set_chat_state(telefone_normalizado, 'selecionando_desafio_resultado', {
+            'desafios': sem_resultado
+        })
+        
+        if idioma == 'pt':
+            return f"""📊 *Informar Resultado*
+
+Selecione o desafio:
+{lista_desafios}
+
+_Digite *0* para cancelar._"""
+        else:
+            return f"""📊 *Submit Result*
+
+Select the challenge:
+{lista_desafios}
+
+_Type *0* to cancel._"""
 
 
     # ---------------------------------------------------------

@@ -22,10 +22,27 @@
             </div>
         </div>
     </div>
+
+    <!-- ALERTA DE RESULTADOS PENDENTES -->
+    {% if stats.pending_results and stats.pending_results > 0 %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-warning shadow-sm d-flex justify-content-between align-items-center mb-0">
+                <div>
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>{{ stats.pending_results }}</strong> resultado(s) de desafio aguardando sua confirmação!
+                </div>
+                <a href="{{ url_for('resultados_pendentes') }}" class="btn btn-warning">
+                    <i class="fas fa-clipboard-check me-1"></i>Revisar Agora
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     
     <!-- Stats Cards -->
     <div class="row mb-4">
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
             <div class="card shadow-sm">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
@@ -44,7 +61,7 @@
             </div>
         </div>
         
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
             <div class="card shadow-sm">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
@@ -62,8 +79,35 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-md-3 mb-3">
+            <div class="card shadow-sm {% if stats.pending_results and stats.pending_results > 0 %}border-warning{% endif %}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted">Resultados Pendentes</h6>
+                            <h3 class="mb-0 {% if stats.pending_results and stats.pending_results > 0 %}text-warning{% endif %}">
+                                {{ stats.pending_results or 0 }}
+                            </h3>
+                        </div>
+                        <div class="bg-{% if stats.pending_results and stats.pending_results > 0 %}warning{% else %}secondary{% endif %} rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px">
+                            <i class="fas fa-clipboard-check fa-2x text-white"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-light">
+                    <a href="{{ url_for('resultados_pendentes') }}" class="text-decoration-none">
+                        {% if stats.pending_results and stats.pending_results > 0 %}
+                        <strong>Revisar resultados</strong>
+                        {% else %}
+                        Nenhum pendente
+                        {% endif %}
+                    </a>
+                </div>
+            </div>
+        </div>
         
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
             <div class="card shadow-sm">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
@@ -132,17 +176,25 @@
                             </a>
                         </div>
                         <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('resultados_pendentes') }}" class="btn btn-{% if stats.pending_results and stats.pending_results > 0 %}warning{% else %}outline-primary{% endif %} d-block">
+                                <i class="fas fa-clipboard-check fa-fw"></i> Resultados Pendentes
+                                {% if stats.pending_results and stats.pending_results > 0 %}
+                                <span class="badge bg-dark">{{ stats.pending_results }}</span>
+                                {% endif %}
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
                             <a href="{{ url_for('fix_pyramid') }}" class="btn btn-outline-primary d-block">
                                 <i class="fas fa-wrench fa-fw"></i> Corrigir Pirâmide
                             </a>
                         </div>
+                    </div>
+                    <div class="row mt-2">
                         <div class="col-md-3 mb-2">
                             <a href="{{ url_for('record_daily_rankings_route') }}" class="btn btn-outline-primary d-block">
                                 <i class="fas fa-save fa-fw"></i> Registrar Posições
                             </a>
                         </div>
-                    </div>
-                    <div class="row mt-2">
                         <div class="col-md-3 mb-2">
                             <a href="{{ url_for('admin_challenge_logs') }}" class="btn btn-outline-primary d-block">
                                 <i class="fas fa-history fa-fw"></i> Logs de Desafios
@@ -158,13 +210,13 @@
                                 <i class="fas fa-trophy fa-fw"></i> Submissão de Resultados
                             </a>
                         </div>
+                    </div>
+                    <div class="row mt-2">
                         <div class="col-md-3 mb-2">
                             <a href="{{ url_for('list_admins') }}" class="btn btn-outline-primary d-block">
                                 <i class="fas fa-users-cog fa-fw"></i> Listar Admins
                             </a>
                         </div>
-                    </div>
-                    <div class="row mt-2">
                         <div class="col-md-3 mb-2">
                             <a href="{{ url_for('create_admin') }}" class="btn btn-outline-success d-block">
                                 <i class="fas fa-user-plus fa-fw"></i> Novo Admin
@@ -181,6 +233,8 @@
                                 <i class="fas fa-file-excel fa-fw"></i> Baixar Excel
                             </a>
                         </div>
+                    </div>
+                    <div class="row mt-2">
                         <div class="col-md-3 mb-2">
                             <a href="{{ url_for('reset_challenges') }}" class="btn btn-danger d-block">
                                 <i class="fas fa-refresh fa-fw"></i> Nova Etapa
