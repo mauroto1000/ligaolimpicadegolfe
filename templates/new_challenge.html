@@ -121,18 +121,23 @@
                 </div>
             </div>
 
-            <!-- Tabela de disponibilidade dos possíveis desafiados -->
+            <!-- Disponibilidade dos possíveis desafiados -->
             <div class="mt-4" id="availability-table-section" style="display:none;">
                 <h4>📅 Disponibilidade dos Jogadores</h4>
-                <div class="table-responsive">
+
+                <!-- Desktop: tabela por data -->
+                <div class="table-responsive availability-desktop">
                     <table class="table table-bordered text-center align-top" id="availability-table">
                         <thead class="table-light">
                             <tr id="availability-header-row"></tr>
                         </thead>
                         <tbody id="availability-body"></tbody>
                     </table>
+                    <small class="text-muted">🔵 Coluna destacada = data selecionada</small>
                 </div>
-                <small class="text-muted">🔵 Coluna destacada = data selecionada &nbsp;|&nbsp; <span class="text-danger fw-bold">vermelho</span> = jogador indisponível nesta data</small>
+
+                <!-- Mobile: cards por jogador -->
+                <div class="availability-mobile" id="availability-cards"></div>
             </div>
 
             <div class="mt-4">
@@ -396,6 +401,7 @@
             // Número de linhas = máximo de jogadores em qualquer coluna
             const numRows = Math.max(...columns.map(c => c.length), 1);
 
+            // --- Tabela desktop ---
             tbody.innerHTML = '';
             for (let r = 0; r < numRows; r++) {
                 const tr = document.createElement('tr');
@@ -407,13 +413,53 @@
                         td.textContent = col[r].name + col[r].periodo;
                         if (isSelected) td.style.fontWeight = 'bold';
                     }
-                    if (day.iso === selectedDate) {
-                        td.style.background = '#e8f0fe';
-                    }
+                    if (day.iso === selectedDate) td.style.background = '#e8f0fe';
                     tr.appendChild(td);
                 });
                 tbody.appendChild(tr);
             }
+
+            // --- Cards mobile (um card por jogador) ---
+            const cardsContainer = document.getElementById('availability-cards');
+            cardsContainer.innerHTML = '';
+            const selectedPlayerId = parseInt(challengedSelect.value) || null;
+
+            players.forEach(p => {
+                const isSelected = p.id === selectedPlayerId;
+                const card = document.createElement('div');
+                card.className = 'avail-card' + (isSelected ? ' avail-card-selected' : '');
+
+                const title = document.createElement('div');
+                title.className = 'avail-card-name';
+                title.textContent = p.name;
+                card.appendChild(title);
+
+                const daysList = document.createElement('div');
+                daysList.className = 'avail-card-days';
+
+                days.forEach(day => {
+                    const disp = playerAvailability[p.id] || {};
+                    const d = disp[day.key] || { manha: true, tarde: true };
+                    const available = d.manha || d.tarde;
+                    const isSelectedDate = day.iso === selectedDate;
+
+                    const chip = document.createElement('span');
+                    let periodo = '';
+                    if (available) {
+                        if (d.manha && !d.tarde) periodo = ' M';
+                        else if (!d.manha && d.tarde) periodo = ' T';
+                        chip.className = 'avail-chip avail-chip-ok' + (isSelectedDate ? ' avail-chip-highlight' : '');
+                        chip.textContent = `${day.dd}/${day.mm} ${day.name}${periodo}`;
+                    } else {
+                        chip.className = 'avail-chip avail-chip-off' + (isSelectedDate ? ' avail-chip-highlight-off' : '');
+                        chip.textContent = `${day.dd}/${day.mm} ${day.name}`;
+                    }
+                    daysList.appendChild(chip);
+                });
+
+                card.appendChild(daysList);
+                cardsContainer.appendChild(card);
+            });
 
             section.style.display = 'block';
         }
@@ -538,5 +584,48 @@
 #no-eligible-players {
     border-left: 4px solid #ffc107;
 }
+
+/* Alternância desktop/mobile para disponibilidade */
+.availability-desktop { display: block; }
+.availability-mobile  { display: none;  }
+
+@media (max-width: 640px) {
+    .availability-desktop { display: none;  }
+    .availability-mobile  { display: block; }
+}
+
+/* Cards mobile */
+.avail-card {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    background: #fff;
+}
+.avail-card-selected {
+    border-color: #0d6efd;
+    background: #f0f5ff;
+}
+.avail-card-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 6px;
+}
+.avail-card-days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+.avail-chip {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+.avail-chip-ok          { background: #d1e7dd; color: #0a3622; }
+.avail-chip-off         { background: #f8d7da; color: #58151c; text-decoration: line-through; }
+.avail-chip-highlight   { background: #0d6efd; color: #fff; font-weight: bold; }
+.avail-chip-highlight-off { background: #dc3545; color: #fff; font-weight: bold; text-decoration: line-through; }
 </style>
 {% endblock %}
