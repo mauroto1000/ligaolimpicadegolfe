@@ -286,55 +286,47 @@
                 <h5 class="mb-0"><i class="fas fa-reply"></i> Responder ao Desafio</h5>
             </div>
             <div class="card-body">
-                {% if not players_can_submit and not session.get('is_admin', False) %}
-                    <div class="alert alert-info mb-0">
-                        <i class="fas fa-info-circle"></i> 
-                        <strong>Atenção:</strong> A resposta a desafios está temporariamente desabilitada. 
-                        Entre em contato com um administrador para responder a este desafio.
-                    </div>
-                {% else %}
-                    <p>Você foi desafiado por <strong>{{ challenge.challenger_name }}</strong>. Selecione uma das opções abaixo:</p>
-                    
-                    <div class="row mt-3">
-                        <!-- Aceitar -->
-                        <div class="col-md-4 mb-2">
-                            <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post">
-                                <input type="hidden" name="status" value="accepted">
-                                <button type="submit" class="btn btn-success w-100">
-                                    <i class="fas fa-check"></i> Aceitar Desafio
-                                </button>
-                            </form>
-                        </div>
-                        
-                        <!-- Rejeitar (WO) -->
-                        <div class="col-md-4 mb-2">
-                            <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post" 
-                                  onsubmit="return confirm('Tem certeza que deseja rejeitar o desafio?\n\nIsto será considerado uma DERROTA por WO (ausência) para você.');">
-                                <input type="hidden" name="status" value="completed">
-                                <input type="hidden" name="result" value="challenger_win">
-                                <input type="hidden" name="result_type" value="wo_challenged">
-                                <button type="submit" class="btn btn-danger w-100">
-                                    <i class="fas fa-times"></i> Rejeitar Desafio
-                                </button>
-                            </form>
-                        </div>
-                        
-                        <!-- Propor Nova Data -->
-                        <div class="col-md-4 mb-2">
-                            <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#proposeDateModal">
-                                <i class="fas fa-calendar-alt"></i> Propor Nova Data
+                <p>Você foi desafiado por <strong>{{ challenge.challenger_name }}</strong>. Selecione uma das opções abaixo:</p>
+
+                <div class="row mt-3">
+                    <!-- Aceitar -->
+                    <div class="col-md-4 mb-2">
+                        <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post">
+                            <input type="hidden" name="status" value="accepted">
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="fas fa-check"></i> Aceitar Desafio
                             </button>
-                        </div>
+                        </form>
                     </div>
-                    
-                    <div class="alert alert-info mt-3 mb-0">
-                        <small>
-                            <i class="fas fa-info-circle"></i> 
-                            <strong>Atenção:</strong> Se você rejeitar o desafio, será considerada uma derrota por WO (ausência) 
-                            e você perderá sua posição no ranking.
-                        </small>
+
+                    <!-- Propor Nova Data -->
+                    <div class="col-md-4 mb-2">
+                        <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#proposeDateModal">
+                            <i class="fas fa-calendar-alt"></i> Propor Nova Data
+                        </button>
                     </div>
-                {% endif %}
+
+                    <!-- Rejeitar (WO) -->
+                    <div class="col-md-4 mb-2">
+                        <form action="{{ url_for('update_challenge', challenge_id=challenge.id) }}" method="post"
+                              onsubmit="return confirm('Tem certeza que deseja rejeitar o desafio?\n\nIsto será considerado uma DERROTA por WO (ausência) para você.');">
+                            <input type="hidden" name="status" value="completed">
+                            <input type="hidden" name="result" value="challenger_win">
+                            <input type="hidden" name="result_type" value="wo_challenged">
+                            <button type="submit" class="btn btn-outline-danger w-100">
+                                <i class="fas fa-times"></i> Rejeitar Desafio
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning mt-3 mb-0">
+                    <small>
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Atenção:</strong> Se você rejeitar o desafio, será considerada uma derrota por WO (ausência)
+                        e você perderá sua posição no ranking.
+                    </small>
+                </div>
             </div>
         </div>
         
