@@ -8149,6 +8149,68 @@ def get_disponibilidade(player):
     return json.loads(DISPONIBILIDADE_DEFAULT)
 
 
+# Mapeamento de dia da semana (Python weekday) para chave de disponibilidade
+_DIA_SEMANA_MAP = {
+    6: ('dom', 'Dom'), 0: ('seg', 'Seg'), 1: ('ter', 'Ter'),
+    2: ('qua', 'Qua'), 3: ('qui', 'Qui'), 4: ('sex', 'Sex'), 5: ('sab', 'Sáb')
+}
+
+
+def get_disponibilidade_texto(player_id_or_disp, idioma='pt'):
+    """
+    Retorna texto resumido da disponibilidade nos próximos 7 dias.
+    Aceita player_id (int) ou dict de disponibilidade.
+    
+    Exemplo de saída:
+        "Seg(M), Ter(M/T), Qua(T), Sex(M/T)"
+    """
+    if isinstance(player_id_or_disp, dict):
+        disp = player_id_or_disp
+    else:
+        conn = get_db_connection()
+        player = conn.execute('SELECT disponibilidade FROM players WHERE id = ?', 
+                             (player_id_or_disp,)).fetchone()
+        conn.close()
+        if player:
+            try:
+                disp = json.loads(player['disponibilidade']) if player['disponibilidade'] else json.loads(DISPONIBILIDADE_DEFAULT)
+            except:
+                disp = json.loads(DISPONIBILIDADE_DEFAULT)
+        else:
+            disp = json.loads(DISPONIBILIDADE_DEFAULT)
+    
+    hoje = datetime.now().date()
+    partes = []
+    
+    for i in range(7):
+        dia = hoje + timedelta(days=i)
+        weekday = dia.weekday()  # 0=seg, 6=dom
+        chave, nome = _DIA_SEMANA_MAP.get(weekday, ('seg', 'Seg'))
+        
+        dia_disp = disp.get(chave, {"manha": True, "tarde": True})
+        manha = dia_disp.get('manha', True)
+        tarde = dia_disp.get('tarde', True)
+        
+        if manha and tarde:
+            partes.append(f"{dia.strftime('%d/%m')}({nome})")
+        elif manha:
+            if idioma == 'pt':
+                partes.append(f"{dia.strftime('%d/%m')}({nome}-M)")
+            else:
+                partes.append(f"{dia.strftime('%d/%m')}({nome}-AM)")
+        elif tarde:
+            if idioma == 'pt':
+                partes.append(f"{dia.strftime('%d/%m')}({nome}-T)")
+            else:
+                partes.append(f"{dia.strftime('%d/%m')}({nome}-PM)")
+        # Se nem manhã nem tarde: não inclui o dia
+    
+    if not partes:
+        return "❌ _Sem disponibilidade_" if idioma == 'pt' else "❌ _No availability_"
+    
+    return ", ".join(partes)
+
+
 @app.route('/criar-coluna-disponibilidade')
 @login_required
 def criar_coluna_disponibilidade():
@@ -9248,9 +9310,11 @@ def get_possiveis_desafiados(player_id):
     
     # Buscar possíveis desafiados (sem VIPs)
     cursor.execute("""
-        SELECT id, name, position
+        SELECT id, name, position, disponibilidade
         FROM players
-        WHERE position >= ?
+        WHERE active = 1
+          AND position > 0
+          AND position >= ?
           AND position < ?
           AND (sexo = ? OR sexo IS NULL OR sexo = '')
           AND (bloqueado = 0 OR bloqueado IS NULL)
@@ -9264,6 +9328,12 @@ def get_possiveis_desafiados(player_id):
         d = dict(row)
         # Usar posição visual
         d['position'] = posicao_visual.get(d['id'], d['position'])
+        # Gerar texto de disponibilidade
+        try:
+            disp = json.loads(d['disponibilidade']) if d.get('disponibilidade') else json.loads(DISPONIBILIDADE_DEFAULT)
+        except:
+            disp = json.loads(DISPONIBILIDADE_DEFAULT)
+        d['disp_texto'] = get_disponibilidade_texto(disp)
         desafiados.append(d)
     
     conn.close()
@@ -9856,14 +9926,17 @@ _Digite *0* para voltar ao menu._"""
         
         linhas = []
         for p in possiveis:
+            disp = p.get('disp_texto', '')
             if p.get('tem_desafio'):
                 linhas.append(f"   {p['position']}º - {p['name']} ⚠️ _desafio em andamento_")
             elif p.get('desafio_recente'):
                 linhas.append(f"   {p['position']}º - {p['name']} 🕐 _aguardar 7 dias_")
             else:
                 linhas.append(f"   {p['position']}º - {p['name']} ✅")
+            if disp:
+                linhas.append(f"      📅 {disp}")
         lista = "\n".join(linhas)
-        
+
         return f"""🎯 *Possíveis Desafiados*
 
 Olá, {jogador['name']}!
@@ -10083,7 +10156,10 @@ _Digite *0* para voltar ao menu._"""
         
         linhas = []
         for i, p in enumerate(disponiveis, 1):
+            disp = p.get('disp_texto', '')
             linhas.append(f"   *{i}* - {p['name']} ({p['position']}º)")
+            if disp:
+                linhas.append(f"      📅 {disp}")
         lista = "\n".join(linhas)
         
         # Info sobre indisponíveis (se houver)
@@ -12070,14 +12146,17 @@ _Type *0* to return to menu._"""
         
         linhas = []
         for p in possiveis:
+            disp = p.get('disp_texto', '')
             if p.get('tem_desafio'):
                 linhas.append(f"   {p['position']}º - {p['name']} ⚠️ _desafio em andamento_")
             elif p.get('desafio_recente'):
                 linhas.append(f"   {p['position']}º - {p['name']} 🕐 _aguardar 7 dias_")
             else:
                 linhas.append(f"   {p['position']}º - {p['name']} ✅")
+            if disp:
+                linhas.append(f"      📅 {disp}")
         lista = "\n".join(linhas)
-        
+
         return get_msg('possiveis_desafiados', idioma,
                       nome=jogador['name'],
                       posicao=jogador['posicao_ranking'],
@@ -12269,7 +12348,10 @@ _Type *0* to return to menu._"""
         
         linhas = []
         for i, p in enumerate(disponiveis, 1):
+            disp = p.get('disp_texto', '')
             linhas.append(f"   *{i}* - {p['name']} ({p['position']}º)")
+            if disp:
+                linhas.append(f"      📅 {disp}")
         lista = "\n".join(linhas)
         
         # Info sobre indisponíveis
