@@ -8406,95 +8406,81 @@ def resultados_pendentes():
         ORDER BY c.resultado_proposto_em DESC
     ''').fetchall()
     
+    # Pré-processar datas para o template
+    resultados = []
+    for p in pendentes:
+        row = dict(p)
+        try:
+            row['data_fmt'] = datetime.strptime(p['scheduled_date'], '%Y-%m-%d').strftime('%d/%m/%Y')
+        except Exception:
+            row['data_fmt'] = p['scheduled_date'] or 'N/A'
+        try:
+            row['proposto_em_fmt'] = datetime.strptime(p['resultado_proposto_em'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y %H:%M')
+        except Exception:
+            row['proposto_em_fmt'] = p['resultado_proposto_em'] or ''
+        row['vencedor'] = p['challenger_name'] if p['resultado_proposto'] == 'challenger_win' else p['challenged_name']
+        row['perdedor'] = p['challenged_name'] if p['resultado_proposto'] == 'challenger_win' else p['challenger_name']
+        resultados.append(row)
+
     conn.close()
-    
-    html = """
-    {% extends 'base.html' %}
-    {% block title %}Resultados Pendentes{% endblock %}
-    {% block content %}
-    <div class="container">
-        <h2 class="mb-4"><i class="fas fa-clipboard-check me-2"></i>Resultados Pendentes de Confirmação</h2>
-    """
-    
-    if not pendentes:
-        html += '<div class="alert alert-info">Nenhum resultado pendente de confirmação.</div>'
+
+    return render_template('resultados_pendentes.html', resultados=resultados)
+
+
+@app.route('/submit_result/<int:challenge_id>', methods=['POST'])
+@login_required
+def submit_result(challenge_id):
+    """Jogador submete resultado para confirmação do admin."""
+    if session.get('is_admin'):
+        flash('Administradores devem usar o painel admin para registrar resultados.', 'warning')
+        return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+
+    conn = get_db_connection()
+
+    # Verificar se submissão por jogadores está habilitada
+    setting = conn.execute("SELECT value FROM system_settings WHERE key = ?",
+                           ('players_can_submit_results',)).fetchone()
+    players_can_submit = setting and setting['value'] == 'true'
+    if not players_can_submit:
+        conn.close()
+        flash('A submissão de resultados por jogadores está desabilitada.', 'error')
+        return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+
+    challenge = conn.execute('''
+        SELECT id, challenger_id, challenged_id, status, resultado_proposto
+        FROM challenges WHERE id = ?
+    ''', (challenge_id,)).fetchone()
+    conn.close()
+
+    if not challenge:
+        flash('Desafio não encontrado.', 'error')
+        return redirect(url_for('dashboard'))
+
+    player_id = session['user_id']
+    if player_id not in (challenge['challenger_id'], challenge['challenged_id']):
+        flash('Você não é participante deste desafio.', 'error')
+        return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+
+    if challenge['status'] != 'accepted':
+        flash('Só é possível submeter resultado de desafios aceitos.', 'error')
+        return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+
+    if challenge['resultado_proposto']:
+        flash('Já existe um resultado aguardando confirmação do administrador.', 'warning')
+        return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+
+    resultado = request.form.get('resultado')
+    if resultado not in ('challenger_win', 'challenged_win'):
+        flash('Resultado inválido.', 'error')
+        return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+
+    sucesso, msg = submeter_resultado_proposto(challenge_id, player_id, resultado)
+    if sucesso:
+        flash('✅ Resultado enviado! Aguardando confirmação do administrador.', 'success')
     else:
-        html += f'<div class="alert alert-warning"><strong>{len(pendentes)}</strong> resultado(s) aguardando confirmação.</div>'
-        
-        for p in pendentes:
-            # Determinar quem venceu segundo a proposta
-            if p['resultado_proposto'] == 'challenger_win':
-                vencedor = p['challenger_name']
-                perdedor = p['challenged_name']
-            else:
-                vencedor = p['challenged_name']
-                perdedor = p['challenger_name']
-            
-            # Formatar data
-            try:
-                data_obj = datetime.strptime(p['scheduled_date'], '%Y-%m-%d')
-                data_fmt = data_obj.strftime('%d/%m/%Y')
-            except:
-                data_fmt = p['scheduled_date'] or 'N/A'
-            
-            # Formatar timestamp
-            proposto_em = ''
-            if p['resultado_proposto_em']:
-                try:
-                    dt = datetime.strptime(p['resultado_proposto_em'], '%Y-%m-%d %H:%M:%S')
-                    proposto_em = dt.strftime('%d/%m/%Y %H:%M')
-                except:
-                    proposto_em = p['resultado_proposto_em']
-            
-            html += f"""
-            <div class="card mb-3 border-warning">
-                <div class="card-header bg-warning text-dark">
-                    <strong>Desafio #{p['id']}</strong> — {data_fmt}
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong>Desafiante:</strong> {p['challenger_name']} (#{p['challenger_position']})</p>
-                            <p><strong>Desafiado:</strong> {p['challenged_name']} (#{p['challenged_position']})</p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong>Resultado proposto:</strong></p>
-                            <p class="fs-5">🏆 <strong>{vencedor}</strong> venceu</p>
-                            <p class="text-muted small">
-                                Informado por: {p['proposto_por_nome'] or 'N/A'}<br>
-                                Em: {proposto_em}
-                            </p>
-                        </div>
-                    </div>
-                    <div class="d-flex gap-2 mt-2">
-                        <form action="/admin/aprovar-resultado/{p['id']}" method="POST" class="d-inline">
-                            <button type="submit" class="btn btn-success">
-                                <i class="fas fa-check me-1"></i>Confirmar Resultado
-                            </button>
-                        </form>
-                        <form action="/admin/rejeitar-resultado/{p['id']}" method="POST" class="d-inline">
-                            <button type="submit" class="btn btn-danger">
-                                <i class="fas fa-times me-1"></i>Rejeitar
-                            </button>
-                        </form>
-                        <a href="/challenge_detail/{p['id']}" class="btn btn-outline-primary">
-                            <i class="fas fa-eye me-1"></i>Ver Desafio
-                        </a>
-                    </div>
-                </div>
-            </div>"""
-    
-    html += """
-        <a href="/admin" class="btn btn-outline-secondary mt-3">
-            <i class="fas fa-arrow-left me-1"></i>Voltar ao Admin
-        </a>
-    </div>
-    {% endblock %}
-    """
-    
-    # Render from string
-    from flask import render_template_string
-    return render_template_string(html)
+        flash(f'❌ {msg}', 'error')
+
+    return redirect(url_for('challenge_detail', challenge_id=challenge_id))
 
 
 @app.route('/admin/aprovar-resultado/<int:challenge_id>', methods=['POST'])

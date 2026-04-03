@@ -378,18 +378,77 @@
         {% endif %}
         
         <!-- ============================================================ -->
-        <!-- INFORMATIVO: Desafio aceito mas jogadores não podem submeter -->
+        <!-- SUBMISSÃO DE RESULTADO PELO JOGADOR -->
         <!-- ============================================================ -->
-        {% if challenge.status == 'accepted' and not players_can_submit and not session.get('is_admin', False) %}
+        {% if challenge.status == 'accepted' and 'user_id' in session and not session.get('is_admin', False) %}
+            {% set is_challenger = challenge.challenger_id|int == session.user_id|int %}
+            {% set is_challenged = challenge.challenged_id|int == session.user_id|int %}
             {% if is_challenger or is_challenged %}
-            <div class="alert alert-info mt-4">
-                <i class="fas fa-info-circle"></i> 
-                <strong>Informação:</strong> A submissão de resultados por jogadores está temporariamente desabilitada. 
-                Quando o jogo for realizado, entre em contato com um administrador para registrar o resultado.
-            </div>
+
+            {% if challenge.resultado_proposto %}
+                <!-- Resultado já enviado, aguardando admin -->
+                {% if challenge.resultado_proposto == 'challenger_win' %}
+                    {% set vencedor_proposto = challenge.challenger_name %}
+                {% else %}
+                    {% set vencedor_proposto = challenge.challenged_name %}
+                {% endif %}
+                <div class="card mt-4 border-info">
+                    <div class="card-header bg-info text-white">
+                        <i class="fas fa-hourglass-half"></i> Resultado Aguardando Confirmação
+                    </div>
+                    <div class="card-body text-center py-4">
+                        <p class="fs-5 mb-1"><i class="fas fa-trophy text-warning"></i> <strong>{{ vencedor_proposto }}</strong> venceu</p>
+                        <p class="text-muted small mb-0">Aguardando confirmação do administrador.</p>
+                    </div>
+                </div>
+
+            {% elif players_can_submit %}
+                <!-- Formulário de submissão -->
+                <div class="card mt-4 border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <i class="fas fa-flag-checkered"></i> Informar Resultado
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">Quem venceu o jogo? O resultado será confirmado pelo administrador antes de atualizar o ranking.</p>
+                        <div class="result-options">
+                            <form action="{{ url_for('submit_result', challenge_id=challenge.id) }}" method="POST"
+                                  onsubmit="return confirm('Confirmar vitória de {{ challenge.challenger_name }}?');">
+                                <input type="hidden" name="resultado" value="challenger_win">
+                                <button type="submit" class="result-btn result-btn-challenger">
+                                    <i class="fas fa-trophy"></i>
+                                    <span class="result-btn-label">{{ challenge.challenger_name }}</span>
+                                    <span class="result-btn-sub">Desafiante</span>
+                                </button>
+                            </form>
+                            <form action="{{ url_for('submit_result', challenge_id=challenge.id) }}" method="POST"
+                                  onsubmit="return confirm('Confirmar vitória de {{ challenge.challenged_name }}?');">
+                                <input type="hidden" name="resultado" value="challenged_win">
+                                <button type="submit" class="result-btn result-btn-challenged">
+                                    <i class="fas fa-trophy"></i>
+                                    <span class="result-btn-label">{{ challenge.challenged_name }}</span>
+                                    <span class="result-btn-sub">Desafiado</span>
+                                </button>
+                            </form>
+                        </div>
+                        <p class="text-muted small mt-3 mb-0">
+                            <i class="fas fa-info-circle"></i>
+                            O ranking só será atualizado após confirmação do administrador.
+                        </p>
+                    </div>
+                </div>
+
+            {% else %}
+                <!-- Submissão desabilitada -->
+                <div class="alert alert-info mt-4">
+                    <i class="fas fa-info-circle"></i>
+                    A submissão de resultados por jogadores está temporariamente desabilitada.
+                    Entre em contato com um administrador para registrar o resultado.
+                </div>
+            {% endif %}
+
             {% endif %}
         {% endif %}
-        
+
         <!-- Botão Voltar -->
         <div class="mt-4">
             <a href="{{ url_for('challenges_calendar') }}" class="btn btn-secondary">
@@ -446,6 +505,64 @@
     </div>
 </div>
 {% endif %}
+
+<style>
+.result-options {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.result-btn {
+    flex: 1;
+    min-width: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .3rem;
+    padding: 1.1rem .75rem;
+    border: 2px solid transparent;
+    border-radius: 10px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: transform .1s, box-shadow .1s;
+}
+
+.result-btn:active { transform: scale(.97); }
+
+.result-btn-challenger {
+    background: #cfe2ff;
+    border-color: #0d6efd;
+    color: #084298;
+}
+
+.result-btn-challenger:hover {
+    background: #0d6efd;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(13,110,253,.3);
+}
+
+.result-btn-challenged {
+    background: #fff3cd;
+    border-color: #ffc107;
+    color: #664d03;
+}
+
+.result-btn-challenged:hover {
+    background: #ffc107;
+    color: #000;
+    box-shadow: 0 4px 12px rgba(255,193,7,.3);
+}
+
+.result-btn .fas { font-size: 1.4rem; }
+.result-btn-label { font-weight: 700; font-size: 1rem; }
+.result-btn-sub   { font-size: .75rem; opacity: .75; }
+
+@media (max-width: 480px) {
+    .result-btn { min-width: 120px; padding: .9rem .5rem; }
+    .result-btn-label { font-size: .9rem; }
+}
+</style>
 
 <!-- ============================================================ -->
 <!-- JAVASCRIPT -->

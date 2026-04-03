@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+
+{% block title %}Resultados Pendentes{% endblock %}
+
+{% block content %}
+<div class="rp-container">
+
+    <div class="rp-header">
+        <h2><i class="fas fa-clipboard-check"></i> Resultados Pendentes</h2>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left"></i> Admin
+        </a>
+    </div>
+
+    {% if not resultados %}
+        <div class="alert alert-info mt-3">
+            <i class="fas fa-check-circle me-1"></i> Nenhum resultado pendente de confirmação.
+        </div>
+    {% else %}
+        <div class="alert alert-warning mt-3">
+            <i class="fas fa-exclamation-triangle me-1"></i>
+            <strong>{{ resultados|length }}</strong> resultado(s) aguardando confirmação.
+        </div>
+
+        {% for r in resultados %}
+        <div class="rp-card">
+            <div class="rp-card-header">
+                <span class="rp-card-id">Desafio #{{ r.id }}</span>
+                <span class="rp-card-date"><i class="fas fa-calendar me-1"></i>{{ r.data_fmt }}</span>
+            </div>
+
+            <div class="rp-card-body">
+                <!-- Confronto -->
+                <div class="rp-confronto">
+                    <div class="rp-player rp-challenger">
+                        <span class="rp-label">Desafiante</span>
+                        <span class="rp-name">{{ r.challenger_name }}</span>
+                        <span class="rp-pos">#{{ r.challenger_position }}</span>
+                    </div>
+                    <div class="rp-vs">VS</div>
+                    <div class="rp-player rp-challenged">
+                        <span class="rp-label">Desafiado</span>
+                        <span class="rp-name">{{ r.challenged_name }}</span>
+                        <span class="rp-pos">#{{ r.challenged_position }}</span>
+                    </div>
+                </div>
+
+                <!-- Resultado proposto -->
+                <div class="rp-resultado">
+                    <div class="rp-resultado-titulo">Resultado proposto</div>
+                    <div class="rp-resultado-vencedor">
+                        <i class="fas fa-trophy"></i> <strong>{{ r.vencedor }}</strong> venceu
+                    </div>
+                    <div class="rp-resultado-meta">
+                        Informado por <strong>{{ r.proposto_por_nome or 'N/A' }}</strong>
+                        em {{ r.proposto_em_fmt }}
+                    </div>
+                </div>
+
+                <!-- Ações -->
+                <div class="rp-acoes">
+                    <form action="{{ url_for('aprovar_resultado', challenge_id=r.id) }}" method="POST"
+                          onsubmit="return confirm('Confirmar vitória de {{ r.vencedor }}? O ranking será atualizado.');">
+                        <button type="submit" class="btn btn-success rp-btn">
+                            <i class="fas fa-check"></i> Confirmar
+                        </button>
+                    </form>
+                    <form action="{{ url_for('rejeitar_resultado', challenge_id=r.id) }}" method="POST"
+                          onsubmit="return confirm('Rejeitar este resultado? O jogador poderá informar novamente.');">
+                        <button type="submit" class="btn btn-danger rp-btn">
+                            <i class="fas fa-times"></i> Rejeitar
+                        </button>
+                    </form>
+                    <a href="{{ url_for('challenge_detail', challenge_id=r.id) }}" class="btn btn-outline-primary rp-btn">
+                        <i class="fas fa-eye"></i> Detalhes
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+</div>
+
+<style>
+.rp-container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.rp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+.rp-header h2 {
+    font-size: 1.4rem;
+    margin: 0;
+}
+
+/* Card */
+.rp-card {
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+
+.rp-card-header {
+    background: #fff3cd;
+    border-bottom: 1px solid #ffc107;
+    padding: .6rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: .9rem;
+}
+
+.rp-card-id  { font-weight: 700; color: #856404; }
+.rp-card-date { color: #6c757d; }
+
+.rp-card-body { padding: 1rem; }
+
+/* Confronto */
+.rp-confronto {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    margin-bottom: .9rem;
+}
+
+.rp-player {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: .5rem .75rem;
+    text-align: center;
+}
+
+.rp-label { font-size: .7rem; color: #6c757d; text-transform: uppercase; letter-spacing: .04em; }
+.rp-name  { font-weight: 600; font-size: .95rem; margin: .15rem 0; }
+.rp-pos   { font-size: .78rem; color: #6c757d; }
+
+.rp-vs {
+    font-weight: 700;
+    font-size: 1rem;
+    color: #adb5bd;
+    flex-shrink: 0;
+}
+
+/* Resultado */
+.rp-resultado {
+    background: #d1e7dd;
+    border-radius: 8px;
+    padding: .6rem 1rem;
+    margin-bottom: .9rem;
+}
+
+.rp-resultado-titulo  { font-size: .75rem; color: #0a3622; text-transform: uppercase; letter-spacing: .04em; margin-bottom: .2rem; }
+.rp-resultado-vencedor { font-size: 1.05rem; color: #0a3622; }
+.rp-resultado-meta    { font-size: .78rem; color: #0a5c34; margin-top: .2rem; }
+
+/* Ações */
+.rp-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+.rp-btn {
+    flex: 1;
+    min-width: 100px;
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+    .rp-confronto { flex-direction: column; align-items: stretch; }
+    .rp-vs { text-align: center; }
+    .rp-player { flex-direction: row; justify-content: space-between; align-items: center; }
+    .rp-label { display: none; }
+    .rp-btn { min-width: 80px; font-size: .85rem; }
+}
+</style>
+{% endblock %}
