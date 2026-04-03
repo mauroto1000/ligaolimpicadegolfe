@@ -3468,6 +3468,22 @@ def new_challenge():
             return redirect(url_for('new_challenge'))
         
         # ============================================================
+        # VALIDAÇÃO: Disponibilidade do desafiado na data escolhida
+        # ============================================================
+        if not is_main_admin:
+            chave_dia, nome_dia = _DIA_SEMANA_MAP.get(scheduled_date_obj.weekday(), ('seg', 'Seg'))
+            try:
+                disp_dict = json.loads(challenged['disponibilidade']) if challenged['disponibilidade'] else json.loads(DISPONIBILIDADE_DEFAULT)
+            except Exception:
+                disp_dict = json.loads(DISPONIBILIDADE_DEFAULT)
+            dia_disp = disp_dict.get(chave_dia, {"manha": True, "tarde": True})
+            if not dia_disp.get('manha', True) and not dia_disp.get('tarde', True):
+                datas_disp = get_disponibilidade_texto(int(challenged_id))
+                conn.close()
+                flash(f'⛔ {challenged["name"]} não tem disponibilidade em {scheduled_date_obj.strftime("%d/%m/%Y")} ({nome_dia}). Datas disponíveis: {datas_disp}', 'error')
+                return redirect(url_for('new_challenge', challenger_id=challenger_id))
+
+        # ============================================================
         # RESTRIÇÃO: Não pode desafiar o mesmo jogador em 7 dias
         # ============================================================
         if not is_main_admin and desafio_recente_entre(int(challenger_id), int(challenged_id), dias=7):

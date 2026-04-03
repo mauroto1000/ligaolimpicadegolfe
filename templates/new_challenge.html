@@ -106,9 +106,25 @@
                     <h4>Data do Desafio</h4>
                     <div class="form-group">
                         <label for="scheduled_date">Selecione a data:</label>
-                        <input type="date" name="scheduled_date" id="scheduled_date" class="form-control" 
+                        <input type="date" name="scheduled_date" id="scheduled_date" class="form-control"
                                min="{{ today_date }}" value="{{ today_date }}" required>
                         <small class="text-muted">A data deve ser no máximo 7 dias a partir de hoje.</small>
+                    </div>
+                    <div id="availability-warning" class="alert alert-danger mt-2" style="display:none;">
+                        <i class="fas fa-ban me-1"></i>
+                        <span id="availability-warning-text"></span>
+                    </div>
+                    <div id="availability-info" class="alert alert-success mt-2" style="display:none;">
+                        <i class="fas fa-calendar-check me-1"></i>
+                        <span id="availability-info-text"></span>
+                    </div>
+                </div>
+                <div class="col-md-6" id="player-availability-panel" style="display:none;">
+                    <h4>Disponibilidade do Desafiado</h4>
+                    <div class="card">
+                        <div class="card-body p-2">
+                            <small id="player-availability-text" class="text-muted"></small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -264,6 +280,97 @@
             }
         }
 
+        // Mapa de disponibilidade por jogador (injetado pelo backend)
+        const playerAvailability = {
+            {% for player in eligible_challenged %}
+            {{ player.id }}: {{ player.disponibilidade if player.disponibilidade else '{"dom":{"manha":true,"tarde":true},"seg":{"manha":true,"tarde":true},"ter":{"manha":true,"tarde":true},"qua":{"manha":true,"tarde":true},"qui":{"manha":true,"tarde":true},"sex":{"manha":true,"tarde":true},"sab":{"manha":true,"tarde":true}}' }}{% if not loop.last %},{% endif %}
+            {% endfor %}
+        };
+
+        const weekdayKeys = ['dom','seg','ter','qua','qui','sex','sab'];
+        const weekdayNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+        function getPlayerAvailabilityText(playerId) {
+            const disp = playerAvailability[playerId];
+            if (!disp) return null;
+            const today = new Date();
+            const parts = [];
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(today);
+                d.setDate(today.getDate() + i);
+                const key = weekdayKeys[d.getDay()];
+                const name = weekdayNames[d.getDay()];
+                const dd = String(d.getDate()).padStart(2,'0');
+                const mm = String(d.getMonth()+1).padStart(2,'0');
+                const dayDisp = disp[key] || {manha:true, tarde:true};
+                if (!dayDisp.manha && !dayDisp.tarde) continue;
+                let periodo = '';
+                if (dayDisp.manha && !dayDisp.tarde) periodo = '-M';
+                else if (!dayDisp.manha && dayDisp.tarde) periodo = '-T';
+                parts.push(`${dd}/${mm} ${name}${periodo}`);
+            }
+            return parts.length ? parts.join(' · ') : null;
+        }
+
+        function isPlayerAvailableOnDate(playerId, dateStr) {
+            const disp = playerAvailability[playerId];
+            if (!disp) return true; // sem dados = considera disponível
+            const d = new Date(dateStr + 'T00:00:00');
+            const key = weekdayKeys[d.getDay()];
+            const dayDisp = disp[key] || {manha:true, tarde:true};
+            return dayDisp.manha || dayDisp.tarde;
+        }
+
+        function checkAvailability() {
+            const challengedId = challengedSelect.value;
+            const dateVal = datefield.value;
+            const warningEl = document.getElementById('availability-warning');
+            const warningText = document.getElementById('availability-warning-text');
+            const infoEl = document.getElementById('availability-info');
+            const infoText = document.getElementById('availability-info-text');
+            const panel = document.getElementById('player-availability-panel');
+            const panelText = document.getElementById('player-availability-text');
+
+            if (!challengedId || !dateVal) {
+                warningEl.style.display = 'none';
+                infoEl.style.display = 'none';
+                panel.style.display = 'none';
+                return;
+            }
+
+            // Mostrar painel de disponibilidade geral
+            const availText = getPlayerAvailabilityText(parseInt(challengedId));
+            if (availText) {
+                panelText.textContent = '📅 ' + availText;
+                panel.style.display = 'block';
+            } else {
+                panel.style.display = 'none';
+            }
+
+            // Verificar data específica
+            const available = isPlayerAvailableOnDate(parseInt(challengedId), dateVal);
+            const d = new Date(dateVal + 'T00:00:00');
+            const dd = String(d.getDate()).padStart(2,'0');
+            const mm = String(d.getMonth()+1).padStart(2,'0');
+            const dayName = weekdayNames[d.getDay()];
+            const playerName = challengedSelect.options[challengedSelect.selectedIndex]?.text || '';
+
+            if (!available) {
+                warningText.textContent = `${playerName} não tem disponibilidade em ${dd}/${mm} (${dayName}). Escolha outra data.`;
+                warningEl.style.display = 'block';
+                infoEl.style.display = 'none';
+                document.getElementById('submit-btn').disabled = true;
+            } else {
+                warningEl.style.display = 'none';
+                infoText.textContent = `${playerName} está disponível em ${dd}/${mm} (${dayName}).`;
+                infoEl.style.display = 'block';
+                document.getElementById('submit-btn').disabled = false;
+            }
+        }
+
+        challengedSelect.addEventListener('change', checkAvailability);
+        datefield.addEventListener('change', checkAvailability);
+
         // Função para validar se os jogadores são do mesmo sexo
         function validateSameGender() {
             const challengerGender = document.getElementById('challenger_gender') ? 
@@ -307,6 +414,13 @@
         const form = document.getElementById('newChallengeForm');
         if (form) {
             form.addEventListener('submit', function(event) {
+                const challengedId = challengedSelect.value;
+                const dateVal = datefield.value;
+                if (challengedId && dateVal && !isPlayerAvailableOnDate(parseInt(challengedId), dateVal)) {
+                    event.preventDefault();
+                    checkAvailability();
+                    return;
+                }
                 if (!validateSameGender() || !validateDate()) {
                     event.preventDefault();
                 }
