@@ -8239,57 +8239,46 @@ def get_disponibilidade_texto(player_id_or_disp, idioma='pt'):
 
 def get_disponibilidade_por_data(possiveis, idioma='pt'):
     """
-    Recebe a lista de possíveis desafiados e retorna texto organizado por data:
-    cada linha mostra os jogadores disponíveis naquele dia.
+    Retorna lista de linhas — um jogador por linha com seus dias disponíveis inline.
+    Ex: "   5º João ✅  |  Seg · Ter-M · Sex"
     """
     hoje = datetime.now().date()
-    linhas_header = []
-    linhas_datas = []
+    linhas = []
 
     for p in possiveis:
         try:
             disp = json.loads(p['disponibilidade']) if p.get('disponibilidade') else json.loads(DISPONIBILIDADE_DEFAULT)
         except Exception:
             disp = json.loads(DISPONIBILIDADE_DEFAULT)
-        p['_disp_dict'] = disp
 
-    # Cabeçalho com lista de jogadores e status
-    for p in possiveis:
         if p.get('tem_desafio'):
             status = '⚠️'
         elif p.get('desafio_recente'):
             status = '🕐'
         else:
             status = '✅'
-        linhas_header.append(f"   {p['position']}º {p['name']} {status}")
 
-    # Organização por dia (próximos 7 dias)
-    for i in range(7):
-        dia = hoje + timedelta(days=i)
-        chave, nome_dia = _DIA_SEMANA_MAP.get(dia.weekday(), ('seg', 'Seg'))
-        data_fmt = dia.strftime('%d/%m')
-
-        jogadores_dia = []
-        for p in possiveis:
-            dia_disp = p['_disp_dict'].get(chave, {"manha": True, "tarde": True})
+        chips = []
+        for i in range(7):
+            dia = hoje + timedelta(days=i)
+            chave, nome_dia = _DIA_SEMANA_MAP.get(dia.weekday(), ('seg', 'Seg'))
+            dia_disp = disp.get(chave, {"manha": True, "tarde": True})
             manha = dia_disp.get('manha', True)
             tarde = dia_disp.get('tarde', True)
             if not manha and not tarde:
                 continue
+            data_fmt = dia.strftime('%d/%m')
             if manha and tarde:
-                periodo = ''
+                chips.append(f"{data_fmt}")
             elif manha:
-                periodo = '-M' if idioma == 'pt' else '-AM'
+                chips.append(f"{data_fmt}-M" if idioma == 'pt' else f"{data_fmt}-AM")
             else:
-                periodo = '-T' if idioma == 'pt' else '-PM'
-            jogadores_dia.append(f"{p['name']} ({p['position']}º{periodo})")
+                chips.append(f"{data_fmt}-T" if idioma == 'pt' else f"{data_fmt}-PM")
 
-        if jogadores_dia:
-            linhas_datas.append(f"   📅 {data_fmt} {nome_dia} — {', '.join(jogadores_dia)}")
+        dias_txt = "  ·  ".join(chips) if chips else ("_sem disponibilidade_" if idioma == 'pt' else "_no availability_")
+        linhas.append(f"   {p['position']}º *{p['name']}* {status}\n      📅 {dias_txt}")
 
-    header = "\n\n".join(linhas_header)
-    datas = "\n\n".join(linhas_datas) if linhas_datas else ("   _Sem disponibilidade nos próximos 7 dias_" if idioma == 'pt' else "   _No availability in the next 7 days_")
-    return header, datas
+    return "\n\n".join(linhas)
 
 
 @app.route('/criar-coluna-disponibilidade')
@@ -10026,20 +10015,16 @@ No momento não há jogadores disponíveis para desafio.
 
 _Digite *0* para voltar ao menu._"""
         
-        header, datas = get_disponibilidade_por_data(possiveis)
+        lista = get_disponibilidade_por_data(possiveis)
 
         return f"""🎯 *Possíveis Desafiados*
 
 Olá, {jogador['name']}!
 Você está na posição *{jogador['posicao_ranking']}º*.
 
-Você pode desafiar:
-{header}
+{lista}
 
 _(⚠️ desafio em andamento · 🕐 aguardar 7 dias · ✅ disponível)_
-
-📅 *Disponibilidade nos próximos 7 dias:*
-{datas}
 
 📱 Para criar um desafio, digite *6*
 
@@ -11396,13 +11381,9 @@ _Type *0* to return to menu._"""
 Olá, {nome}!
 Você está na posição *{posicao}º*.
 
-Você pode desafiar:
-{header}
+{lista}
 
 _(⚠️ desafio em andamento · 🕐 aguardar 7 dias · ✅ disponível)_
-
-📅 *Disponibilidade nos próximos 7 dias:*
-{datas}
 
 📱 Para criar um desafio, digite *6*
 
@@ -11412,13 +11393,9 @@ _Digite *0* para voltar ao menu._""",
 Hello, {nome}!
 You are in position *{posicao}*.
 
-You can challenge:
-{header}
+{lista}
 
 _(⚠️ active challenge · 🕐 wait 7 days · ✅ available)_
-
-📅 *Availability in the next 7 days:*
-{datas}
 
 📱 To create a challenge, type *6*
 
@@ -12273,13 +12250,12 @@ _Type *0* to return to menu._"""
                           nome=jogador['name'],
                           posicao=jogador['posicao_ranking'])
         
-        header, datas = get_disponibilidade_por_data(possiveis, idioma)
+        lista = get_disponibilidade_por_data(possiveis, idioma)
 
         return get_msg('possiveis_desafiados', idioma,
                       nome=jogador['name'],
                       posicao=jogador['posicao_ranking'],
-                      header=header,
-                      datas=datas)
+                      lista=lista)
     
     # COMANDO [3]: Meus desafios
     if msg == '3' or (any(palavra in msg for palavra in ['meus desafio', 'meu desafio', 'my challenge']) and 'criar' not in msg and 'create' not in msg):
