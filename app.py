@@ -9795,11 +9795,32 @@ _Digite *0* para cancelar._"""
 Data máxima permitida: *{data_max.strftime('%d/%m/%Y')}*
 
 _Digite *0* para cancelar._"""
-            
-            # CRIAR O DESAFIO!
+
+            # Verificar disponibilidade do oponente na data escolhida
             oponente_id = dados['oponente_id']
             oponente_nome = dados['oponente_nome']
             oponente_posicao = dados['oponente_posicao']
+
+            chave_dia, _ = _DIA_SEMANA_MAP.get(data_jogo.weekday(), ('seg', 'Seg'))
+            disp_oponente = get_disponibilidade_texto(oponente_id)
+            conn_tmp = get_db_connection()
+            oponente_row = conn_tmp.execute('SELECT disponibilidade FROM players WHERE id = ?', (oponente_id,)).fetchone()
+            conn_tmp.close()
+            try:
+                disp_dict = json.loads(oponente_row['disponibilidade']) if oponente_row and oponente_row['disponibilidade'] else json.loads(DISPONIBILIDADE_DEFAULT)
+            except Exception:
+                disp_dict = json.loads(DISPONIBILIDADE_DEFAULT)
+            dia_disp = disp_dict.get(chave_dia, {"manha": True, "tarde": True})
+            if not dia_disp.get('manha', True) and not dia_disp.get('tarde', True):
+                datas_disponiveis = get_disponibilidade_texto(oponente_id)
+                return f"""⛔ *{oponente_nome}* não tem disponibilidade em *{data_jogo.strftime('%d/%m/%Y')}*!
+
+Escolha uma data em que ele esteja disponível:
+📅 {datas_disponiveis}
+
+_Digite *0* para cancelar._"""
+
+            # CRIAR O DESAFIO!
             data_formatada = data_jogo.strftime('%Y-%m-%d')
             
             sucesso, mensagem_retorno, challenge_id = criar_desafio_via_whatsapp(
@@ -11223,6 +11244,11 @@ _Type *0* to cancel._"""
         'pt': '⚠️ A data não pode ser superior a 7 dias!\n\nData máxima permitida: *{data_max}*\n\n_Digite *0* para cancelar._',
         'en': '⚠️ The date cannot be more than 7 days away!\n\nMaximum allowed date: *{data_max}*\n\n_Type *0* to cancel._'
     },
+
+    'data_indisponivel_oponente': {
+        'pt': '⛔ *{nome}* não tem disponibilidade em *{data}*!\n\nEscolha uma data em que ele esteja disponível:\n{datas}\n\n_Digite *0* para cancelar._',
+        'en': '⛔ *{nome}* is not available on *{data}*!\n\nChoose a date when they are available:\n{datas}\n\n_Type *0* to cancel._'
+    },
     
     'desafio_criado_sucesso': {
         'pt': """🎉 *DESAFIO CRIADO COM SUCESSO!*
@@ -11927,14 +11953,32 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
             data_max = hoje + timedelta(days=7)
             if data_jogo > data_max:
                 return get_msg('data_muito_longe', idioma, data_max=data_max.strftime('%d/%m/%Y'))
-            
+
+            # Verificar disponibilidade do oponente na data escolhida
             oponente_id = dados['oponente_id']
             oponente_nome = dados['oponente_nome']
             oponente_posicao = dados['oponente_posicao']
+
+            chave_dia, _ = _DIA_SEMANA_MAP.get(data_jogo.weekday(), ('seg', 'Seg'))
+            conn_tmp = get_db_connection()
+            oponente_row = conn_tmp.execute('SELECT disponibilidade FROM players WHERE id = ?', (oponente_id,)).fetchone()
+            conn_tmp.close()
+            try:
+                disp_dict = json.loads(oponente_row['disponibilidade']) if oponente_row and oponente_row['disponibilidade'] else json.loads(DISPONIBILIDADE_DEFAULT)
+            except Exception:
+                disp_dict = json.loads(DISPONIBILIDADE_DEFAULT)
+            dia_disp = disp_dict.get(chave_dia, {"manha": True, "tarde": True})
+            if not dia_disp.get('manha', True) and not dia_disp.get('tarde', True):
+                datas_disponiveis = get_disponibilidade_texto(oponente_id, idioma)
+                return get_msg('data_indisponivel_oponente', idioma,
+                               nome=oponente_nome,
+                               data=data_jogo.strftime('%d/%m/%Y'),
+                               datas=datas_disponiveis)
+
             data_formatada = data_jogo.strftime('%Y-%m-%d')
-            
+
             sucesso, mensagem_retorno, challenge_id = criar_desafio_via_whatsapp(
-                jogador['id'], 
+                jogador['id'],
                 oponente_id, 
                 data_formatada
             )
