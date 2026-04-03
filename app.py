@@ -8261,8 +8261,8 @@ def get_disponibilidade_por_data(possiveis, idioma='pt'):
         if jogadores_dia:
             linhas_datas.append(f"   📅 {data_fmt} {nome_dia} — {', '.join(jogadores_dia)}")
 
-    header = "\n".join(linhas_header)
-    datas = "\n".join(linhas_datas) if linhas_datas else ("   _Sem disponibilidade nos próximos 7 dias_" if idioma == 'pt' else "   _No availability in the next 7 days_")
+    header = "\n\n".join(linhas_header)
+    datas = "\n\n".join(linhas_datas) if linhas_datas else ("   _Sem disponibilidade nos próximos 7 dias_" if idioma == 'pt' else "   _No availability in the next 7 days_")
     return header, datas
 
 
