@@ -119,14 +119,20 @@
                         <span id="availability-info-text"></span>
                     </div>
                 </div>
-                <div class="col-md-6" id="player-availability-panel" style="display:none;">
-                    <h4>Disponibilidade do Desafiado</h4>
-                    <div class="card">
-                        <div class="card-body p-2">
-                            <small id="player-availability-text" class="text-muted"></small>
-                        </div>
-                    </div>
+            </div>
+
+            <!-- Tabela de disponibilidade dos possíveis desafiados -->
+            <div class="mt-4" id="availability-table-section" style="display:none;">
+                <h4>📅 Disponibilidade dos Jogadores</h4>
+                <div class="table-responsive">
+                    <table class="table table-bordered text-center align-top" id="availability-table">
+                        <thead class="table-light">
+                            <tr id="availability-header-row"></tr>
+                        </thead>
+                        <tbody id="availability-body"></tbody>
+                    </table>
                 </div>
+                <small class="text-muted">🔵 Coluna destacada = data selecionada &nbsp;|&nbsp; <span class="text-danger fw-bold">vermelho</span> = jogador indisponível nesta data</small>
             </div>
 
             <div class="mt-4">
@@ -278,6 +284,7 @@
             } else {
                 noEligiblePlayers.style.display = 'none';
             }
+            buildAvailabilityTable();
         }
 
         // Mapa de disponibilidade por jogador (injetado pelo backend)
@@ -317,6 +324,100 @@
             return dayDisp.manha || dayDisp.tarde;
         }
 
+        function buildAvailabilityTable() {
+            const section = document.getElementById('availability-table-section');
+            const headerRow = document.getElementById('availability-header-row');
+            const tbody = document.getElementById('availability-body');
+            const selectedDate = datefield.value;
+
+            // Coletar jogadores elegíveis com seus nomes
+            const players = [];
+            Array.from(challengedSelect.options).forEach(opt => {
+                if (opt.value) players.push({ id: parseInt(opt.value), name: opt.text.trim() });
+            });
+
+            if (players.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            // Calcular os 7 dias
+            const today = new Date();
+            const days = [];
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(today);
+                d.setDate(today.getDate() + i);
+                const dd = String(d.getDate()).padStart(2,'0');
+                const mm = String(d.getMonth()+1).padStart(2,'0');
+                const key = weekdayKeys[d.getDay()];
+                const name = weekdayNames[d.getDay()];
+                const iso = `${d.getFullYear()}-${mm}-${dd}`;
+                days.push({ dd, mm, key, name, iso });
+            }
+
+            // Montar cabeçalho
+            headerRow.innerHTML = '';
+            days.forEach(day => {
+                const th = document.createElement('th');
+                th.textContent = `${day.dd}/${day.mm} ${day.name}`;
+                if (day.iso === selectedDate) {
+                    th.style.background = '#cfe2ff';
+                    th.style.fontWeight = 'bold';
+                }
+                headerRow.appendChild(th);
+            });
+
+            // Para cada dia, listar jogadores disponíveis
+            const maxRows = players.reduce((max, p) => {
+                const count = days.filter(day => {
+                    const disp = playerAvailability[p.id] || {};
+                    const d = disp[day.key] || { manha: true, tarde: true };
+                    return d.manha || d.tarde;
+                }).length;
+                return Math.max(max, 0); // não usamos contagem aqui
+            }, 0);
+
+            // Organizar por coluna (dia): quais jogadores estão disponíveis
+            const columns = days.map(day => {
+                const available = [];
+                players.forEach(p => {
+                    const disp = playerAvailability[p.id] || {};
+                    const d = disp[day.key] || { manha: true, tarde: true };
+                    if (d.manha || d.tarde) {
+                        let periodo = '';
+                        if (d.manha && !d.tarde) periodo = ' (M)';
+                        else if (!d.manha && d.tarde) periodo = ' (T)';
+                        available.push({ name: p.name, id: p.id, periodo });
+                    }
+                });
+                return available;
+            });
+
+            // Número de linhas = máximo de jogadores em qualquer coluna
+            const numRows = Math.max(...columns.map(c => c.length), 1);
+
+            tbody.innerHTML = '';
+            for (let r = 0; r < numRows; r++) {
+                const tr = document.createElement('tr');
+                columns.forEach((col, ci) => {
+                    const td = document.createElement('td');
+                    const day = days[ci];
+                    if (col[r]) {
+                        const isSelected = parseInt(challengedSelect.value) === col[r].id;
+                        td.textContent = col[r].name + col[r].periodo;
+                        if (isSelected) td.style.fontWeight = 'bold';
+                    }
+                    if (day.iso === selectedDate) {
+                        td.style.background = '#e8f0fe';
+                    }
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            }
+
+            section.style.display = 'block';
+        }
+
         function checkAvailability() {
             const challengedId = challengedSelect.value;
             const dateVal = datefield.value;
@@ -324,32 +425,21 @@
             const warningText = document.getElementById('availability-warning-text');
             const infoEl = document.getElementById('availability-info');
             const infoText = document.getElementById('availability-info-text');
-            const panel = document.getElementById('player-availability-panel');
-            const panelText = document.getElementById('player-availability-text');
+
+            buildAvailabilityTable();
 
             if (!challengedId || !dateVal) {
                 warningEl.style.display = 'none';
                 infoEl.style.display = 'none';
-                panel.style.display = 'none';
                 return;
             }
 
-            // Mostrar painel de disponibilidade geral
-            const availText = getPlayerAvailabilityText(parseInt(challengedId));
-            if (availText) {
-                panelText.textContent = '📅 ' + availText;
-                panel.style.display = 'block';
-            } else {
-                panel.style.display = 'none';
-            }
-
-            // Verificar data específica
             const available = isPlayerAvailableOnDate(parseInt(challengedId), dateVal);
             const d = new Date(dateVal + 'T00:00:00');
             const dd = String(d.getDate()).padStart(2,'0');
             const mm = String(d.getMonth()+1).padStart(2,'0');
             const dayName = weekdayNames[d.getDay()];
-            const playerName = challengedSelect.options[challengedSelect.selectedIndex]?.text || '';
+            const playerName = challengedSelect.options[challengedSelect.selectedIndex]?.text.trim() || '';
 
             if (!available) {
                 warningText.textContent = `${playerName} não tem disponibilidade em ${dd}/${mm} (${dayName}). Escolha outra data.`;
@@ -423,10 +513,11 @@
             });
         }
 
-        // Se houver desafiante pré-selecionado, configurar os desafiados
+        // Se houver desafiante pré-selecionado, configurar os desafiados e tabela
         {% if preselected_challenger and challenger_info %}
         const preselectedGender = '{{ challenger_info.sexo if challenger_info.sexo else "masculino" }}';
         updateChallengedOptions(preselectedGender);
+        buildAvailabilityTable();
         {% endif %}
     });
 </script>
