@@ -3718,17 +3718,27 @@ def new_challenge():
         challenger_info = conn.execute('SELECT * FROM players WHERE id = ? AND active = 1', 
                                       (preselected_challenger_id,)).fetchone()
     
+    # Mapa de disponibilidade para uso no template JS
+    availability_map = {}
+    for p in (eligible_challenged or []):
+        try:
+            disp = json.loads(p['disponibilidade']) if p['disponibilidade'] else json.loads(DISPONIBILIDADE_DEFAULT)
+        except Exception:
+            disp = json.loads(DISPONIBILIDADE_DEFAULT)
+        availability_map[p['id']] = disp
+
     conn.close()
-    
-    return render_template('new_challenge.html', 
-                          all_players=all_players, 
+
+    return render_template('new_challenge.html',
+                          all_players=all_players,
                           eligible_challenged=eligible_challenged,
                           preselected_challenger=preselected_challenger_id,
                           challenger_info=challenger_info,
                           today_date=today_date,
                           is_admin=is_admin,
                           is_main_admin=is_main_admin,
-                          challenges_locked=challenges_locked)
+                          challenges_locked=challenges_locked,
+                          availability_map=availability_map)
 
 
 @app.route('/admin/toggle_challenges', methods=['GET', 'POST'])

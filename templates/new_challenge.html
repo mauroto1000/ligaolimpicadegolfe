@@ -281,11 +281,7 @@
         }
 
         // Mapa de disponibilidade por jogador (injetado pelo backend)
-        const playerAvailability = {
-            {% for player in eligible_challenged %}
-            {{ player.id }}: {{ player.disponibilidade if player.disponibilidade else '{"dom":{"manha":true,"tarde":true},"seg":{"manha":true,"tarde":true},"ter":{"manha":true,"tarde":true},"qua":{"manha":true,"tarde":true},"qui":{"manha":true,"tarde":true},"sex":{"manha":true,"tarde":true},"sab":{"manha":true,"tarde":true}}' }}{% if not loop.last %},{% endif %}
-            {% endfor %}
-        };
+        const playerAvailability = {{ availability_map | tojson }};
 
         const weekdayKeys = ['dom','seg','ter','qua','qui','sex','sab'];
         const weekdayNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
