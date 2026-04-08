@@ -4217,20 +4217,20 @@ def player_detail(player_id):
         player_position = player['position']
         player_sexo = player['sexo']
         
-        # Buscar jogadores até 8 posições acima, mesmo sexo, ativos, não bloqueados
+        # Buscar os 8 jogadores não-bloqueados imediatamente acima (bloqueados não ocupam slots)
         potential_challenges = conn.execute('''
             SELECT id, name, position, tier
             FROM players
             WHERE active = 1
             AND sexo = ?
             AND position < ?
-            AND position >= ?
-            AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
             AND position > 0
+            AND (tipo_membro = 'jogador' OR tipo_membro IS NULL)
             AND (bloqueado = 0 OR bloqueado IS NULL)
             AND id != ?
             ORDER BY position DESC
-        ''', (player_sexo, player_position, max(1, player_position - 8), player_id)).fetchall()
+            LIMIT 8
+        ''', (player_sexo, player_position, player_id)).fetchall()
     
     # Marcar jogadores que já têm desafio ativo ou desafio recente (7 dias)
     potential_challenges_with_flag = []
@@ -9327,75 +9327,79 @@ def get_player_by_phone(telefone):
 
 
 def get_possiveis_desafiados(player_id):
-    """Retorna lista de jogadores que podem ser desafiados com posição visual"""
+    """Retorna lista de jogadores que podem ser desafiados com posição visual.
+
+    Regra: os 8 jogadores não-bloqueados imediatamente acima no ranking.
+    Jogadores bloqueados (saúde/viagem) são desconsiderados e não ocupam slots.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     # Buscar dados do jogador
     cursor.execute("SELECT position, sexo FROM players WHERE id = ?", (player_id,))
     player = cursor.fetchone()
-    
+
     if not player:
         conn.close()
         return []
-    
+
     posicao_atual = player['position']
     sexo = player['sexo'] or 'masculino'
-    
-    # Criar mapeamento de posição visual (sem VIPs)
+
+    # Criar mapeamento de posição visual (sem VIPs, sem bloqueados)
     cursor.execute("""
-        SELECT id, position FROM players 
-        WHERE active = 1 
-          AND position > 0 
+        SELECT id, position FROM players
+        WHERE active = 1
+          AND position > 0
           AND (tipo_membro IS NULL OR tipo_membro != 'vip')
           AND (sexo = ? OR sexo IS NULL OR sexo = '')
         ORDER BY position
     """, (sexo,))
-    
+
     posicao_visual = {}
     contador = 0
     for row in cursor.fetchall():
         contador += 1
         posicao_visual[row['id']] = contador
-    
-    # Calcular posição mínima (até 8 posições acima)
-    posicao_minima = max(1, posicao_atual - 8)
-    
-    # Buscar possíveis desafiados (sem VIPs)
+
+    # Buscar todos os jogadores acima, não-bloqueados, mesmo sexo, sem VIP
+    # (sem limite de posição — aplicaremos o limite de 8 no Python)
     cursor.execute("""
         SELECT id, name, position, disponibilidade
         FROM players
         WHERE active = 1
           AND position > 0
-          AND position >= ?
           AND position < ?
           AND (sexo = ? OR sexo IS NULL OR sexo = '')
           AND (bloqueado = 0 OR bloqueado IS NULL)
           AND (tipo_membro IS NULL OR tipo_membro != 'vip')
           AND id != ?
-        ORDER BY position ASC
-    """, (posicao_minima, posicao_atual, sexo, player_id))
-    
+        ORDER BY position DESC
+    """, (posicao_atual, sexo, player_id))
+
+    # Pegar apenas os 8 imediatamente acima (mais próximos)
+    rows = cursor.fetchall()
+    conn.close()
+
     desafiados = []
-    for row in cursor.fetchall():
+    for row in rows[:8]:
         d = dict(row)
-        # Usar posição visual
         d['position'] = posicao_visual.get(d['id'], d['position'])
-        # Gerar texto de disponibilidade
         try:
             disp = json.loads(d['disponibilidade']) if d.get('disponibilidade') else json.loads(DISPONIBILIDADE_DEFAULT)
         except:
             disp = json.loads(DISPONIBILIDADE_DEFAULT)
         d['disp_texto'] = get_disponibilidade_texto(disp)
         desafiados.append(d)
-    
-    conn.close()
-    
+
+    # Reordenar por posição crescente (melhor colocado primeiro)
+    desafiados.sort(key=lambda x: x['position'])
+
     # Marcar jogadores que já têm desafio ativo (flag visual)
     for d in desafiados:
         d['tem_desafio'] = tem_desafio_ativo(d['id'])
         d['desafio_recente'] = desafio_recente_entre(player_id, d['id'], dias=7)
-    
+
     return desafiados
 
 
