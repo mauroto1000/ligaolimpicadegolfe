@@ -10808,6 +10808,9 @@ def corrigir_prazos():
 # WEBHOOK DO WHATSAPP - RECEBE MENSAGENS
 # ============================================================
 
+# Cache de IDs de mensagens já processadas (evita duplicatas da Evolution API)
+_mensagens_processadas = set()
+
 @app.route('/webhook/whatsapp', methods=['POST'])
 def webhook_whatsapp():
     """Recebe mensagens do WhatsApp via Evolution API"""
@@ -10820,11 +10823,21 @@ def webhook_whatsapp():
         # Verificar se é uma mensagem recebida
         if data.get('event') == 'messages.upsert':
             message_data = data.get('data', {})
-            
+
             # Ignorar mensagens enviadas por nós mesmos
             if message_data.get('key', {}).get('fromMe'):
                 return jsonify({'status': 'ignored', 'reason': 'own_message'})
-            
+
+            # Deduplicar: ignorar mensagem já processada (Evolution API pode enviar duplicatas)
+            message_id = message_data.get('key', {}).get('id', '')
+            if message_id and message_id in _mensagens_processadas:
+                print(f"[Webhook] Mensagem duplicada ignorada: {message_id}")
+                return jsonify({'status': 'ignored', 'reason': 'duplicate'})
+            if message_id:
+                _mensagens_processadas.add(message_id)
+                if len(_mensagens_processadas) > 500:  # Limitar memória
+                    _mensagens_processadas.clear()
+
             # Ignorar mensagens de grupo
             remote_jid = message_data.get('key', {}).get('remoteJid', '')
             if '@g.us' in remote_jid:
