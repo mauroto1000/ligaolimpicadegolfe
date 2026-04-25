@@ -4,10 +4,14 @@ from datetime import datetime, timedelta
 import os
 from functools import wraps
 import hashlib
+import threading
 from werkzeug.utils import secure_filename  # Adicione esta linha
 import json
 from flask import send_file
 from io import BytesIO
+
+# Lock para serializar criação de desafios e evitar duplicatas por race condition
+_challenge_creation_lock = threading.Lock()
 
 
 # ============================================================
@@ -8993,6 +8997,12 @@ def criar_desafio_via_whatsapp(challenger_id, challenged_id, scheduled_date):
     Cria um desafio via WhatsApp.
     Retorna: (sucesso: bool, mensagem: str, challenge_id: int ou None)
     """
+    with _challenge_creation_lock:
+        return _criar_desafio_via_whatsapp_locked(challenger_id, challenged_id, scheduled_date)
+
+
+def _criar_desafio_via_whatsapp_locked(challenger_id, challenged_id, scheduled_date):
+    """Lógica interna de criação — chamada com lock adquirido."""
     conn = get_db_connection()
     
     try:
@@ -9019,33 +9029,33 @@ def criar_desafio_via_whatsapp(challenger_id, challenged_id, scheduled_date):
         
         # Verificar se já existe desafio pendente entre eles
         existing = conn.execute('''
-            SELECT id FROM challenges 
-            WHERE ((challenger_id = ? AND challenged_id = ?) 
+            SELECT id FROM challenges
+            WHERE ((challenger_id = ? AND challenged_id = ?)
                    OR (challenger_id = ? AND challenged_id = ?))
             AND status IN ('pending', 'accepted')
         ''', (challenger_id, challenged_id, challenged_id, challenger_id)).fetchone()
-        
+
         if existing:
             conn.close()
             return False, "Já existe um desafio pendente entre vocês.", None
-        
+
         # Verificar se algum dos dois já tem desafio ativo
         challenger_busy = conn.execute('''
-            SELECT id FROM challenges 
+            SELECT id FROM challenges
             WHERE (challenger_id = ? OR challenged_id = ?)
             AND status IN ('pending', 'accepted')
         ''', (challenger_id, challenger_id)).fetchone()
-        
+
         if challenger_busy:
             conn.close()
             return False, "Você já tem um desafio ativo. Conclua-o primeiro.", None
-        
+
         challenged_busy = conn.execute('''
-            SELECT id FROM challenges 
+            SELECT id FROM challenges
             WHERE (challenger_id = ? OR challenged_id = ?)
             AND status IN ('pending', 'accepted')
         ''', (challenged_id, challenged_id)).fetchone()
-        
+
         if challenged_busy:
             conn.close()
             return False, f"{challenged['name']} já está em um desafio ativo.", None
@@ -9574,33 +9584,46 @@ def submeter_resultado_proposto(challenge_id, player_id, resultado):
 
 
 def aceitar_desafio(challenge_id, player_id):
-    """Aceita um desafio pendente"""
+    """Aceita um desafio pendente e cancela automaticamente duplicatas entre os mesmos jogadores."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     # Verificar se o desafio existe e o jogador é o desafiado
     cursor.execute("""
-        SELECT id, challenged_id, status
+        SELECT id, challenger_id, challenged_id, status
         FROM challenges
         WHERE id = ? AND challenged_id = ? AND status = 'pending'
     """, (challenge_id, player_id))
-    
+
     challenge = cursor.fetchone()
-    
+
     if not challenge:
         conn.close()
         return False, "Desafio não encontrado ou você não é o desafiado."
-    
-    # Atualizar status
+
+    challenger_id = challenge['challenger_id']
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    # Aceitar o desafio escolhido
     cursor.execute("""
         UPDATE challenges
         SET status = 'accepted', updated_at = ?
         WHERE id = ?
-    """, (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), challenge_id))
-    
+    """, (now, challenge_id))
+
+    # Cancelar automaticamente qualquer outro desafio pendente entre os mesmos jogadores
+    cursor.execute("""
+        UPDATE challenges
+        SET status = 'cancelled', result = 'duplicate', updated_at = ?
+        WHERE id != ?
+          AND status = 'pending'
+          AND ((challenger_id = ? AND challenged_id = ?)
+               OR (challenger_id = ? AND challenged_id = ?))
+    """, (now, challenge_id, challenger_id, player_id, player_id, challenger_id))
+
     conn.commit()
     conn.close()
-    
+
     return True, "Desafio aceito com sucesso!"
 
 
