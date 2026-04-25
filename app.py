@@ -9628,52 +9628,42 @@ def aceitar_desafio(challenge_id, player_id):
 
 
 def rejeitar_desafio(challenge_id, player_id):
-    """Rejeita um desafio (aplica WO - desafiado perde)"""
+    """Rejeita um desafio — aplica WO contra o desafiado (que rejeitou).
+    Regra: desafiante ganha 1 posição, desafiado assume posição antiga do desafiante,
+    todos os jogadores entre eles sobem 1.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     # Verificar se o desafio existe e o jogador é o desafiado
     cursor.execute("""
-        SELECT c.id, c.challenger_id, c.challenged_id, c.status,
-               challenger.position as challenger_pos,
-               challenged.position as challenged_pos
+        SELECT c.id, c.challenger_id, c.challenged_id, c.status
         FROM challenges c
-        JOIN players challenger ON c.challenger_id = challenger.id
-        JOIN players challenged ON c.challenged_id = challenged.id
         WHERE c.id = ? AND c.challenged_id = ? AND c.status = 'pending'
     """, (challenge_id, player_id))
-    
+
     challenge = cursor.fetchone()
-    
+
     if not challenge:
         conn.close()
         return False, "Desafio não encontrado ou você não é o desafiado."
-    
-    # Aplicar WO - desafiante vence (desafiado rejeitou)
-    # O desafiante sobe 1 posição (troca com o desafiado)
-    challenger_id = challenge['challenger_id']
-    challenged_id = challenge['challenged_id']
-    challenger_pos = challenge['challenger_pos']
-    challenged_pos = challenge['challenged_pos']
-    
-    # Trocar posições (desafiante assume posição do desafiado)
-    cursor.execute("UPDATE players SET position = ? WHERE id = ?", (challenged_pos, challenger_id))
-    cursor.execute("UPDATE players SET position = ? WHERE id = ?", (challenger_pos, challenged_id))
-    
-    # Atualizar desafio
+
+    # Marcar result_type correto ANTES de chamar process_challenge_result
+    # wo_challenger = WO causado pelo desafiado (desafiante vence)
     cursor.execute("""
         UPDATE challenges
-        SET status = 'completed',
-            result = 'challenger_win',
-            result_type = 'wo_challenged',
-            updated_at = ?
+        SET result_type = 'wo_challenger', updated_at = ?
         WHERE id = ?
     """, (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), challenge_id))
-    
     conn.commit()
+
+    # Delegar toda a lógica de posições ao process_challenge_result
+    # (já faz conn.commit() internamente)
+    process_challenge_result(conn, challenge_id, 'completed', 'challenger_win')
+
     conn.close()
-    
-    return True, "Desafio rejeitado. WO aplicado - você perdeu a posição."
+
+    return True, "Desafio rejeitado. WO aplicado — você perdeu a posição."
 
 
 # ============================================================
