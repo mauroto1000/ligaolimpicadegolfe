@@ -7539,9 +7539,9 @@ def carteirinha():
     last_game_date = None
     if player['tipo_membro'] != 'vip':
         last_game = conn.execute('''
-            SELECT scheduled_date FROM challenges 
+            SELECT scheduled_date FROM challenges
             WHERE (challenger_id = ? OR challenged_id = ?)
-            AND status = 'completed'
+            AND status IN ('completed', 'completed_pending')
             ORDER BY scheduled_date DESC
             LIMIT 1
         ''', (user_id, user_id)).fetchone()
@@ -7640,16 +7640,16 @@ def verificar_carteirinha(token):
         last_game_date = None
         if not is_vip:
             last_game = conn.execute('''
-                SELECT scheduled_date FROM challenges 
+                SELECT scheduled_date FROM challenges
                 WHERE (challenger_id = ? OR challenged_id = ?)
-                AND status = 'completed'
+                AND status IN ('completed', 'completed_pending')
                 ORDER BY scheduled_date DESC
                 LIMIT 1
             ''', (result['player_id'], result['player_id'])).fetchone()
             last_game_date = last_game['scheduled_date'] if last_game else None
-        
+
         conn.close()
-        
+
         # Calcular tempo restante
         expires_at = parse_datetime(result.get('expires_at'))
         if expires_at:
@@ -7741,13 +7741,19 @@ def check_player_activity(conn, player_id):
         pass
     
     # Verificar atividade normal (jogou nos últimos 30 dias)
+    # Considera 'completed' e 'completed_pending' (aguardando confirmação do admin)
+    # Usa scheduled_date OU updated_at — cobre casos onde o resultado foi confirmado
+    # depois da janela de 30 dias da data agendada
     result = conn.execute('''
-        SELECT COUNT(*) as count FROM challenges 
+        SELECT COUNT(*) as count FROM challenges
         WHERE (challenger_id = ? OR challenged_id = ?)
-        AND status = 'completed'
-        AND scheduled_date >= date('now', '-30 days')
+          AND status IN ('completed', 'completed_pending')
+          AND (
+            scheduled_date >= date('now', '-30 days')
+            OR updated_at >= datetime('now', '-30 days')
+          )
     ''', (player_id, player_id)).fetchone()
-    
+
     is_active = result['count'] > 0
     return is_active, False, False
 
