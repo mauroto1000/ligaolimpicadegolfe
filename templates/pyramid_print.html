@@ -201,11 +201,93 @@
         line-height: 1.2;
         text-align: center;
         word-break: break-word;
-        max-height: 36px;
+        max-height: 30px;
         overflow: hidden;
         margin-top: 8px;
+        padding-bottom: 12px;
     }
-    
+
+    /* Desafio pendente / aceito */
+    .print-cell.pending-challenge {
+        background-color: #ffc107 !important;
+        color: #212529 !important;
+    }
+    .print-cell.pending-challenge .position { background-color: rgba(0,0,0,0.1); color: #212529; }
+
+    /* Resultado com pendência */
+    .print-cell.completed-pending-challenge {
+        background-color: #ffc107 !important;
+        border: 3px solid #dc3545 !important;
+        color: #212529 !important;
+    }
+
+    /* Bloqueado */
+    .print-cell.blocked {
+        background-color: #ffc107 !important;
+        color: #212529 !important;
+        position: relative;
+    }
+    .print-cell.blocked::before {
+        content: "✕";
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 32px;
+        font-weight: bold;
+        color: rgba(0,0,0,0.4);
+        pointer-events: none;
+    }
+    .print-cell.blocked .player-name { opacity: 0.6; }
+
+    /* Badge motivo do bloqueio */
+    .blocked-badge {
+        font-size: 8px;
+        background: #dc3545;
+        color: white;
+        padding: 1px 3px;
+        border-radius: 2px;
+        position: absolute;
+        top: 14px; left: 3px;
+        z-index: 5;
+    }
+
+    /* Datas de desafio */
+    .challenge-date, .pending-date {
+        font-size: 8px;
+        font-weight: normal;
+        padding: 1px 3px;
+        border-radius: 2px;
+        position: absolute;
+        bottom: 2px; left: 3px;
+        white-space: nowrap;
+    }
+    .challenge-date { background-color: #17a2b8; color: #fff; }
+    .pending-date   { background-color: #dc3545; color: #fff; }
+
+    .proposed-dates {
+        font-size: 7px;
+        font-weight: bold;
+        background-color: #9c27b0;
+        color: #fff;
+        padding: 1px 3px;
+        border-radius: 2px;
+        position: absolute;
+        bottom: 2px; left: 3px;
+        white-space: nowrap;
+    }
+
+    /* Bandeiras de inatividade */
+    .inactivity-flag {
+        position: absolute;
+        bottom: 2px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 13px;
+        z-index: 6;
+        line-height: 1;
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
+    }
+
     /* Legenda */
     .print-legend {
         display: flex;
@@ -270,24 +352,16 @@
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
-        
-        .print-cell.tier-label {
-            background-color: #002970 !important;
-            color: white !important;
-        }
-        
-        .print-cell:not(.tier-label) {
-            background-color: #28a745 !important;
-            color: white !important;
-        }
-        
-        .print-cell.ladies:not(.tier-label) {
-            background-color: #e91e63 !important;
-        }
-        
-        .print-cell.ladies.tier-label {
-            background-color: #ad1457 !important;
-        }
+
+        .print-cell.tier-label                      { background-color: #002970 !important; color: white !important; }
+        .print-cell.ladies.tier-label               { background-color: #ad1457 !important; color: white !important; }
+        .print-cell:not(.tier-label):not(.pending-challenge):not(.completed-pending-challenge):not(.blocked)
+                                                    { background-color: #28a745 !important; color: white !important; }
+        .print-cell.ladies:not(.tier-label):not(.pending-challenge):not(.completed-pending-challenge):not(.blocked)
+                                                    { background-color: #e91e63 !important; color: white !important; }
+        .print-cell.pending-challenge               { background-color: #ffc107 !important; color: #212529 !important; }
+        .print-cell.completed-pending-challenge     { background-color: #ffc107 !important; border: 3px solid #dc3545 !important; color: #212529 !important; }
+        .print-cell.blocked                         { background-color: #ffc107 !important; color: #212529 !important; }
         
         /* Quebra de página entre pirâmides */
         .page-break {
@@ -402,13 +476,57 @@
                         
                         {% for player in male_players_in_tier|sort(attribute='position') %}
                             {% if position_counter.append(position_counter.pop() + 1) %}{% endif %}
-                            <div class="print-cell">
+                            <div class="print-cell
+                                 {% if player.bloqueado == 1 %}blocked
+                                 {% elif player.challenge_status == 'completed_pending' %}completed-pending-challenge
+                                 {% elif player.has_pending_challenge %}pending-challenge
+                                 {% endif %}">
                                 <span class="position">{{ position_counter[0] }}</span>
+                                {% if player.bloqueado == 1 %}
+                                <span class="blocked-badge">
+                                    {% if player.bloqueio_motivo == 'Viagem' %}🧳
+                                    {% elif player.bloqueio_motivo == 'Saúde' %}🏥
+                                    {% else %}🚫{% endif %}
+                                </span>
+                                {% endif %}
                                 {% if player.country %}
-                                    <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
+                                    <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png"
                                          alt="{{ player.country }}" class="country-flag">
                                 {% endif %}
                                 <span class="player-name">{{ player.name }}</span>
+                                {% set displayed = [false] %}
+                                {% for challenge in challenges %}
+                                    {% if not displayed[0] and challenge.status == 'awaiting_date_confirmation' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                        <span class="proposed-dates">
+                                            {% set d1 = challenge.proposed_date_1|string %}{% set d2 = challenge.proposed_date_2|string %}
+                                            {% if '-' in d1 %}{% set p1 = d1.split('-') %}{{ p1[2].split(' ')[0] }}/{{ p1[1] }}{% endif %}|{% if '-' in d2 %}{% set p2 = d2.split('-') %}{{ p2[2].split(' ')[0] }}/{{ p2[1] }}{% endif %}
+                                        </span>
+                                        {% if displayed.append(true) %}{% endif %}{% if displayed.pop(0) %}{% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                                {% for challenge in challenges %}
+                                    {% if not displayed[0] and challenge.status == 'pending' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                        <span class="pending-date">
+                                            {% set ds = challenge.scheduled_date|string %}
+                                            {% if '-' in ds %}{% set pt = ds.split('-') %}({{ pt[2].split(' ')[0] }}/{{ pt[1] }}){% else %}(?){% endif %}
+                                        </span>
+                                        {% if displayed.append(true) %}{% endif %}{% if displayed.pop(0) %}{% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                                {% for challenge in challenges %}
+                                    {% if not displayed[0] and challenge.status == 'accepted' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                        <span class="challenge-date">
+                                            {% set ds = challenge.scheduled_date|string %}
+                                            {% if '-' in ds %}{% set pt = ds.split('-') %}({{ pt[2].split(' ')[0] }}/{{ pt[1] }}){% endif %}
+                                        </span>
+                                        {% if displayed.append(true) %}{% endif %}{% if displayed.pop(0) %}{% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                                {% if player.dias_inativo is none or player.dias_inativo >= 60 %}
+                                <span class="inactivity-flag">🏴</span>
+                                {% elif player.dias_inativo >= 45 %}
+                                <span class="inactivity-flag">🚩</span>
+                                {% endif %}
                             </div>
                         {% endfor %}
                     </div>
@@ -417,17 +535,15 @@
         </div>
         
         <div class="print-legend">
-            <div class="print-legend-item">
-                <div class="print-legend-color" style="background: #002970;"></div>
-                <span>Tier</span>
-            </div>
-            <div class="print-legend-item">
-                <div class="print-legend-color" style="background: #28a745;"></div>
-                <span>Jogador</span>
-            </div>
+            <div class="print-legend-item"><div class="print-legend-color" style="background:#002970;"></div><span>Tier</span></div>
+            <div class="print-legend-item"><div class="print-legend-color" style="background:#28a745;"></div><span>Jogador</span></div>
+            <div class="print-legend-item"><div class="print-legend-color" style="background:#ffc107;"></div><span>Com desafio</span></div>
+            <div class="print-legend-item"><div class="print-legend-color" style="background:#ffc107; border:3px solid #dc3545;"></div><span>Resultado pendente</span></div>
+            <div class="print-legend-item"><span style="font-size:13px;">🚩</span><span class="ms-1">45+ dias</span></div>
+            <div class="print-legend-item"><span style="font-size:13px;">🏴</span><span class="ms-1">60+ dias</span></div>
         </div>
     </div>
-    
+
     <!-- ==================== PIRÂMIDE FEMININA ==================== -->
     {% if female_players %}
     <div class="print-pyramid-wrapper page-break" id="ladiesPrintWrapper">
@@ -452,13 +568,57 @@
                             {% if current_index[0] < female_by_position|length %}
                                 {% set player = female_by_position[current_index[0]] %}
                                 {% if ladies_position.append(ladies_position.pop() + 1) %}{% endif %}
-                                <div class="print-cell ladies">
+                                <div class="print-cell ladies
+                                     {% if player.bloqueado == 1 %}blocked
+                                     {% elif player.challenge_status == 'completed_pending' %}completed-pending-challenge
+                                     {% elif player.has_pending_challenge %}pending-challenge
+                                     {% endif %}">
                                     <span class="position">{{ ladies_position[0] }}</span>
+                                    {% if player.bloqueado == 1 %}
+                                    <span class="blocked-badge">
+                                        {% if player.bloqueio_motivo == 'Viagem' %}🧳
+                                        {% elif player.bloqueio_motivo == 'Saúde' %}🏥
+                                        {% else %}🚫{% endif %}
+                                    </span>
+                                    {% endif %}
                                     {% if player.country %}
-                                        <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
+                                        <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png"
                                              alt="{{ player.country }}" class="country-flag">
                                     {% endif %}
                                     <span class="player-name">{{ player.name }}</span>
+                                    {% set displayed = [false] %}
+                                    {% for challenge in challenges %}
+                                        {% if not displayed[0] and challenge.status == 'awaiting_date_confirmation' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                            <span class="proposed-dates">
+                                                {% set d1 = challenge.proposed_date_1|string %}{% set d2 = challenge.proposed_date_2|string %}
+                                                {% if '-' in d1 %}{% set p1 = d1.split('-') %}{{ p1[2].split(' ')[0] }}/{{ p1[1] }}{% endif %}|{% if '-' in d2 %}{% set p2 = d2.split('-') %}{{ p2[2].split(' ')[0] }}/{{ p2[1] }}{% endif %}
+                                            </span>
+                                            {% if displayed.append(true) %}{% endif %}{% if displayed.pop(0) %}{% endif %}
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% for challenge in challenges %}
+                                        {% if not displayed[0] and challenge.status == 'pending' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                            <span class="pending-date">
+                                                {% set ds = challenge.scheduled_date|string %}
+                                                {% if '-' in ds %}{% set pt = ds.split('-') %}({{ pt[2].split(' ')[0] }}/{{ pt[1] }}){% else %}(?){% endif %}
+                                            </span>
+                                            {% if displayed.append(true) %}{% endif %}{% if displayed.pop(0) %}{% endif %}
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% for challenge in challenges %}
+                                        {% if not displayed[0] and challenge.status == 'accepted' and (challenge.challenger_id == player.id or challenge.challenged_id == player.id) %}
+                                            <span class="challenge-date">
+                                                {% set ds = challenge.scheduled_date|string %}
+                                                {% if '-' in ds %}{% set pt = ds.split('-') %}({{ pt[2].split(' ')[0] }}/{{ pt[1] }}){% endif %}
+                                            </span>
+                                            {% if displayed.append(true) %}{% endif %}{% if displayed.pop(0) %}{% endif %}
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% if player.dias_inativo is none or player.dias_inativo >= 60 %}
+                                    <span class="inactivity-flag">🏴</span>
+                                    {% elif player.dias_inativo >= 45 %}
+                                    <span class="inactivity-flag">🚩</span>
+                                    {% endif %}
                                 </div>
                                 {% if current_index.append(current_index.pop() + 1) %}{% endif %}
                             {% endif %}
@@ -469,14 +629,12 @@
         </div>
         
         <div class="print-legend">
-            <div class="print-legend-item">
-                <div class="print-legend-color" style="background: #ad1457;"></div>
-                <span>Tier</span>
-            </div>
-            <div class="print-legend-item">
-                <div class="print-legend-color" style="background: #e91e63;"></div>
-                <span>Jogadora</span>
-            </div>
+            <div class="print-legend-item"><div class="print-legend-color" style="background:#ad1457;"></div><span>Tier</span></div>
+            <div class="print-legend-item"><div class="print-legend-color" style="background:#e91e63;"></div><span>Jogadora</span></div>
+            <div class="print-legend-item"><div class="print-legend-color" style="background:#ffc107;"></div><span>Com desafio</span></div>
+            <div class="print-legend-item"><div class="print-legend-color" style="background:#ffc107; border:3px solid #dc3545;"></div><span>Resultado pendente</span></div>
+            <div class="print-legend-item"><span style="font-size:13px;">🚩</span><span class="ms-1">45+ dias</span></div>
+            <div class="print-legend-item"><span style="font-size:13px;">🏴</span><span class="ms-1">60+ dias</span></div>
         </div>
     </div>
     {% endif %}

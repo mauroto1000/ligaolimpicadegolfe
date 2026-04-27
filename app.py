@@ -3289,22 +3289,92 @@ def pyramid_dynamic():
 def pyramid_print():
     """Página de impressão da pirâmide em alta resolução"""
     conn = get_db_connection()
-    
-    # Buscar jogadores ativos
-    players = conn.execute('SELECT * FROM players WHERE active = 1 ORDER BY position').fetchall()
-    
-    # Organizar jogadores por tier
+
+    players = conn.execute(
+        "SELECT * FROM players WHERE active = 1 AND position > 0 "
+        "AND (tipo_membro IS NULL OR tipo_membro != 'vip') ORDER BY position"
+    ).fetchall()
+
+    # Desafios ativos para cores e datas
+    challenges_raw = conn.execute('''
+        SELECT id, challenger_id, challenged_id, status, scheduled_date,
+               proposed_date_1, proposed_date_2
+        FROM challenges
+        WHERE status IN ('pending', 'accepted', 'awaiting_date_confirmation', 'completed_pending')
+    ''').fetchall()
+
+    players_with_challenges = set()
+    players_with_completed_pending = {}
+    for c in challenges_raw:
+        if c['status'] == 'completed_pending':
+            players_with_completed_pending[c['challenger_id']] = 'completed_pending'
+            players_with_completed_pending[c['challenged_id']] = 'completed_pending'
+        else:
+            players_with_challenges.add(c['challenger_id'])
+            players_with_challenges.add(c['challenged_id'])
+
+    challenges_for_display = [dict(c) for c in challenges_raw
+                               if c['status'] in ('pending', 'accepted', 'awaiting_date_confirmation')]
+
+    # Inatividade com desconto de bloqueios
+    from datetime import date as _date, datetime as _datetime
+    _hoje = _date.today()
+
+    last_played_rows = conn.execute('''
+        SELECT p.id AS player_id,
+               MAX(COALESCE(c.updated_at, c.scheduled_date)) AS last_date
+        FROM players p
+        LEFT JOIN challenges c ON (c.challenger_id = p.id OR c.challenged_id = p.id)
+            AND c.status IN ('completed', 'completed_pending')
+        WHERE p.active = 1 AND p.position > 0
+        GROUP BY p.id
+    ''').fetchall()
+
+    _block_periods = {}
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='player_block_history'").fetchone():
+        for _r in conn.execute('SELECT player_id, start_date, end_date FROM player_block_history').fetchall():
+            _block_periods.setdefault(_r['player_id'], []).append((_r['start_date'], _r['end_date']))
+    for _r in conn.execute(
+        'SELECT id, bloqueio_inicio FROM players WHERE bloqueado = 1 AND bloqueio_inicio IS NOT NULL'
+    ).fetchall():
+        _pid = _r['id']
+        if not any(_e is None for _, _e in _block_periods.get(_pid, [])):
+            _block_periods.setdefault(_pid, []).append((_r['bloqueio_inicio'], None))
+
+    inatividade = {}
+    for _r in last_played_rows:
+        _pid = _r['player_id']
+        _last_str = str(_r['last_date'])[:10] if _r['last_date'] else None
+        if _last_str:
+            try:
+                _last_dt = _datetime.strptime(_last_str, '%Y-%m-%d').date()
+                _bruto = (_hoje - _last_dt).days
+                _desconto = 0
+                for s_str, e_str in _block_periods.get(_pid, []):
+                    s = _datetime.strptime(str(s_str)[:10], '%Y-%m-%d').date()
+                    e = _datetime.strptime(str(e_str)[:10], '%Y-%m-%d').date() if e_str else _hoje
+                    ov_s, ov_e = max(s, _last_dt), min(e, _hoje)
+                    if ov_e > ov_s:
+                        _desconto += (ov_e - ov_s).days
+                inatividade[_pid] = max(0, _bruto - _desconto)
+            except Exception:
+                inatividade[_pid] = None
+        else:
+            inatividade[_pid] = None
+
     tiers = {}
     for player in players:
         if player['tier'] not in tiers:
             tiers[player['tier']] = []
-        tiers[player['tier']].append(dict(player))
-    
-    # Ordenar tiers alfabeticamente
+        pd = dict(player)
+        pd['has_pending_challenge'] = player['id'] in players_with_challenges
+        pd['challenge_status'] = players_with_completed_pending.get(player['id'])
+        pd['dias_inativo'] = inatividade.get(player['id'])
+        tiers[player['tier']].append(pd)
+
     sorted_tiers = sorted(tiers.items())
-    
     conn.close()
-    return render_template('pyramid_print.html', tiers=sorted_tiers)
+    return render_template('pyramid_print.html', tiers=sorted_tiers, challenges=challenges_for_display)
 
 
 # Rota original (mantida para compatibilidade ou redirecionamento)
