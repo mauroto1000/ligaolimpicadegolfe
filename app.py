@@ -3927,6 +3927,16 @@ def edit_challenge(challenge_id):
                 if status == 'completed' and result:
                     process_challenge_result(conn, challenge_id, status, result)
                     flash('Ranking atualizado com o novo resultado.', 'success')
+                    # Notificar grupo de WhatsApp
+                    try:
+                        challenger_row = conn.execute('SELECT name FROM players WHERE id = ?', (challenge['challenger_id'],)).fetchone()
+                        challenged_row = conn.execute('SELECT name FROM players WHERE id = ?', (challenge['challenged_id'],)).fetchone()
+                        if challenger_row and challenged_row:
+                            vencedor = challenger_row['name'] if result == 'challenger_win' else challenged_row['name']
+                            msg_grupo = f"✅ *RESULTADO CONFIRMADO*\n\n⚔️ *{challenger_row['name']}* vs *{challenged_row['name']}*\n\n🏆 Vencedor: *{vencedor}*\n\n_Resultado confirmado pelo administrador._"
+                            enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
+                    except Exception as e_notif:
+                        print(f"Erro ao enviar notificação WhatsApp: {e_notif}")
                 # Se o novo status for completed_pending, processar sem alterar o ranking
                 elif status == 'completed_pending' and result:
                     process_challenge_result(conn, challenge_id, status, result)
@@ -4065,7 +4075,24 @@ def update_challenge(challenge_id):
         
         # Processar o resultado do desafio (alterando a pirâmide)
         process_challenge_result(conn, challenge_id, status, result)
-        
+
+        # Notificar grupo de WhatsApp sobre resultado confirmado
+        try:
+            challenger_row = conn.execute('SELECT name FROM players WHERE id = ?', (challenge['challenger_id'],)).fetchone()
+            challenged_row = conn.execute('SELECT name FROM players WHERE id = ?', (challenge['challenged_id'],)).fetchone()
+            if challenger_row and challenged_row:
+                vencedor = challenger_row['name'] if result == 'challenger_win' else challenged_row['name']
+                if result_type == 'wo_challenger':
+                    sufixo = '\n\n_WO: desafiado não compareceu._'
+                elif result_type == 'wo_challenged':
+                    sufixo = '\n\n_WO: desafiante não compareceu._'
+                else:
+                    sufixo = '\n\n_Resultado confirmado pelo administrador._'
+                msg_grupo = f"✅ *RESULTADO CONFIRMADO*\n\n⚔️ *{challenger_row['name']}* vs *{challenged_row['name']}*\n\n🏆 Vencedor: *{vencedor}*{sufixo}"
+                enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
+        except Exception as e_notif:
+            print(f"Erro ao enviar notificação WhatsApp: {e_notif}")
+
         # Mensagem diferenciada para WO
         if result_type in ['wo_challenger', 'wo_challenged']:
             flash('Status do desafio atualizado para Concluído (WO) e ranking atualizado.', 'success')
