@@ -3362,6 +3362,27 @@ def pyramid_print():
         else:
             inatividade[_pid] = None
 
+    # Posição visual sequencial por sexo (para exibir setas de desafio)
+    posicao_visual = {}
+    contador_masc = 0
+    contador_fem = 0
+    for p in sorted(players, key=lambda p: p['position']):
+        if p['sexo'] == 'feminino':
+            contador_fem += 1
+            posicao_visual[p['id']] = contador_fem
+        else:
+            contador_masc += 1
+            posicao_visual[p['id']] = contador_masc
+
+    player_challenges_map = {p['id']: {'challenging_positions': [], 'challenged_by_positions': []} for p in players}
+    for c in challenges_raw:
+        if c['status'] in ('pending', 'accepted', 'awaiting_date_confirmation'):
+            cid, did = c['challenger_id'], c['challenged_id']
+            if cid in player_challenges_map and did in posicao_visual:
+                player_challenges_map[cid]['challenging_positions'].append(posicao_visual[did])
+            if did in player_challenges_map and cid in posicao_visual:
+                player_challenges_map[did]['challenged_by_positions'].append(posicao_visual[cid])
+
     tiers = {}
     for player in players:
         if player['tier'] not in tiers:
@@ -3370,6 +3391,8 @@ def pyramid_print():
         pd['has_pending_challenge'] = player['id'] in players_with_challenges
         pd['challenge_status'] = players_with_completed_pending.get(player['id'])
         pd['dias_inativo'] = inatividade.get(player['id'])
+        pd['challenging_positions'] = player_challenges_map.get(player['id'], {}).get('challenging_positions', [])
+        pd['challenged_by_positions'] = player_challenges_map.get(player['id'], {}).get('challenged_by_positions', [])
         tiers[player['tier']].append(pd)
 
     sorted_tiers = sorted(tiers.items())

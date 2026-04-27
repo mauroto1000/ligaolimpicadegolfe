@@ -276,6 +276,21 @@
         white-space: nowrap;
     }
 
+    /* Setas de desafio */
+    .challenge-arrow {
+        position: absolute;
+        bottom: 2px;
+        right: 2px;
+        font-size: 7px;
+        padding: 1px 2px;
+        border-radius: 2px;
+        z-index: 5;
+        white-space: nowrap;
+        letter-spacing: -0.5px;
+    }
+    .arrow-challenged { background-color: rgba(0,0,0,0.7); color: white; }
+    .arrow-challenger { background-color: rgba(255,255,255,0.9); color: black; border: 1px solid rgba(0,0,0,0.2); }
+
     /* Bandeiras de inatividade */
     .inactivity-flag {
         position: absolute;
@@ -527,6 +542,11 @@
                                 {% elif player.dias_inativo >= 45 %}
                                 <span class="inactivity-flag">🚩</span>
                                 {% endif %}
+                                {% if player.challenging_positions %}
+                                <span class="challenge-arrow arrow-challenger">{{ position_counter[0] }}→{% for pos in player.challenging_positions %}{{ pos }}{% endfor %}</span>
+                                {% elif player.challenged_by_positions %}
+                                <span class="challenge-arrow arrow-challenged">{% for pos in player.challenged_by_positions %}{{ pos }}{% endfor %}→{{ position_counter[0] }}</span>
+                                {% endif %}
                             </div>
                         {% endfor %}
                     </div>
@@ -618,6 +638,11 @@
                                     <span class="inactivity-flag">🏴</span>
                                     {% elif player.dias_inativo >= 45 %}
                                     <span class="inactivity-flag">🚩</span>
+                                    {% endif %}
+                                    {% if player.challenging_positions %}
+                                    <span class="challenge-arrow arrow-challenger">{{ ladies_position[0] }}→{% for pos in player.challenging_positions %}{{ pos }}{% endfor %}</span>
+                                    {% elif player.challenged_by_positions %}
+                                    <span class="challenge-arrow arrow-challenged">{% for pos in player.challenged_by_positions %}{{ pos }}{% endfor %}→{{ ladies_position[0] }}</span>
                                     {% endif %}
                                 </div>
                                 {% if current_index.append(current_index.pop() + 1) %}{% endif %}
