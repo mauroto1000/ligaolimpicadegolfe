@@ -500,6 +500,17 @@
         z-index: 5;
     }
 
+    /* Bandeiras de inatividade */
+    .inactivity-flag {
+        position: absolute;
+        top: 13px;
+        right: 2px;
+        font-size: 10px;
+        z-index: 4;
+        line-height: 1;
+        filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));
+    }
+
     .card-header h3 {
         font-size: 1.1rem;
     }
@@ -664,6 +675,14 @@
                 </div>
                 <span>Bloqueado (viagem/saúde)</span>
             </div>
+            <div class="legend-item">
+                <span style="font-size: 14px; line-height: 1;">🚩</span>
+                <span class="ms-1">45+ dias sem jogar</span>
+            </div>
+            <div class="legend-item">
+                <span style="font-size: 14px; line-height: 1;">🏴</span>
+                <span class="ms-1">60+ dias sem jogar</span>
+            </div>
         </div>
 
         <!-- ==================== SEÇÃO MASCULINA ==================== -->
@@ -719,10 +738,16 @@
                                                 {% endif %}
                                                 
                                                 {% if player.country %}
-                                                    <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
+                                                    <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png"
                                                          alt="{{ player.country }}" class="country-flag">
                                                 {% endif %}
-                                                
+
+                                                {% if player.dias_inativo is none or player.dias_inativo >= 60 %}
+                                                <span class="inactivity-flag">🏴</span>
+                                                {% elif player.dias_inativo >= 45 %}
+                                                <span class="inactivity-flag">🚩</span>
+                                                {% endif %}
+
                                                 <div class="pyramid-tooltip">
                                                     <strong>{{ player.name }}</strong>
                                                     {% if player.bloqueado == 1 %}
@@ -732,6 +757,13 @@
                                                     <br>
                                                     Posição: #{{ position_counter[0] }}
                                                     {% if player.country %}<br>{{ player.country }}{% endif %}
+                                                    {% if player.dias_inativo is none %}
+                                                    <br><span style="color: #ff6b6b;">🏴 Nunca jogou</span>
+                                                    {% elif player.dias_inativo >= 60 %}
+                                                    <br><span style="color: #ff6b6b;">🏴 {{ player.dias_inativo }} dias sem jogar</span>
+                                                    {% elif player.dias_inativo >= 45 %}
+                                                    <br><span style="color: #ffa500;">🚩 {{ player.dias_inativo }} dias sem jogar</span>
+                                                    {% endif %}
                                                 </div>
                                                 
                                                 <span class="player-name">{{ player.name }}</span>
@@ -859,10 +891,16 @@
                                                     {% endif %}
                                                     
                                                     {% if player.country %}
-                                                        <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png" 
+                                                        <img src="https://flagcdn.com/16x12/{{ player.country|country_code }}.png"
                                                              alt="{{ player.country }}" class="country-flag">
                                                     {% endif %}
-                                                    
+
+                                                    {% if player.dias_inativo is none or player.dias_inativo >= 60 %}
+                                                    <span class="inactivity-flag">🏴</span>
+                                                    {% elif player.dias_inativo >= 45 %}
+                                                    <span class="inactivity-flag">🚩</span>
+                                                    {% endif %}
+
                                                     <span class="player-name">
                                                         <i class="fas fa-venus me-1" style="opacity: 0.8;"></i>
                                                         {{ player.name }}

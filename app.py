@@ -3182,21 +3182,36 @@ def pyramid_dynamic():
         if challenged_id in player_challenges and challenger_id in posicao_visual:
             player_challenges[challenged_id]['challenged_by_positions'].append(posicao_visual[challenger_id])
     
+    # Calcular inatividade: dias desde o último desafio concluído por jogador
+    inatividade_rows = conn.execute('''
+        SELECT p.id AS player_id,
+               CAST((julianday('now') - julianday(MAX(COALESCE(c.updated_at, c.scheduled_date)))) AS INTEGER) AS dias_inativo
+        FROM players p
+        LEFT JOIN challenges c ON (c.challenger_id = p.id OR c.challenged_id = p.id)
+            AND c.status IN ('completed', 'completed_pending')
+        WHERE p.active = 1 AND p.position > 0
+        GROUP BY p.id
+    ''').fetchall()
+    inatividade = {row['player_id']: row['dias_inativo'] for row in inatividade_rows}
+
     # Organizar jogadores por tier (VIP já excluído pela query SQL)
     tiers = {}
     for player in players:
         if player['tier'] not in tiers:
             tiers[player['tier']] = []
-        
+
         # Adicionar informações sobre desafios
         player_dict = dict(player)
         player_dict['has_pending_challenge'] = player['id'] in players_with_challenges
         player_dict['challenge_status'] = players_with_completed_pending.get(player['id'], None)
-        
+
         # Adicionar informações sobre as posições envolvidas nos desafios
         player_dict['challenging_positions'] = player_challenges[player['id']]['challenging_positions']
         player_dict['challenged_by_positions'] = player_challenges[player['id']]['challenged_by_positions']
-        
+
+        # Inatividade para sinalização visual na pirâmide
+        player_dict['dias_inativo'] = inatividade.get(player['id'])
+
         tiers[player['tier']].append(player_dict)
     
     # Ordenar tiers alfabeticamente
