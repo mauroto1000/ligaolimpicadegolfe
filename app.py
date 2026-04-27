@@ -3182,17 +3182,69 @@ def pyramid_dynamic():
         if challenged_id in player_challenges and challenger_id in posicao_visual:
             player_challenges[challenged_id]['challenged_by_positions'].append(posicao_visual[challenger_id])
     
-    # Calcular inatividade: dias desde o último desafio concluído por jogador
-    inatividade_rows = conn.execute('''
+    # Calcular inatividade: dias desde o último desafio concluído, descontando períodos de bloqueio
+    from datetime import date as _date, datetime as _datetime
+
+    _hoje = _date.today()
+
+    last_played_rows = conn.execute('''
         SELECT p.id AS player_id,
-               CAST((julianday('now') - julianday(MAX(COALESCE(c.updated_at, c.scheduled_date)))) AS INTEGER) AS dias_inativo
+               MAX(COALESCE(c.updated_at, c.scheduled_date)) AS last_date
         FROM players p
         LEFT JOIN challenges c ON (c.challenger_id = p.id OR c.challenged_id = p.id)
             AND c.status IN ('completed', 'completed_pending')
         WHERE p.active = 1 AND p.position > 0
         GROUP BY p.id
     ''').fetchall()
-    inatividade = {row['player_id']: row['dias_inativo'] for row in inatividade_rows}
+
+    # Carregar histórico de bloqueios (se a tabela já existir)
+    _block_periods = {}
+    _has_history = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='player_block_history'"
+    ).fetchone()
+    if _has_history:
+        for _r in conn.execute(
+            'SELECT player_id, start_date, end_date FROM player_block_history'
+        ).fetchall():
+            _block_periods.setdefault(_r['player_id'], []).append((_r['start_date'], _r['end_date']))
+
+    # Fallback: jogadores ainda bloqueados sem registro aberto no histórico
+    for _r in conn.execute(
+        'SELECT id, bloqueio_inicio FROM players WHERE bloqueado = 1 AND bloqueio_inicio IS NOT NULL'
+    ).fetchall():
+        _pid = _r['id']
+        _has_open = any(_e is None for _, _e in _block_periods.get(_pid, []))
+        if not _has_open:
+            _block_periods.setdefault(_pid, []).append((_r['bloqueio_inicio'], None))
+
+    def _dias_bloqueado_desde(pid, since):
+        total = 0
+        for s_str, e_str in _block_periods.get(pid, []):
+            try:
+                s = _datetime.strptime(str(s_str)[:10], '%Y-%m-%d').date()
+                e = _datetime.strptime(str(e_str)[:10], '%Y-%m-%d').date() if e_str else _hoje
+                ov_start = max(s, since)
+                ov_end   = min(e, _hoje)
+                if ov_end > ov_start:
+                    total += (ov_end - ov_start).days
+            except Exception:
+                pass
+        return total
+
+    inatividade = {}
+    for _r in last_played_rows:
+        _pid = _r['player_id']
+        _last_str = str(_r['last_date'])[:10] if _r['last_date'] else None
+        if _last_str:
+            try:
+                _last_dt = _datetime.strptime(_last_str, '%Y-%m-%d').date()
+                _bruto = (_hoje - _last_dt).days
+                _desconto = _dias_bloqueado_desde(_pid, _last_dt)
+                inatividade[_pid] = max(0, _bruto - _desconto)
+            except Exception:
+                inatividade[_pid] = None
+        else:
+            inatividade[_pid] = None  # Nunca jogou
 
     # Organizar jogadores por tier (VIP já excluído pela query SQL)
     tiers = {}
@@ -8155,18 +8207,48 @@ def toggle_bloqueio_jogador(player_id):
     
     conn = get_db_connection()
     try:
-        player = conn.execute('SELECT name, bloqueado FROM players WHERE id = ?', 
+        # Garantir tabela de histórico de bloqueios
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS player_block_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                player_id INTEGER NOT NULL,
+                start_date DATE NOT NULL,
+                end_date DATE,
+                motivo TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (player_id) REFERENCES players(id)
+            )
+        ''')
+        # Migração única: jogadores já bloqueados sem registro aberto no histórico
+        conn.execute('''
+            INSERT INTO player_block_history (player_id, start_date, motivo)
+            SELECT id, bloqueio_inicio, bloqueio_motivo
+            FROM players
+            WHERE bloqueado = 1
+              AND bloqueio_inicio IS NOT NULL
+              AND id NOT IN (
+                  SELECT player_id FROM player_block_history WHERE end_date IS NULL
+              )
+        ''')
+        conn.commit()
+
+        player = conn.execute('SELECT name, bloqueado FROM players WHERE id = ?',
                               (player_id,)).fetchone()
-        
+
         if not player:
             flash('❌ Jogador não encontrado.', 'error')
             conn.close()
             return redirect(url_for('index'))
-        
+
         # Se está bloqueado, desbloqueia
         if player['bloqueado'] == 1:
+            # Fechar período no histórico
             conn.execute('''
-                UPDATE players 
+                UPDATE player_block_history SET end_date = date('now')
+                WHERE player_id = ? AND end_date IS NULL
+            ''', (player_id,))
+            conn.execute('''
+                UPDATE players
                 SET bloqueado = 0, bloqueio_motivo = NULL, bloqueio_ate = NULL,
                     bloqueio_inicio = NULL, bloqueio_ultima_penalidade = NULL
                 WHERE id = ?
@@ -8178,15 +8260,20 @@ def toggle_bloqueio_jogador(player_id):
             motivo = request.form.get('motivo', 'Não especificado')
             data_ate = request.form.get('data_ate', None)
             hoje = datetime.now().strftime('%Y-%m-%d')
-            
+
             conn.execute('''
-                UPDATE players 
+                UPDATE players
                 SET bloqueado = 1, bloqueio_motivo = ?, bloqueio_ate = ?,
                     bloqueio_inicio = ?, bloqueio_ultima_penalidade = ?
                 WHERE id = ?
             ''', (motivo, data_ate, hoje, hoje, player_id))
+            # Abrir novo período no histórico
+            conn.execute('''
+                INSERT INTO player_block_history (player_id, start_date, motivo)
+                VALUES (?, ?, ?)
+            ''', (player_id, hoje, motivo))
             conn.commit()
-            
+
             msg_data = f" até {data_ate}" if data_ate else ""
             flash(f'🚫 {player["name"]} foi BLOQUEADO ({motivo}){msg_data}.', 'warning')
         
