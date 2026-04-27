@@ -3418,11 +3418,11 @@ def new_challenge():
         # Regras de validação
         error = None
         
-        # Verificar desafios pendentes
+        # Verificar desafios pendentes (inclui proposta de datas em andamento)
         pending_challenges = conn.execute('''
-            SELECT * FROM challenges 
+            SELECT * FROM challenges
             WHERE (challenger_id = ? OR challenged_id = ? OR challenger_id = ? OR challenged_id = ?)
-            AND status IN ('pending', 'accepted')
+            AND status IN ('pending', 'accepted', 'awaiting_date_confirmation')
         ''', (challenger_id, challenger_id, challenged_id, challenged_id)).fetchall()
         
         if pending_challenges:
@@ -3587,9 +3587,9 @@ def new_challenge():
     eligible_challenged = []
     
     pending_challenges = conn.execute('''
-        SELECT challenger_id, challenged_id 
-        FROM challenges 
-        WHERE status IN ('pending', 'accepted')
+        SELECT challenger_id, challenged_id
+        FROM challenges
+        WHERE status IN ('pending', 'accepted', 'awaiting_date_confirmation')
     ''').fetchall()
     
     players_with_challenges = set()
@@ -4243,7 +4243,7 @@ def player_detail(player_id):
         tem_desafio = conn.execute('''
             SELECT COUNT(*) as count FROM challenges
             WHERE (challenger_id = ? OR challenged_id = ?)
-            AND status IN ('pending', 'accepted')
+            AND status IN ('pending', 'accepted', 'awaiting_date_confirmation')
         ''', (p_dict['id'], p_dict['id'])).fetchone()['count'] > 0
         p_dict['tem_desafio'] = tem_desafio
         # Verificar se houve desafio entre estes jogadores nos últimos 7 dias
@@ -9033,23 +9033,23 @@ def _criar_desafio_via_whatsapp_locked(challenger_id, challenged_id, scheduled_d
             conn.close()
             return False, f"{challenged['name']} está bloqueado ({motivo}).", None
         
-        # Verificar se já existe desafio pendente entre eles
+        # Verificar se já existe desafio ativo entre eles (inclui proposta de datas)
         existing = conn.execute('''
             SELECT id FROM challenges
             WHERE ((challenger_id = ? AND challenged_id = ?)
                    OR (challenger_id = ? AND challenged_id = ?))
-            AND status IN ('pending', 'accepted')
+            AND status IN ('pending', 'accepted', 'awaiting_date_confirmation')
         ''', (challenger_id, challenged_id, challenged_id, challenger_id)).fetchone()
 
         if existing:
             conn.close()
-            return False, "Já existe um desafio pendente entre vocês.", None
+            return False, "Já existe um desafio ativo entre vocês.", None
 
         # Verificar se algum dos dois já tem desafio ativo
         challenger_busy = conn.execute('''
             SELECT id FROM challenges
             WHERE (challenger_id = ? OR challenged_id = ?)
-            AND status IN ('pending', 'accepted')
+            AND status IN ('pending', 'accepted', 'awaiting_date_confirmation')
         ''', (challenger_id, challenger_id)).fetchone()
 
         if challenger_busy:
@@ -9059,7 +9059,7 @@ def _criar_desafio_via_whatsapp_locked(challenger_id, challenged_id, scheduled_d
         challenged_busy = conn.execute('''
             SELECT id FROM challenges
             WHERE (challenger_id = ? OR challenged_id = ?)
-            AND status IN ('pending', 'accepted')
+            AND status IN ('pending', 'accepted', 'awaiting_date_confirmation')
         ''', (challenged_id, challenged_id)).fetchone()
 
         if challenged_busy:
@@ -9421,15 +9421,15 @@ def get_possiveis_desafiados(player_id):
 
 
 def tem_desafio_ativo(player_id):
-    """Verifica se jogador tem desafio pendente ou aceito"""
+    """Verifica se jogador tem desafio pendente, aceito ou com proposta de data em andamento"""
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         SELECT COUNT(*) as count
         FROM challenges
         WHERE (challenger_id = ? OR challenged_id = ?)
-          AND status IN ('pending', 'accepted')
+          AND status IN ('pending', 'accepted', 'awaiting_date_confirmation')
     """, (player_id, player_id))
     
     result = cursor.fetchone()
