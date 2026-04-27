@@ -9293,8 +9293,17 @@ def _criar_desafio_via_whatsapp_locked(challenger_id, challenged_id, scheduled_d
             conn.close()
             return False, "Você só pode desafiar jogadores acima de você no ranking.", None
         
-        # Validar distância máxima de 8 posições
-        if challenger['position'] - challenged['position'] > 8:
+        # Validar janela de 8 jogadores não-bloqueados acima (mesma lógica da web)
+        _eligible_ids = [r['id'] for r in conn.execute('''
+            SELECT id FROM players
+            WHERE active = 1 AND position > 0
+              AND position < ?
+              AND (bloqueado = 0 OR bloqueado IS NULL)
+              AND (sexo = ? OR sexo IS NULL OR sexo = '')
+            ORDER BY position DESC
+            LIMIT 8
+        ''', (challenger['position'], challenger['sexo'] or 'masculino')).fetchall()]
+        if challenged_id not in _eligible_ids:
             conn.close()
             return False, "Você só pode desafiar jogadores até 8 posições acima.", None
         
