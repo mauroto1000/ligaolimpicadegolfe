@@ -8479,6 +8479,21 @@ def atualizar_todos_hcp_cbg():
     return redirect(url_for('admin_dashboard'))
 
 
+@app.route('/admin/debug-cbg')
+@login_required
+def debug_cbg():
+    """Inspeciona os campos do formulário da CBG — apenas para diagnóstico."""
+    if not session.get('is_admin', False):
+        return jsonify({'erro': 'Acesso restrito'}), 403
+    if not _CBG_DISPONIVEL:
+        return jsonify({'erro': 'Módulo cbg_handicap não disponível'}), 500
+    try:
+        dados = discover_campos()
+        return jsonify(dados)
+    except Exception as e:
+        return jsonify({'erro': str(e)}), 500
+
+
 # ============================================================
 # SISTEMA DE DISPONIBILIDADE DO JOGADOR
 # ============================================================
