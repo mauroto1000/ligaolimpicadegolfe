@@ -14,8 +14,11 @@ Pré-requisito (executar uma vez no ambiente):
 import requests
 from bs4 import BeautifulSoup
 
-CBG_BASE = "https://scoring.cbgolfe.com.br/"
-CBG_URL  = "https://scoring.cbgolfe.com.br/lists/FederatedsList_V2.aspx"
+CBG_ROOT    = "https://www.cbgolfe.com.br/"
+CBG_SCORING = "https://scoring.cbgolfe.com.br/"
+CBG_URL     = "https://scoring.cbgolfe.com.br/lists/FederatedsList_V2.aspx"
+# Atalho para compatibilidade
+CBG_BASE = CBG_SCORING
 
 _HEADERS = {
     "User-Agent": (
@@ -183,14 +186,22 @@ def _consultar_via_playwright(no_federado):
 def _consultar_via_requests(no_federado):
     session = requests.Session()
 
-    # 1. Visitar página principal para estabelecer cookie de sessão
-    try:
-        session.get(CBG_BASE, headers=_HEADERS, timeout=15)
-    except Exception:
-        pass
+    # Percorrer a cadeia de domínios para obter cookies SameSite da CBG
+    for url_warmup, ref in [
+        (CBG_ROOT,    None),
+        (CBG_SCORING, CBG_ROOT),
+        (CBG_URL,     CBG_SCORING),
+    ]:
+        try:
+            h = {**_HEADERS}
+            if ref:
+                h["Referer"] = ref
+            session.get(url_warmup, headers=h, timeout=15)
+        except Exception:
+            pass
 
-    # 2. GET da lista de federados com Referer correto
-    headers_get = {**_HEADERS, "Referer": CBG_BASE}
+    # GET final da lista de federados
+    headers_get = {**_HEADERS, "Referer": CBG_SCORING}
     r = session.get(CBG_URL, headers=headers_get, timeout=15)
     r.raise_for_status()
 
@@ -262,11 +273,18 @@ def discover_campos():
     Útil para diagnosticar alterações no formulário.
     """
     session = requests.Session()
-    try:
-        session.get(CBG_BASE, headers=_HEADERS, timeout=15)
-    except Exception:
-        pass
-    r = session.get(CBG_URL, headers={**_HEADERS, "Referer": CBG_BASE}, timeout=15)
+    for url_warmup, ref in [
+        (CBG_ROOT,    None),
+        (CBG_SCORING, CBG_ROOT),
+    ]:
+        try:
+            h = {**_HEADERS}
+            if ref:
+                h["Referer"] = ref
+            session.get(url_warmup, headers=h, timeout=15)
+        except Exception:
+            pass
+    r = session.get(CBG_URL, headers={**_HEADERS, "Referer": CBG_SCORING}, timeout=15)
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
     campos = _extrair_campos_form(soup)
