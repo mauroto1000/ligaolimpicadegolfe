@@ -655,7 +655,39 @@
                     </div>
                 </div>
                 {% endif %}
-                
+
+                <!-- Sincronização de HCP com a CBG -->
+                {% if player.no_federado %}
+                <div class="card mb-3 border-info">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-sync-alt me-2"></i>Handicap CBG</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-1 small">Nº Federado: <strong>{{ player.no_federado }}</strong></p>
+                        <p class="mb-3 small text-muted">
+                            Última atualização:
+                            {% if player.hcp_last_update %}
+                                {{ player.hcp_last_update[:10] }}
+                            {% else %}
+                                nunca sincronizado
+                            {% endif %}
+                        </p>
+                        <form action="{{ url_for('atualizar_hcp_cbg', player_id=player.id) }}" method="POST">
+                            <button type="submit" class="btn btn-info btn-sm w-100">
+                                <i class="fas fa-cloud-download-alt me-1"></i> Buscar HCP na CBG
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% else %}
+                <div class="card mb-3 border-secondary">
+                    <div class="card-body text-muted small">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Nº Federado não cadastrado — sincronização com CBG indisponível.
+                    </div>
+                </div>
+                {% endif %}
+
                 {% endif %}
                 <!-- FIM ÁREA DO ADMINISTRADOR -->
 

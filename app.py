@@ -9,6 +9,11 @@ from werkzeug.utils import secure_filename  # Adicione esta linha
 import json
 from flask import send_file
 from io import BytesIO
+try:
+    from cbg_handicap import consultar_hcp_cbg, discover_campos
+    _CBG_DISPONIVEL = True
+except ImportError:
+    _CBG_DISPONIVEL = False
 
 # Lock para serializar criação de desafios e evitar duplicatas por race condition
 _challenge_creation_lock = threading.Lock()
@@ -8376,6 +8381,102 @@ def toggle_bloqueio_jogador(player_id):
         conn.close()
     
     return redirect(url_for('player_detail', player_id=player_id))
+
+
+# ============================================================
+# SINCRONIZAÇÃO DE HANDICAP COM A CBG
+# ============================================================
+
+@app.route('/admin/atualizar-hcp/<int:player_id>', methods=['POST'])
+@login_required
+def atualizar_hcp_cbg(player_id):
+    """Atualiza o hcp_index de um jogador consultando a CBG pelo no_federado."""
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+
+    if not _CBG_DISPONIVEL:
+        flash('❌ Módulo cbg_handicap não disponível. Instale requests e beautifulsoup4.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+
+    conn = get_db_connection()
+    player = conn.execute('SELECT id, name, no_federado FROM players WHERE id = ?', (player_id,)).fetchone()
+
+    if not player or not player['no_federado']:
+        conn.close()
+        flash('❌ Jogador sem Nº Federado cadastrado.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+
+    resultado = consultar_hcp_cbg(player['no_federado'])
+
+    if resultado is None:
+        conn.close()
+        flash(f'❌ Nenhum dado retornado pela CBG para o Nº Federado {player["no_federado"]}.', 'error')
+        return redirect(url_for('player_detail', player_id=player_id))
+
+    hcp = resultado.get('hcp_float')
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    if hcp is not None:
+        conn.execute(
+            'UPDATE players SET hcp_index = ?, hcp_last_update = ? WHERE id = ?',
+            (hcp, now, player_id)
+        )
+        conn.commit()
+        flash(f'✅ HCP de {player["name"]} atualizado para {hcp} (CBG).', 'success')
+    else:
+        flash(f'⚠️ CBG retornou HCP vazio para {player["name"]}. Nenhuma alteração feita.', 'warning')
+
+    conn.close()
+    return redirect(url_for('player_detail', player_id=player_id))
+
+
+@app.route('/admin/atualizar-todos-hcp', methods=['POST'])
+@login_required
+def atualizar_todos_hcp_cbg():
+    """Atualiza o hcp_index de todos os jogadores com no_federado cadastrado."""
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+    if not _CBG_DISPONIVEL:
+        flash('❌ Módulo cbg_handicap não disponível. Instale requests e beautifulsoup4.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+    conn = get_db_connection()
+    jogadores = conn.execute(
+        'SELECT id, name, no_federado FROM players WHERE active = 1 AND no_federado IS NOT NULL AND no_federado != ""'
+    ).fetchall()
+
+    atualizados = 0
+    sem_retorno = []
+    erros = []
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    for jogador in jogadores:
+        try:
+            resultado = consultar_hcp_cbg(jogador['no_federado'])
+            if resultado and resultado.get('hcp_float') is not None:
+                conn.execute(
+                    'UPDATE players SET hcp_index = ?, hcp_last_update = ? WHERE id = ?',
+                    (resultado['hcp_float'], now, jogador['id'])
+                )
+                atualizados += 1
+            else:
+                sem_retorno.append(jogador['name'])
+        except Exception as e:
+            erros.append(f"{jogador['name']} ({e})")
+
+    conn.commit()
+    conn.close()
+
+    flash(f'✅ {atualizados} jogadores atualizados com sucesso.', 'success')
+    if sem_retorno:
+        flash(f'⚠️ Sem retorno da CBG: {", ".join(sem_retorno)}.', 'warning')
+    if erros:
+        flash(f'❌ Erros: {", ".join(erros)}.', 'error')
+
+    return redirect(url_for('admin_dashboard'))
 
 
 # ============================================================
