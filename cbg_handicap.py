@@ -14,7 +14,8 @@ Pré-requisito (executar uma vez no ambiente):
 import requests
 from bs4 import BeautifulSoup
 
-CBG_URL = "https://scoring.cbgolfe.com.br/lists/FederatedsList_V2.aspx"
+CBG_BASE = "https://scoring.cbgolfe.com.br/"
+CBG_URL  = "https://scoring.cbgolfe.com.br/lists/FederatedsList_V2.aspx"
 
 _HEADERS = {
     "User-Agent": (
@@ -24,7 +25,6 @@ _HEADERS = {
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8",
-    "Referer": CBG_URL,
 }
 
 
@@ -182,8 +182,22 @@ def _consultar_via_playwright(no_federado):
 
 def _consultar_via_requests(no_federado):
     session = requests.Session()
-    r = session.get(CBG_URL, headers=_HEADERS, timeout=15)
+
+    # 1. Visitar página principal para estabelecer cookie de sessão
+    try:
+        session.get(CBG_BASE, headers=_HEADERS, timeout=15)
+    except Exception:
+        pass
+
+    # 2. GET da lista de federados com Referer correto
+    headers_get = {**_HEADERS, "Referer": CBG_BASE}
+    r = session.get(CBG_URL, headers=headers_get, timeout=15)
     r.raise_for_status()
+
+    if "Err=999" in r.text or "Param Error" in r.text:
+        print("[CBG] requests: erro de sessão (Err=999) — site ainda requer autenticação.")
+        return None
+
     soup = BeautifulSoup(r.text, "html.parser")
     campos = _extrair_campos_form(soup)
     campo_nome, campo_nofed, campo_botao = _identificar_campos(soup, campos)
@@ -193,7 +207,7 @@ def _consultar_via_requests(no_federado):
     if campo_nome:
         campos[campo_nome] = ""
     campos[campo_nofed] = str(no_federado)
-    post_headers = {**_HEADERS, "Content-Type": "application/x-www-form-urlencoded"}
+    post_headers = {**_HEADERS, "Content-Type": "application/x-www-form-urlencoded", "Referer": CBG_URL}
     r2 = session.post(CBG_URL, data=campos, headers=post_headers, timeout=15)
     r2.raise_for_status()
     soup2 = BeautifulSoup(r2.text, "html.parser")
@@ -248,7 +262,11 @@ def discover_campos():
     Útil para diagnosticar alterações no formulário.
     """
     session = requests.Session()
-    r = session.get(CBG_URL, headers=_HEADERS, timeout=15)
+    try:
+        session.get(CBG_BASE, headers=_HEADERS, timeout=15)
+    except Exception:
+        pass
+    r = session.get(CBG_URL, headers={**_HEADERS, "Referer": CBG_BASE}, timeout=15)
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
     campos = _extrair_campos_form(soup)
