@@ -9448,6 +9448,12 @@ def _criar_desafio_via_whatsapp_locked(challenger_id, challenged_id, scheduled_d
             conn.close()
             return False, "Jogador não encontrado ou inativo.", None
         
+        # Verificar se desafiante está bloqueado
+        if challenger['bloqueado'] == 1:
+            motivo = challenger['bloqueio_motivo'] or 'indisponível'
+            conn.close()
+            return False, f"Você está bloqueado ({motivo}) e não pode criar desafios.", None
+
         # Verificar se desafiado está bloqueado
         if challenged['bloqueado'] == 1:
             motivo = challenged['bloqueio_motivo'] or 'indisponível'
