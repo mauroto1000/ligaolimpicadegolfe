@@ -512,10 +512,30 @@
         filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
     }
 
+    /* Últimas 5 resultados */
+    .ultimas5 {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 2px;
+        margin-top: 3px;
+        position: relative;
+        z-index: 2;
+    }
+    .u5-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        border: 1px solid rgba(255,255,255,0.35);
+        flex-shrink: 0;
+    }
+    .u5-W { background-color: #28a745; }
+    .u5-L { background-color: #dc3545; }
+
     .card-header h3 {
         font-size: 1.1rem;
     }
-    
+
     @media (min-width: 768px) {
         .card-header h3 {
             font-size: 1.4rem;
@@ -833,6 +853,14 @@
                                                         {% for pos in player.challenged_by_positions %}{{pos}}{% endfor %}→{{position_counter[0]}}
                                                     </span>
                                                 {% endif %}
+
+                                                {% if player.ultimas5 and player.bloqueado != 1 and not player.has_pending_challenge and player.challenge_status != 'completed_pending' %}
+                                                <div class="ultimas5">
+                                                    {% for r in player.ultimas5 %}
+                                                    <span class="u5-dot u5-{{ r }}" title="{{ 'Vitória' if r == 'W' else 'Derrota' }}"></span>
+                                                    {% endfor %}
+                                                </div>
+                                                {% endif %}
                                             </div>
                                         {% endfor %}
                                     </div>
@@ -961,6 +989,14 @@
                                                             {% if displayed.pop(0) %}{% endif %}
                                                         {% endif %}
                                                     {% endfor %}
+
+                                                    {% if player.ultimas5 and player.bloqueado != 1 and not player.has_pending_challenge and player.challenge_status != 'completed_pending' %}
+                                                    <div class="ultimas5">
+                                                        {% for r in player.ultimas5 %}
+                                                        <span class="u5-dot u5-{{ r }}" title="{{ 'Vitória' if r == 'W' else 'Derrota' }}"></span>
+                                                        {% endfor %}
+                                                    </div>
+                                                    {% endif %}
                                                 </div>
                                                 {% if current_index.append(current_index.pop() + 1) %}{% endif %}
                                             {% endif %}

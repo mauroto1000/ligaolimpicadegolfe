@@ -3251,6 +3251,26 @@ def pyramid_dynamic():
         else:
             inatividade[_pid] = None  # Nunca jogou
 
+    # Últimas 5 resultados por jogador (mais recente → mais antigo, invertido para exibição)
+    _completed_ch = conn.execute('''
+        SELECT challenger_id, challenged_id, result,
+               COALESCE(updated_at, scheduled_date) as date_ref
+        FROM challenges
+        WHERE status IN ('completed', 'completed_pending')
+          AND result IS NOT NULL
+        ORDER BY date_ref DESC, id DESC
+    ''').fetchall()
+    _ultimas5_raw = {}
+    for _ch in _completed_ch:
+        for _pid, _wins in [
+            (_ch['challenger_id'], ('challenger_win', 'wo_challenger')),
+            (_ch['challenged_id'],  ('challenged_win', 'wo_challenged')),
+        ]:
+            if _pid not in _ultimas5_raw:
+                _ultimas5_raw[_pid] = []
+            if len(_ultimas5_raw[_pid]) < 5:
+                _ultimas5_raw[_pid].append('W' if _ch['result'] in _wins else 'L')
+
     # Organizar jogadores por tier (VIP já excluído pela query SQL)
     tiers = {}
     for player in players:
@@ -3268,6 +3288,9 @@ def pyramid_dynamic():
 
         # Inatividade para sinalização visual na pirâmide
         player_dict['dias_inativo'] = inatividade.get(player['id'])
+
+        # Últimas 5 (ordem cronológica: mais antigo à esquerda, mais recente à direita)
+        player_dict['ultimas5'] = list(reversed(_ultimas5_raw.get(player['id'], [])))
 
         tiers[player['tier']].append(player_dict)
     
