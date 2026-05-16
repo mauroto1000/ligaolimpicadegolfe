@@ -523,14 +523,21 @@
         z-index: 2;
     }
     .u5-dot {
-        width: 9px;
-        height: 9px;
+        width: 13px;
+        height: 13px;
         border-radius: 50%;
-        border: 1px solid rgba(255,255,255,0.35);
+        background-color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        font-weight: 900;
+        line-height: 1;
         flex-shrink: 0;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.25);
     }
-    .u5-W { background-color: #28a745; }
-    .u5-L { background-color: #dc3545; }
+    .u5-W { color: #28a745; }
+    .u5-L { color: #dc3545; }
 
     .card-header h3 {
         font-size: 1.1rem;
@@ -857,7 +864,7 @@
                                                 {% if player.ultimas5 and player.bloqueado != 1 and not player.has_pending_challenge and player.challenge_status != 'completed_pending' %}
                                                 <div class="ultimas5">
                                                     {% for r in player.ultimas5 %}
-                                                    <span class="u5-dot u5-{{ r }}" title="{{ 'Vitória' if r == 'W' else 'Derrota' }}"></span>
+                                                    <span class="u5-dot u5-{{ r }}" title="{{ 'Vitória' if r == 'W' else 'Derrota' }}">{{ '✓' if r == 'W' else '✕' }}</span>
                                                     {% endfor %}
                                                 </div>
                                                 {% endif %}
@@ -993,7 +1000,7 @@
                                                     {% if player.ultimas5 and player.bloqueado != 1 and not player.has_pending_challenge and player.challenge_status != 'completed_pending' %}
                                                     <div class="ultimas5">
                                                         {% for r in player.ultimas5 %}
-                                                        <span class="u5-dot u5-{{ r }}" title="{{ 'Vitória' if r == 'W' else 'Derrota' }}"></span>
+                                                        <span class="u5-dot u5-{{ r }}" title="{{ 'Vitória' if r == 'W' else 'Derrota' }}">{{ '✓' if r == 'W' else '✕' }}</span>
                                                         {% endfor %}
                                                     </div>
                                                     {% endif %}
