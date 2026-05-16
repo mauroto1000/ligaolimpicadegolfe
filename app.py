@@ -8664,7 +8664,7 @@ def update_player_disponibilidade(player_id):
     
     dias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']
     periodos = ['manha', 'tarde']
-    
+
     disponibilidade = {}
     for dia in dias:
         disponibilidade[dia] = {}
@@ -8672,16 +8672,76 @@ def update_player_disponibilidade(player_id):
             # Checkbox: presente no form = True, ausente = False
             campo = f"{dia}_{periodo}"
             disponibilidade[dia][periodo] = campo in request.form
-    
+
+    todos_indisponiveis = all(
+        not disponibilidade[dia][periodo]
+        for dia in dias
+        for periodo in periodos
+    )
+
     conn = get_db_connection()
     conn.execute(
         'UPDATE players SET disponibilidade = ? WHERE id = ?',
         (json.dumps(disponibilidade), player_id)
     )
+
+    player = conn.execute(
+        'SELECT name, bloqueado, bloqueio_motivo FROM players WHERE id = ?',
+        (player_id,)
+    ).fetchone()
+
+    hoje = datetime.now().strftime('%Y-%m-%d')
+    MOTIVO_AUTO = 'Sem disponibilidade'
+
+    if todos_indisponiveis and player['bloqueado'] != 1:
+        # Garantir tabela de histórico
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS player_block_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                player_id INTEGER NOT NULL,
+                start_date DATE NOT NULL,
+                end_date DATE,
+                motivo TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (player_id) REFERENCES players(id)
+            )
+        ''')
+        conn.execute('''
+            UPDATE players
+            SET bloqueado = 1, bloqueio_motivo = ?, bloqueio_ate = NULL,
+                bloqueio_inicio = ?, bloqueio_ultima_penalidade = ?
+            WHERE id = ?
+        ''', (MOTIVO_AUTO, hoje, hoje, player_id))
+        conn.execute('''
+            INSERT INTO player_block_history (player_id, start_date, motivo)
+            VALUES (?, ?, ?)
+        ''', (player_id, hoje, MOTIVO_AUTO))
+        flash('🚫 Todos os horários foram desmarcados — jogador bloqueado automaticamente.', 'warning')
+
+    elif not todos_indisponiveis and player['bloqueado'] == 1:
+        # Desbloquear somente se o bloqueio foi criado automaticamente por disponibilidade
+        motivo_atual = (player['bloqueio_motivo'] or '').lower()
+        if 'disponibilidade' in motivo_atual:
+            conn.execute('''
+                UPDATE player_block_history SET end_date = date('now')
+                WHERE player_id = ? AND end_date IS NULL
+            ''', (player_id,))
+            conn.execute('''
+                UPDATE players
+                SET bloqueado = 0, bloqueio_motivo = NULL, bloqueio_ate = NULL,
+                    bloqueio_inicio = NULL, bloqueio_ultima_penalidade = NULL
+                WHERE id = ?
+            ''', (player_id,))
+            flash('✅ Disponibilidade atualizada — jogador desbloqueado automaticamente.', 'success')
+        else:
+            flash('✅ Disponibilidade atualizada com sucesso!', 'success')
+
+    else:
+        flash('✅ Disponibilidade atualizada com sucesso!', 'success')
+
     conn.commit()
     conn.close()
-    
-    flash('✅ Disponibilidade atualizada com sucesso!', 'success')
+
     return redirect(url_for('player_detail', player_id=player_id))
 
 
