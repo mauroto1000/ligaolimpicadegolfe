@@ -3630,29 +3630,51 @@ def new_challenge():
         
         if pending_challenges:
             same_players_challenge = False
-            for challenge in pending_challenges:
-                if ((challenge['challenger_id'] == int(challenger_id) and challenge['challenged_id'] == int(challenged_id)) or
-                    (challenge['challenger_id'] == int(challenged_id) and challenge['challenged_id'] == int(challenger_id))):
+            blocking_challenge = None
+            other_blocking_challenge = None
+            for ch in pending_challenges:
+                if ((ch['challenger_id'] == int(challenger_id) and ch['challenged_id'] == int(challenged_id)) or
+                    (ch['challenger_id'] == int(challenged_id) and ch['challenged_id'] == int(challenger_id))):
                     same_players_challenge = True
+                    blocking_challenge = ch
                     break
-            
+                elif other_blocking_challenge is None:
+                    other_blocking_challenge = ch
+
             if same_players_challenge:
+                if is_admin:
+                    conn.close()
+                    flash(
+                        f'⚠️ Já existe o Desafio #{blocking_challenge["id"]} (status: {blocking_challenge["status"]}) '
+                        f'entre estes jogadores. Exclua-o antes de criar um novo.',
+                        'warning'
+                    )
+                    return redirect(url_for('challenge_detail', challenge_id=blocking_challenge['id']))
                 error = "Já existe um desafio pendente ou aceito entre estes jogadores."
             else:
+                blocking = other_blocking_challenge
+                if is_admin:
+                    conn.close()
+                    flash(
+                        f'⚠️ Um dos jogadores já está no Desafio #{blocking["id"]} (status: {blocking["status"]}). '
+                        f'Exclua-o antes de criar um novo.',
+                        'warning'
+                    )
+                    return redirect(url_for('challenge_detail', challenge_id=blocking['id']))
                 error = "Um dos jogadores já está envolvido em um desafio pendente ou aceito."
-        
+
         # Regra de 8 posições
         if not error and not is_main_admin:
             challenger_position = challenger['position']
             challenged_position = challenged['position']
             challenger_sexo = challenger['sexo'] or 'masculino'
-            
+
             if challenged_position >= challenger_position:
                 error = "Você só pode desafiar jogadores em posições melhores que a sua."
             else:
                 eligible_above = conn.execute('''
-                    SELECT id, position FROM players 
-                    WHERE active = 1 
+                    SELECT id, position FROM players
+                    WHERE active = 1
                     AND position < ?
                     AND position > 0
                     AND (bloqueado = 0 OR bloqueado IS NULL)
@@ -3660,12 +3682,12 @@ def new_challenge():
                     ORDER BY position DESC
                     LIMIT 8
                 ''', (challenger_position, challenger_sexo, challenger_sexo)).fetchall()
-                
+
                 eligible_ids = [p['id'] for p in eligible_above]
-                
+
                 if int(challenged_id) not in eligible_ids:
                     error = "Você só pode desafiar os 8 jogadores elegíveis mais próximos acima da sua posição."
-        
+
         if error:
             conn.close()
             flash(error, 'error')
