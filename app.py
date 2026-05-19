@@ -1899,7 +1899,7 @@ def rebalance_positions_after_challenge(conn, winner_id, loser_id, winner_new_po
 #    - Desafiado não muda de posição
 # ============================================================
 
-def process_challenge_result(conn, challenge_id, status, result):
+def process_challenge_result(conn, challenge_id, status, result, confirmado_por=None, origem='web'):
     """
     Processa o resultado de um desafio, atualizando posições conforme as regras:
     
@@ -1917,13 +1917,28 @@ def process_challenge_result(conn, challenge_id, status, result):
       * Desafiante perde 4 posições no ranking
       * Desafiado não muda de posição
     """
+    # Migração: garantir colunas de rastreamento de resultado
+    _cols = [r[1] for r in conn.execute('PRAGMA table_info(challenges)').fetchall()]
+    if 'result_confirmado_por' not in _cols:
+        conn.execute('ALTER TABLE challenges ADD COLUMN result_confirmado_por INTEGER')
+    if 'result_confirmado_em' not in _cols:
+        conn.execute('ALTER TABLE challenges ADD COLUMN result_confirmado_em DATETIME')
+    if 'result_origem' not in _cols:
+        conn.execute('ALTER TABLE challenges ADD COLUMN result_origem TEXT')
+
     # Buscar o result_type do desafio
     challenge_data = conn.execute('SELECT result_type FROM challenges WHERE id = ?', (challenge_id,)).fetchone()
     result_type = challenge_data['result_type'] if challenge_data and challenge_data['result_type'] else 'normal'
-    
-    # Atualizar o status e resultado do desafio
-    conn.execute('UPDATE challenges SET status = ?, result = ? WHERE id = ?', 
-                (status, result, challenge_id))
+
+    # Atualizar o status, resultado e rastreamento de quem confirmou
+    conn.execute('''
+        UPDATE challenges
+        SET status = ?, result = ?,
+            result_confirmado_por = ?,
+            result_confirmado_em = CURRENT_TIMESTAMP,
+            result_origem = ?
+        WHERE id = ?
+    ''', (status, result, confirmado_por, origem, challenge_id))
     
     # Se for "Concluído (com pendência)", apenas registramos o resultado sem alterar posições
     if status == 'completed_pending':
@@ -4113,7 +4128,8 @@ def edit_challenge(challenge_id):
                 
                 # Se o novo status for completed, processar o novo resultado
                 if status == 'completed' and result:
-                    process_challenge_result(conn, challenge_id, status, result)
+                    process_challenge_result(conn, challenge_id, status, result,
+                                             confirmado_por=session.get('user_id'), origem='web')
                     flash('Ranking atualizado com o novo resultado.', 'success')
                     # Notificar grupo de WhatsApp
                     try:
@@ -4127,7 +4143,8 @@ def edit_challenge(challenge_id):
                         print(f"Erro ao enviar notificação WhatsApp: {e_notif}")
                 # Se o novo status for completed_pending, processar sem alterar o ranking
                 elif status == 'completed_pending' and result:
-                    process_challenge_result(conn, challenge_id, status, result)
+                    process_challenge_result(conn, challenge_id, status, result,
+                                             confirmado_por=session.get('user_id'), origem='web')
                     flash('Desafio marcado como Concluído (com pendência). O ranking não foi alterado.', 'success')
                 else:
                     # Apenas atualizar o status e resultado
@@ -4262,7 +4279,8 @@ def update_challenge(challenge_id):
         conn.execute('UPDATE challenges SET result_type = ? WHERE id = ?', (result_type, challenge_id))
         
         # Processar o resultado do desafio (alterando a pirâmide)
-        process_challenge_result(conn, challenge_id, status, result)
+        process_challenge_result(conn, challenge_id, status, result,
+                                 confirmado_por=session.get('user_id'), origem='web')
 
         # Notificar grupo de WhatsApp sobre resultado confirmado
         try:
@@ -4492,12 +4510,14 @@ def player_detail(player_id):
 def challenge_detail(challenge_id):
     conn = get_db_connection()
     challenge = conn.execute('''
-        SELECT c.*, 
+        SELECT c.*,
                p1.name as challenger_name, p1.id as challenger_id, p1.position as challenger_position, p1.hcp_index as challenger_hcp,
-               p2.name as challenged_name, p2.id as challenged_id, p2.position as challenged_position, p2.hcp_index as challenged_hcp
+               p2.name as challenged_name, p2.id as challenged_id, p2.position as challenged_position, p2.hcp_index as challenged_hcp,
+               padm.name as confirmado_por_nome
         FROM challenges c
         JOIN players p1 ON c.challenger_id = p1.id
         JOIN players p2 ON c.challenged_id = p2.id
+        LEFT JOIN players padm ON c.result_confirmado_por = padm.id
         WHERE c.id = ?
     ''', (challenge_id,)).fetchone()
     
@@ -8936,8 +8956,9 @@ def aprovar_resultado(challenge_id):
         resultado = challenge['resultado_proposto']
         
         # Processar o resultado oficialmente
-        process_challenge_result(conn, challenge_id, 'completed', resultado)
-        
+        process_challenge_result(conn, challenge_id, 'completed', resultado,
+                                 confirmado_por=session.get('user_id'), origem='chatbot')
+
         # Limpar campos de proposta
         conn.execute('''
             UPDATE challenges 

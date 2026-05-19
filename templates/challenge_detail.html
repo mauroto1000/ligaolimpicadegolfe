@@ -136,6 +136,27 @@
                         </td>
                     </tr>
                     {% endif %}
+
+                    {% if challenge.result_confirmado_por %}
+                    <tr>
+                        <th>Confirmado por:</th>
+                        <td>
+                            {% if challenge.result_origem == 'chatbot' %}
+                                <i class="fas fa-robot text-secondary me-1"></i>
+                                <span class="text-muted">via chatbot — </span>
+                            {% else %}
+                                <i class="fas fa-user-shield text-secondary me-1"></i>
+                            {% endif %}
+                            <strong>#{{ challenge.result_confirmado_por }}</strong>
+                            {% if challenge.confirmado_por_nome %}
+                                — {{ challenge.confirmado_por_nome }}
+                            {% endif %}
+                            {% if challenge.result_confirmado_em %}
+                                <br><small class="text-muted">{{ challenge.result_confirmado_em[:16].replace('T', ' ') }}</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endif %}
                 </table>
             </div>
             
