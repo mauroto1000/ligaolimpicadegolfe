@@ -4509,6 +4509,16 @@ def player_detail(player_id):
 @app.route('/challenge_detail/<int:challenge_id>')
 def challenge_detail(challenge_id):
     conn = get_db_connection()
+
+    # Migração: garantir colunas de rastreamento de resultado
+    _cols = [r[1] for r in conn.execute('PRAGMA table_info(challenges)').fetchall()]
+    for _col, _tipo in [('result_confirmado_por', 'INTEGER'),
+                        ('result_confirmado_em',  'DATETIME'),
+                        ('result_origem',          'TEXT')]:
+        if _col not in _cols:
+            conn.execute(f'ALTER TABLE challenges ADD COLUMN {_col} {_tipo}')
+    conn.commit()
+
     challenge = conn.execute('''
         SELECT c.*,
                p1.name as challenger_name, p1.id as challenger_id, p1.position as challenger_position, p1.hcp_index as challenger_hcp,
