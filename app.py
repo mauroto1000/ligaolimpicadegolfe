@@ -1899,6 +1899,20 @@ def rebalance_positions_after_challenge(conn, winner_id, loser_id, winner_new_po
 #    - Desafiado não muda de posição
 # ============================================================
 
+def _nome_confirmador(conn, user_id):
+    """Retorna o nome de quem confirmou (admin ou jogador) a partir do user_id de sessão."""
+    if user_id is None:
+        return None
+    uid = str(user_id)
+    if uid.startswith('admin_'):
+        admin_id = uid[len('admin_'):]
+        row = conn.execute('SELECT name FROM admins WHERE id = ?', (admin_id,)).fetchone()
+        return row['name'] if row else f'Admin #{admin_id}'
+    else:
+        row = conn.execute('SELECT name FROM players WHERE id = ?', (user_id,)).fetchone()
+        return row['name'] if row else f'Jogador #{user_id}'
+
+
 def process_challenge_result(conn, challenge_id, status, result, confirmado_por=None, origem='web'):
     """
     Processa o resultado de um desafio, atualizando posições conforme as regras:
@@ -4159,7 +4173,8 @@ def edit_challenge(challenge_id):
                         challenged_row = conn.execute('SELECT name FROM players WHERE id = ?', (challenge['challenged_id'],)).fetchone()
                         if challenger_row and challenged_row:
                             vencedor = challenger_row['name'] if result == 'challenger_win' else challenged_row['name']
-                            msg_grupo = f"✅ *RESULTADO CONFIRMADO*\n\n⚔️ *{challenger_row['name']}* vs *{challenged_row['name']}*\n\n🏆 Vencedor: *{vencedor}*\n\n_Resultado confirmado pelo administrador._"
+                            nome_adm = _nome_confirmador(conn, session.get('user_id')) or 'administrador'
+                            msg_grupo = f"✅ *RESULTADO CONFIRMADO*\n\n⚔️ *{challenger_row['name']}* vs *{challenged_row['name']}*\n\n🏆 Vencedor: *{vencedor}*\n\n_Resultado confirmado por {nome_adm}._"
                             enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
                     except Exception as e_notif:
                         print(f"Erro ao enviar notificação WhatsApp: {e_notif}")
@@ -4310,12 +4325,13 @@ def update_challenge(challenge_id):
             challenged_row = conn.execute('SELECT name FROM players WHERE id = ?', (challenge['challenged_id'],)).fetchone()
             if challenger_row and challenged_row:
                 vencedor = challenger_row['name'] if result == 'challenger_win' else challenged_row['name']
+                nome_adm = _nome_confirmador(conn, session.get('user_id')) or 'administrador'
                 if result_type == 'wo_challenger':
-                    sufixo = '\n\n_WO: desafiado não compareceu._'
+                    sufixo = f'\n\n_WO: desafiado não compareceu. Confirmado por {nome_adm}._'
                 elif result_type == 'wo_challenged':
-                    sufixo = '\n\n_WO: desafiante não compareceu._'
+                    sufixo = f'\n\n_WO: desafiante não compareceu. Confirmado por {nome_adm}._'
                 else:
-                    sufixo = '\n\n_Resultado confirmado pelo administrador._'
+                    sufixo = f'\n\n_Resultado confirmado por {nome_adm}._'
                 msg_grupo = f"✅ *RESULTADO CONFIRMADO*\n\n⚔️ *{challenger_row['name']}* vs *{challenged_row['name']}*\n\n🏆 Vencedor: *{vencedor}*{sufixo}"
                 enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
         except Exception as e_notif:
@@ -9015,14 +9031,15 @@ def aprovar_resultado(challenge_id):
             vencedor = challenged['name']
         
         # Notificar no grupo
+        nome_adm = _nome_confirmador(conn, session.get('user_id')) or 'administrador'
         msg_grupo = f"""✅ *RESULTADO CONFIRMADO*
 
 ⚔️ *{challenger['name']}* vs *{challenged['name']}*
 
 🏆 Vencedor: *{vencedor}*
 
-_Resultado confirmado pelo administrador._"""
-        
+_Resultado confirmado por {nome_adm}._"""
+
         enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
         
         flash(f'✅ Resultado confirmado! {vencedor} venceu. Ranking atualizado.', 'success')
