@@ -835,14 +835,14 @@
                             {% elif challenge['status'] == 'accepted' %}
                             <span class="badge bg-info">Aceito</span>
                             {% elif challenge['status'] == 'completed' %}
-                                {% if challenge['result'] == 'challenger_win' %}
+                                {% if challenge['result_type'] == 'wo_challenger' %}
+                                <span class="badge bg-success" title="Desafiado não compareceu">Vitória <small>(W.O.)</small></span>
+                                {% elif challenge['result_type'] == 'wo_challenged' %}
+                                <span class="badge bg-danger" title="Desafiante não compareceu">Derrota <small>(W.O.)</small></span>
+                                {% elif challenge['result'] == 'challenger_win' %}
                                 <span class="badge bg-success">Vitória</span>
                                 {% elif challenge['result'] == 'challenged_win' %}
                                 <span class="badge bg-danger">Derrota</span>
-                                {% elif challenge['result'] == 'wo_challenger' %}
-                                <span class="badge bg-success" title="Desafiado não compareceu">Vitória <small>(W.O.)</small></span>
-                                {% elif challenge['result'] == 'wo_challenged' %}
-                                <span class="badge bg-danger" title="Desafiante não compareceu">Derrota <small>(W.O.)</small></span>
                                 {% else %}
                                 <span class="badge bg-secondary">Concluído</span>
                                 {% endif %}
@@ -884,14 +884,14 @@
                             {% elif challenge['status'] == 'accepted' %}
                             <span class="badge bg-info">Aceito</span>
                             {% elif challenge['status'] == 'completed' %}
-                                {% if challenge['result'] == 'challenged_win' %}
+                                {% if challenge['result_type'] == 'wo_challenged' %}
+                                <span class="badge bg-success" title="Desafiante não compareceu">Vitória <small>(W.O.)</small></span>
+                                {% elif challenge['result_type'] == 'wo_challenger' %}
+                                <span class="badge bg-danger" title="Desafiado não compareceu">Derrota <small>(W.O.)</small></span>
+                                {% elif challenge['result'] == 'challenged_win' %}
                                 <span class="badge bg-success">Vitória</span>
                                 {% elif challenge['result'] == 'challenger_win' %}
                                 <span class="badge bg-danger">Derrota</span>
-                                {% elif challenge['result'] == 'wo_challenged' %}
-                                <span class="badge bg-success" title="Desafiante não compareceu">Vitória <small>(W.O.)</small></span>
-                                {% elif challenge['result'] == 'wo_challenger' %}
-                                <span class="badge bg-danger" title="Desafiado não compareceu">Derrota <small>(W.O.)</small></span>
                                 {% else %}
                                 <span class="badge bg-secondary">Concluído</span>
                                 {% endif %}

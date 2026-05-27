@@ -3331,8 +3331,10 @@ def pyramid_dynamic():
             inatividade[_pid] = None  # Nunca jogou
 
     # Últimas 5 resultados por jogador (mais recente → mais antigo, invertido para exibição)
+    # Importante: o vencedor está em `result` (challenger_win/challenged_win);
+    # se foi WO, isso fica em `result_type` (wo_challenger/wo_challenged).
     _completed_ch = conn.execute('''
-        SELECT challenger_id, challenged_id, result,
+        SELECT challenger_id, challenged_id, result, result_type,
                COALESCE(updated_at, scheduled_date) as date_ref
         FROM challenges
         WHERE status IN ('completed', 'completed_pending')
@@ -3344,20 +3346,20 @@ def pyramid_dynamic():
     # Estrela "5 vitórias seguidas": SOMENTE partidas reais (ignora resultados por WO).
     _ultimas5_reais_raw = {}
     for _ch in _completed_ch:
-        eh_wo = _ch['result'] in ('wo_challenger', 'wo_challenged')
-        for _pid, _wins_total, _wins_reais in [
-            (_ch['challenger_id'], ('challenger_win', 'wo_challenger'), ('challenger_win',)),
-            (_ch['challenged_id'], ('challenged_win', 'wo_challenged'), ('challenged_win',)),
+        eh_wo = _ch['result_type'] in ('wo_challenger', 'wo_challenged')
+        for _pid, _win_value in [
+            (_ch['challenger_id'], 'challenger_win'),
+            (_ch['challenged_id'], 'challenged_win'),
         ]:
             if _pid not in _ultimas5_raw:
                 _ultimas5_raw[_pid] = []
             if len(_ultimas5_raw[_pid]) < 5:
-                _ultimas5_raw[_pid].append('W' if _ch['result'] in _wins_total else 'L')
+                _ultimas5_raw[_pid].append('W' if _ch['result'] == _win_value else 'L')
             if not eh_wo:
                 if _pid not in _ultimas5_reais_raw:
                     _ultimas5_reais_raw[_pid] = []
                 if len(_ultimas5_reais_raw[_pid]) < 5:
-                    _ultimas5_reais_raw[_pid].append('W' if _ch['result'] in _wins_reais else 'L')
+                    _ultimas5_reais_raw[_pid].append('W' if _ch['result'] == _win_value else 'L')
 
     # Organizar jogadores por tier (VIP já excluído pela query SQL)
     tiers = {}
