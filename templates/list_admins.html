@@ -33,6 +33,7 @@
                                 <th>#</th>
                                 <th>Nome</th>
                                 <th>Usuário</th>
+                                <th>Código (chatbot)</th>
                                 <th>Email</th>
                                 <th>Data de Criação</th>
                                 <th>Último Login</th>
@@ -45,13 +46,23 @@
                                     <td>{{ admin.id }}</td>
                                     <td>{{ admin.name }}</td>
                                     <td>{{ admin.username }}</td>
+                                    <td>
+                                        <span class="badge bg-secondary" title="Código exibido no WhatsApp no lugar do nome">
+                                            {{ admin.codigo or '—' }}
+                                        </span>
+                                        <a href="#" class="btn btn-sm btn-link p-0 ms-1"
+                                           onclick="editarCodigo('{{ admin.id }}', '{{ admin.name }}', '{{ admin.codigo or '' }}')"
+                                           title="Editar código público">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
                                     <td>{{ admin.email or 'Não informado' }}</td>
                                     <td>{{ admin.created_at|datetime }}</td>
                                     <td>{{ admin.last_login|datetime if admin.last_login else 'Nunca' }}</td>
                                     <td>
                                         {% if admin.username != 'admin' %}
                                         <div class="btn-group">
-                                            <a href="#" class="btn btn-sm btn-outline-secondary" 
+                                            <a href="#" class="btn btn-sm btn-outline-secondary"
                                                onclick="resetPassword('{{ admin.id }}', '{{ admin.name }}')"
                                                title="Resetar senha">
                                                 <i class="fas fa-key"></i>
@@ -109,14 +120,54 @@
     </div>
 </div>
 
+<!-- Modal para editar código público -->
+<div class="modal fade" id="editarCodigoModal" tabindex="-1" aria-labelledby="editarCodigoModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="editarCodigoModalLabel">Editar código público</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <form id="editarCodigoForm" method="POST">
+                <div class="modal-body">
+                    <p>
+                        Definir o código público de <strong id="codAdminNome"></strong>.
+                        Este código <strong>substitui o nome do admin</strong> nas mensagens de
+                        confirmação enviadas pelo chatbot/WhatsApp.
+                    </p>
+                    <div class="form-group">
+                        <label for="codigo">Código</label>
+                        <input type="text" class="form-control" id="codigo" name="codigo"
+                               maxlength="20" required placeholder="ex.: ADM-03">
+                        <small class="form-text text-muted">Máximo 20 caracteres. Não pode repetir o código de outro admin.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
     function resetPassword(adminId, adminName) {
         document.getElementById('adminNameSpan').textContent = adminName;
         document.getElementById('resetPasswordForm').action = `/admin/reset_admin_password/${adminId}`;
-        
+
         // Mostrar o modal
         var resetModal = new bootstrap.Modal(document.getElementById('resetPasswordModal'));
         resetModal.show();
+    }
+
+    function editarCodigo(adminId, adminName, codigoAtual) {
+        document.getElementById('codAdminNome').textContent = adminName;
+        document.getElementById('codigo').value = codigoAtual || '';
+        document.getElementById('editarCodigoForm').action = `/admin/atualizar_codigo_admin/${adminId}`;
+
+        var modal = new bootstrap.Modal(document.getElementById('editarCodigoModal'));
+        modal.show();
     }
 </script>
 {% endblock %}

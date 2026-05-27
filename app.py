@@ -701,11 +701,41 @@ def create_authentication_tables():
         admin = conn.execute('SELECT * FROM admins WHERE username = ?', ('admin',)).fetchone()
         if not admin:
             # Criar admin padrão (username: admin, senha: liga2025)
-            conn.execute('INSERT INTO admins (username, password, name) VALUES (?, ?, ?)', 
+            conn.execute('INSERT INTO admins (username, password, name) VALUES (?, ?, ?)',
                         ('admin', hash_password('liga2025'), 'Administrador'))
             print("Administrador padrão criado (usuário: admin, senha: liga2025).")
     except Exception as e:
         print(f"Erro ao verificar admin: {e}")
+
+    # Migração: coluna 'codigo' usada como pseudônimo do admin nas mensagens públicas (chatbot/WhatsApp).
+    # O nome real continua na coluna 'name' e segue visível no painel interno.
+    try:
+        admin_cols = [c[1] for c in conn.execute('PRAGMA table_info(admins)').fetchall()]
+        if 'codigo' not in admin_cols:
+            conn.execute('ALTER TABLE admins ADD COLUMN codigo TEXT')
+            print("Coluna 'codigo' adicionada à tabela admins.")
+        # Backfill: gera ADM-01, ADM-02... para admins sem código, em ordem de id
+        sem_codigo = conn.execute(
+            "SELECT id FROM admins WHERE codigo IS NULL OR TRIM(codigo) = '' ORDER BY id"
+        ).fetchall()
+        if sem_codigo:
+            ja_usados = {
+                r['codigo'] for r in conn.execute(
+                    "SELECT codigo FROM admins WHERE codigo IS NOT NULL AND TRIM(codigo) != ''"
+                ).fetchall()
+            }
+            seq = 1
+            for row in sem_codigo:
+                while True:
+                    candidato = f"ADM-{seq:02d}"
+                    seq += 1
+                    if candidato not in ja_usados:
+                        ja_usados.add(candidato)
+                        break
+                conn.execute('UPDATE admins SET codigo = ? WHERE id = ?', (candidato, row['id']))
+                print(f"Código '{candidato}' atribuído ao admin id={row['id']}")
+    except Exception as e:
+        print(f"Erro ao migrar/backfill coluna 'codigo' em admins: {e}")
     
     # Definir senhas iniciais para todos os jogadores se a senha estiver vazia
     players = conn.execute('SELECT id, name, password FROM players WHERE active = 1').fetchall()
@@ -1900,7 +1930,28 @@ def rebalance_positions_after_challenge(conn, winner_id, loser_id, winner_new_po
 # ============================================================
 
 def _nome_confirmador(conn, user_id):
-    """Retorna o nome de quem confirmou (admin ou jogador) a partir do user_id de sessão."""
+    """Identificação pública do confirmador para mensagens do chatbot/WhatsApp.
+
+    Para admins retorna o CÓDIGO (ex.: ADM-01) — nunca o nome real — para
+    preservar o anonimato no grupo. Para jogadores mantém o nome (já é público).
+    """
+    if user_id is None:
+        return None
+    uid = str(user_id)
+    if uid.startswith('admin_'):
+        admin_id = uid[len('admin_'):]
+        row = conn.execute('SELECT codigo FROM admins WHERE id = ?', (admin_id,)).fetchone()
+        if row and row['codigo'] and str(row['codigo']).strip():
+            return row['codigo']
+        return f'ADM-{int(admin_id):02d}' if str(admin_id).isdigit() else f'ADM-{admin_id}'
+    else:
+        row = conn.execute('SELECT name FROM players WHERE id = ?', (user_id,)).fetchone()
+        return row['name'] if row else f'Jogador #{user_id}'
+
+
+def _nome_confirmador_interno(conn, user_id):
+    """Identificação interna (painel admin web) — retorna o nome real do admin.
+    Usar apenas em telas autenticadas; NUNCA em mensagens do chatbot/WhatsApp."""
     if user_id is None:
         return None
     uid = str(user_id)
@@ -1908,9 +1959,8 @@ def _nome_confirmador(conn, user_id):
         admin_id = uid[len('admin_'):]
         row = conn.execute('SELECT name FROM admins WHERE id = ?', (admin_id,)).fetchone()
         return row['name'] if row else f'Admin #{admin_id}'
-    else:
-        row = conn.execute('SELECT name FROM players WHERE id = ?', (user_id,)).fetchone()
-        return row['name'] if row else f'Jogador #{user_id}'
+    row = conn.execute('SELECT name FROM players WHERE id = ?', (user_id,)).fetchone()
+    return row['name'] if row else f'Jogador #{user_id}'
 
 
 def process_challenge_result(conn, challenge_id, status, result, confirmado_por=None, origem='web'):
@@ -5975,6 +6025,7 @@ def create_admin():
         confirm_password = request.form.get('confirm_password', '').strip()
         name = request.form.get('name', '').strip()
         email = request.form.get('email', '').strip()
+        codigo = request.form.get('codigo', '').strip()
         admin_password = request.form.get('admin_password', '').strip()
         if not username or not password or not name:
             flash('Campos obrigatórios não preenchidos.', 'error')
@@ -6007,11 +6058,36 @@ def create_admin():
             # Imprimir para debug (remover em produção)
             print(f"Criando admin: {username}, Senha original: {password}, Hash: {hashed_password}")
             
+            # Se o admin informou um código, valida unicidade; senão deixa NULL e
+            # a próxima execução de create_auth_tables (ou o admin manualmente) atribui.
+            if codigo:
+                em_uso = conn.execute(
+                    'SELECT 1 FROM admins WHERE LOWER(codigo) = LOWER(?)', (codigo,)
+                ).fetchone()
+                if em_uso:
+                    conn.close()
+                    flash(f'O código "{codigo}" já está em uso. Escolha outro.', 'error')
+                    return redirect(url_for('create_admin'))
+            else:
+                # Gera próximo ADM-NN livre
+                usados = {
+                    r['codigo'] for r in conn.execute(
+                        "SELECT codigo FROM admins WHERE codigo IS NOT NULL AND TRIM(codigo) != ''"
+                    ).fetchall()
+                }
+                seq = 1
+                while True:
+                    candidato = f"ADM-{seq:02d}"
+                    if candidato not in usados:
+                        codigo = candidato
+                        break
+                    seq += 1
+
             # Inserir o novo administrador
             conn.execute('''
-                INSERT INTO admins (username, password, name, email, created_at)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ''', (username, hashed_password, name, email))
+                INSERT INTO admins (username, password, name, email, codigo, created_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (username, hashed_password, name, email, codigo))
             
             # Registrar em log para debug (opcional)
             conn.execute('''
@@ -6053,10 +6129,49 @@ def list_admins():
         return redirect(url_for('dashboard'))
     
     conn = get_db_connection()
-    admins = conn.execute('SELECT id, username, name, email, created_at, last_login FROM admins ORDER BY name').fetchall()
+    admins = conn.execute('SELECT id, username, name, email, codigo, created_at, last_login FROM admins ORDER BY name').fetchall()
     conn.close()
-    
+
     return render_template('list_admins.html', admins=admins)
+
+
+@app.route('/admin/atualizar_codigo_admin/<int:admin_id>', methods=['POST'])
+@login_required
+def atualizar_codigo_admin(admin_id):
+    """Atualiza o código público (pseudônimo) de um administrador.
+    O código é o que aparece em mensagens do chatbot/WhatsApp no lugar do nome real."""
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+
+    novo_codigo = (request.form.get('codigo', '') or '').strip()
+    if not novo_codigo:
+        flash('O código não pode ficar vazio.', 'error')
+        return redirect(url_for('list_admins'))
+    if len(novo_codigo) > 20:
+        flash('O código deve ter no máximo 20 caracteres.', 'error')
+        return redirect(url_for('list_admins'))
+
+    conn = get_db_connection()
+    try:
+        em_uso = conn.execute(
+            'SELECT id FROM admins WHERE LOWER(codigo) = LOWER(?) AND id != ?',
+            (novo_codigo, admin_id),
+        ).fetchone()
+        if em_uso:
+            flash(f'O código "{novo_codigo}" já está em uso por outro administrador.', 'error')
+            return redirect(url_for('list_admins'))
+
+        conn.execute('UPDATE admins SET codigo = ? WHERE id = ?', (novo_codigo, admin_id))
+        conn.commit()
+        flash(f'Código atualizado para "{novo_codigo}".', 'success')
+    except Exception as e:
+        conn.rollback()
+        flash(f'Erro ao atualizar código: {e}', 'error')
+    finally:
+        conn.close()
+
+    return redirect(url_for('list_admins'))
 
 
 @app.route('/admin/fix_admin_passwords', methods=['GET', 'POST'])

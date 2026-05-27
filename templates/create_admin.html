@@ -43,7 +43,16 @@
                     <label for="email">Email</label>
                     <input type="email" class="form-control" id="email" name="email">
                 </div>
-                
+
+                <div class="form-group mb-3">
+                    <label for="codigo">Código público (chatbot / WhatsApp)</label>
+                    <input type="text" class="form-control" id="codigo" name="codigo" maxlength="20" placeholder="ex.: ADM-03">
+                    <small class="form-text text-muted">
+                        Este código aparece nas mensagens de confirmação enviadas pelo chatbot/WhatsApp <strong>no lugar do nome real</strong> do administrador.
+                        Se deixar em branco, será atribuído automaticamente (ADM-01, ADM-02, ...).
+                    </small>
+                </div>
+
                 <hr>
                 
                 <div class="form-group mb-3">
