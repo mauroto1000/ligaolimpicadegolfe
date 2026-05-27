@@ -3339,16 +3339,25 @@ def pyramid_dynamic():
           AND result IS NOT NULL
         ORDER BY date_ref DESC, id DESC
     ''').fetchall()
+    # Pontinhos visuais: últimas 5 partidas INCLUINDO WO (vitória/derrota por WO conta como W/L).
     _ultimas5_raw = {}
+    # Estrela "5 vitórias seguidas": SOMENTE partidas reais (ignora resultados por WO).
+    _ultimas5_reais_raw = {}
     for _ch in _completed_ch:
-        for _pid, _wins in [
-            (_ch['challenger_id'], ('challenger_win', 'wo_challenger')),
-            (_ch['challenged_id'],  ('challenged_win', 'wo_challenged')),
+        eh_wo = _ch['result'] in ('wo_challenger', 'wo_challenged')
+        for _pid, _wins_total, _wins_reais in [
+            (_ch['challenger_id'], ('challenger_win', 'wo_challenger'), ('challenger_win',)),
+            (_ch['challenged_id'], ('challenged_win', 'wo_challenged'), ('challenged_win',)),
         ]:
             if _pid not in _ultimas5_raw:
                 _ultimas5_raw[_pid] = []
             if len(_ultimas5_raw[_pid]) < 5:
-                _ultimas5_raw[_pid].append('W' if _ch['result'] in _wins else 'L')
+                _ultimas5_raw[_pid].append('W' if _ch['result'] in _wins_total else 'L')
+            if not eh_wo:
+                if _pid not in _ultimas5_reais_raw:
+                    _ultimas5_reais_raw[_pid] = []
+                if len(_ultimas5_reais_raw[_pid]) < 5:
+                    _ultimas5_reais_raw[_pid].append('W' if _ch['result'] in _wins_reais else 'L')
 
     # Organizar jogadores por tier (VIP já excluído pela query SQL)
     tiers = {}
@@ -3370,6 +3379,9 @@ def pyramid_dynamic():
 
         # Últimas 5 (ordem cronológica: mais antigo à esquerda, mais recente à direita)
         player_dict['ultimas5'] = list(reversed(_ultimas5_raw.get(player['id'], [])))
+        # Sequência de 5 vitórias REAIS (sem WO) — usada para a estrela na pirâmide
+        _reais = _ultimas5_reais_raw.get(player['id'], [])
+        player_dict['cinco_vitorias_reais'] = len(_reais) == 5 and all(r == 'W' for r in _reais)
 
         tiers[player['tier']].append(player_dict)
     

@@ -797,7 +797,7 @@
                                                 <span class="inactivity-flag">🚩</span>
                                                 {% endif %}
 
-                                                {% if player.ultimas5 and player.ultimas5|length == 5 and player.ultimas5|reject('equalto', 'W')|list|length == 0 %}
+                                                {% if player.cinco_vitorias_reais %}
                                                 <span class="winning-streak-star" title="5 vitórias consecutivas">★</span>
                                                 {% endif %}
 
@@ -962,7 +962,7 @@
                                                     <span class="inactivity-flag">🚩</span>
                                                     {% endif %}
 
-                                                    {% if player.ultimas5 and player.ultimas5|length == 5 and player.ultimas5|reject('equalto', 'W')|list|length == 0 %}
+                                                    {% if player.cinco_vitorias_reais %}
                                                     <span class="winning-streak-star" title="5 vitórias consecutivas">★</span>
                                                     {% endif %}
 
