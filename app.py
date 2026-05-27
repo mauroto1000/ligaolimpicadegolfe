@@ -3504,6 +3504,28 @@ def pyramid_print():
             if did in player_challenges_map and cid in posicao_visual:
                 player_challenges_map[did]['challenged_by_positions'].append(posicao_visual[cid])
 
+    # Sequência de 5 vitórias reais consecutivas (ignora WO) — usado para a estrela
+    _completed_ch_print = conn.execute('''
+        SELECT challenger_id, challenged_id, result, result_type,
+               COALESCE(updated_at, scheduled_date) as date_ref
+        FROM challenges
+        WHERE status IN ('completed', 'completed_pending')
+          AND result IS NOT NULL
+        ORDER BY date_ref DESC, id DESC
+    ''').fetchall()
+    _ultimas5_reais_print = {}
+    for _ch in _completed_ch_print:
+        if _ch['result_type'] in ('wo_challenger', 'wo_challenged'):
+            continue
+        for _pid, _win_value in [
+            (_ch['challenger_id'], 'challenger_win'),
+            (_ch['challenged_id'], 'challenged_win'),
+        ]:
+            if _pid not in _ultimas5_reais_print:
+                _ultimas5_reais_print[_pid] = []
+            if len(_ultimas5_reais_print[_pid]) < 5:
+                _ultimas5_reais_print[_pid].append('W' if _ch['result'] == _win_value else 'L')
+
     tiers = {}
     for player in players:
         if player['tier'] not in tiers:
@@ -3514,6 +3536,8 @@ def pyramid_print():
         pd['dias_inativo'] = inatividade.get(player['id'])
         pd['challenging_positions'] = player_challenges_map.get(player['id'], {}).get('challenging_positions', [])
         pd['challenged_by_positions'] = player_challenges_map.get(player['id'], {}).get('challenged_by_positions', [])
+        _r = _ultimas5_reais_print.get(player['id'], [])
+        pd['cinco_vitorias_reais'] = len(_r) == 5 and all(x == 'W' for x in _r)
         tiers[player['tier']].append(pd)
 
     sorted_tiers = sorted(tiers.items())
