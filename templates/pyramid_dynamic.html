@@ -726,11 +726,11 @@
             </div>
             <div class="legend-item">
                 <span style="font-size: 14px; line-height: 1;">🚩</span>
-                <span class="ms-1">45+ dias sem jogar</span>
+                <span class="ms-1">20+ dias sem jogar (aviso)</span>
             </div>
             <div class="legend-item">
                 <span style="font-size: 14px; line-height: 1;">🏴</span>
-                <span class="ms-1">60+ dias sem jogar</span>
+                <span class="ms-1">30+ dias sem jogar (rebaixado)</span>
             </div>
         </div>
 
@@ -791,9 +791,9 @@
                                                          alt="{{ player.country }}" class="country-flag">
                                                 {% endif %}
 
-                                                {% if player.dias_inativo is none or player.dias_inativo >= 60 %}
+                                                {% if player.dias_inativo is none or player.dias_inativo >= 30 %}
                                                 <span class="inactivity-flag">🏴</span>
-                                                {% elif player.dias_inativo >= 45 %}
+                                                {% elif player.dias_inativo >= 20 %}
                                                 <span class="inactivity-flag">🚩</span>
                                                 {% endif %}
 
@@ -812,10 +812,10 @@
                                                     {% if player.country %}<br>{{ player.country }}{% endif %}
                                                     {% if player.dias_inativo is none %}
                                                     <br><span style="color: #ff6b6b;">🏴 Nunca jogou</span>
-                                                    {% elif player.dias_inativo >= 60 %}
-                                                    <br><span style="color: #ff6b6b;">🏴 {{ player.dias_inativo }} dias sem jogar</span>
-                                                    {% elif player.dias_inativo >= 45 %}
-                                                    <br><span style="color: #ffa500;">🚩 {{ player.dias_inativo }} dias sem jogar</span>
+                                                    {% elif player.dias_inativo >= 30 %}
+                                                    <br><span style="color: #ff6b6b;">🏴 {{ player.dias_inativo }} dias sem jogar (rebaixado por inatividade)</span>
+                                                    {% elif player.dias_inativo >= 20 %}
+                                                    <br><span style="color: #dc3545;">🚩 {{ player.dias_inativo }} dias sem jogar</span>
                                                     {% endif %}
                                                 </div>
                                                 
@@ -956,9 +956,9 @@
                                                              alt="{{ player.country }}" class="country-flag">
                                                     {% endif %}
 
-                                                    {% if player.dias_inativo is none or player.dias_inativo >= 60 %}
+                                                    {% if player.dias_inativo is none or player.dias_inativo >= 30 %}
                                                     <span class="inactivity-flag">🏴</span>
-                                                    {% elif player.dias_inativo >= 45 %}
+                                                    {% elif player.dias_inativo >= 20 %}
                                                     <span class="inactivity-flag">🚩</span>
                                                     {% endif %}
 

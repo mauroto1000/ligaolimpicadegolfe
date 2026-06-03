@@ -1033,7 +1033,7 @@ def reset_password(token):
     return render_template('reset_password.html', token=token)
 
 # ============================================================
-# ROTA DASHBOARD - CORRIGIDA COM ALERTAS DE 2 DIAS
+# ROTA DASHBOARD - alertas baseados no prazo (até 23:59 do dia seguinte)
 # ============================================================
 
 @app.route('/dashboard')
@@ -1136,7 +1136,7 @@ def dashboard():
     conn.close()
     
     # ============================================================
-    # ALERTAS DE DESAFIOS PENDENTES - PRAZO DE 2 DIAS
+    # ALERTAS DE DESAFIOS PENDENTES - prazo: até 23:59 do dia seguinte à criação
     # ============================================================
     for challenge in challenges_as_challenged_list:
         if challenge['status'] == 'pending' and 'days_remaining' in challenge:
@@ -1157,8 +1157,8 @@ def dashboard():
                     flash(f'⏳ ATENÇÃO: Você foi desafiado por {challenge["opponent_name"]}! Você tem apenas 1 dia para responder. <a href="{link}">Responder agora</a>.', 'warning')
                 
                 else:
-                    # Ainda no prazo (2 dias ou mais - não deveria acontecer com prazo de 2 dias)
-                    flash(f'📩 Você foi desafiado por {challenge["opponent_name"]}! Você tem {days_remaining} dias para aceitar ou rejeitar. <a href="{link}">Ver desafio</a>.', 'info')
+                    # Prazo é até 23:59 do dia seguinte, então days_remaining acima de 1 é caso de borda
+                    flash(f'📩 Você foi desafiado por {challenge["opponent_name"]}! Responda até as 23:59 do dia seguinte à criação. <a href="{link}">Ver desafio</a>.', 'info')
     
     return render_template('dashboard.html', 
                           player=player,
@@ -1176,7 +1176,19 @@ def admin_dashboard():
     if not session.get('is_admin', False):
         flash('Acesso restrito a administradores.', 'error')
         return redirect(url_for('dashboard'))
-    
+
+    # Avisos/rebaixamentos por inatividade (20/25/30 dias) — throttle interno 1x/dia
+    try:
+        aplicar_democao_inatividade()
+    except Exception as _e:
+        print(f"[inatividade] erro ao aplicar checagem: {_e}")
+
+    # Expiração de desafios sem resposta no prazo — throttle interno 1x/dia
+    try:
+        aplicar_expiracao_resposta_desafio()
+    except Exception as _e:
+        print(f"[expiracao] erro ao aplicar checagem: {_e}")
+
     conn = get_db_connection()
     
     # Estatísticas gerais
@@ -1915,18 +1927,22 @@ def rebalance_positions_after_challenge(conn, winner_id, loser_id, winner_new_po
 # Adição de código para função existente process_challenge_result
 
 # ============================================================
-# FUNÇÃO ATUALIZADA - process_challenge_result
-# 
-# INSTRUÇÕES: Substitua a função existente no app.py por esta versão
+# FUNÇÃO process_challenge_result
 #
-# REGRAS DE W.O. IMPLEMENTADAS:
-# 1. W.O para o desafiado (wo_challenger - desafiado não compareceu):
-#    - Desafiante ganha 1 posição (permuta com quem está acima dele)
-#    - Desafiado assume a posição antiga do desafiante
+# REGRAS DE W.O. (apenas APÓS o desafio aceito):
+#   W.O. ocorre quando: um jogador não comparece, cancela por
+#   indisponibilidade ou atrasa mais de 15 min.
+#   Movimentação na pirâmide é IDÊNTICA à de vitória/derrota normal:
+#   - wo_challenger (desafiado falhou → desafiante vence):
+#       desafiante assume posição do desafiado, desafiado desce 1.
+#   - wo_challenged (desafiante falhou → desafiado vence):
+#       desafiado sobe 1 posição (permuta com quem está acima),
+#       desafiante não muda.
+#   `result_type` continua gravado para fins de estatística.
 #
-# 2. W.O para o desafiante (wo_challenged - desafiante não compareceu):
-#    - Desafiante perde 4 posições no ranking
-#    - Desafiado não muda de posição
+# Não confundir: ausência de resposta ao desafio (antes do aceite)
+# NÃO é W.O. — esse caso é tratado em aplicar_expiracao_resposta_desafio,
+# que cancela o desafio e penaliza o desafiado em 1 posição.
 # ============================================================
 
 def _nome_confirmador(conn, user_id):
@@ -1964,23 +1980,17 @@ def _nome_confirmador_interno(conn, user_id):
 
 
 def process_challenge_result(conn, challenge_id, status, result, confirmado_por=None, origem='web'):
-    """
-    Processa o resultado de um desafio, atualizando posições conforme as regras:
-    
-    REGRAS NORMAIS:
-    - Desafiante vence: assume posição do desafiado, desafiado desce 1 posição
-    - Desafiado vence: desafiado sobe 1 posição (permuta com quem está acima), desafiante NÃO muda
-    
-    REGRAS DE W.O.:
-    - wo_challenger (desafiado não compareceu - desafiante vence por WO):
-      * Desafiante ganha 1 posição
-      * Desafiado assume a posição antiga do desafiante
-      * Todos os jogadores entre eles sobem 1 para preencher o espaço
-    
-    - wo_challenged (desafiante não compareceu - desafiado vence por WO):
-      * Desafiante perde 4 posições no ranking
-      * Desafiado não muda de posição
-    """
+    """Processa o resultado de um desafio aceito, atualizando posições.
+
+    Movimentação (mesma lógica para vitória normal e W.O.):
+    - Desafiante vence: assume posição do desafiado, desafiado desce 1 posição.
+    - Desafiado vence: desafiado sobe 1 (permuta com quem está acima), desafiante não muda.
+
+    `result_type` ('normal' | 'wo_challenger' | 'wo_challenged') é gravado
+    apenas para estatística; não altera a movimentação.
+
+    Pré-condição: o desafio já estava aceito. Desafios sem resposta no prazo
+    não passam por aqui — são cancelados em aplicar_expiracao_resposta_desafio."""
     # Migração: garantir colunas de rastreamento de resultado
     _cols = [r[1] for r in conn.execute('PRAGMA table_info(challenges)').fetchall()]
     if 'result_confirmado_por' not in _cols:
@@ -1990,8 +2000,11 @@ def process_challenge_result(conn, challenge_id, status, result, confirmado_por=
     if 'result_origem' not in _cols:
         conn.execute('ALTER TABLE challenges ADD COLUMN result_origem TEXT')
 
-    # Buscar o result_type do desafio
-    challenge_data = conn.execute('SELECT result_type FROM challenges WHERE id = ?', (challenge_id,)).fetchone()
+    # Buscar o result_type e os jogadores do desafio
+    challenge_data = conn.execute(
+        'SELECT result_type, challenger_id, challenged_id FROM challenges WHERE id = ?',
+        (challenge_id,),
+    ).fetchone()
     result_type = challenge_data['result_type'] if challenge_data and challenge_data['result_type'] else 'normal'
 
     # Atualizar o status, resultado e rastreamento de quem confirmou
@@ -2003,7 +2016,19 @@ def process_challenge_result(conn, challenge_id, status, result, confirmado_por=
             result_origem = ?
         WHERE id = ?
     ''', (status, result, confirmado_por, origem, challenge_id))
-    
+
+    # Reset do controle de inatividade: tanto 'completed' quanto 'completed_pending'
+    # indicam que ambos jogadores efetivamente jogaram (mesmo que com WO, o jogo encerra
+    # o ciclo do desafio e reinicia a contagem). Aviso/rebaixamento anteriores ficam
+    # marcados com timestamp anterior à nova data de jogo, então _stamp_eh_atual()
+    # passará a retornar False — equivalente a reset.
+    if status in ('completed', 'completed_pending') and challenge_data:
+        conn.execute(
+            'UPDATE players SET inactivity_warning_at = NULL, inactivity_demoted_at = NULL '
+            'WHERE id IN (?, ?)',
+            (challenge_data['challenger_id'], challenge_data['challenged_id']),
+        )
+
     # Se for "Concluído (com pendência)", apenas registramos o resultado sem alterar posições
     if status == 'completed_pending':
         conn.commit()
@@ -2037,124 +2062,16 @@ def process_challenge_result(conn, challenge_id, status, result, confirmado_por=
         
         try:
             # =====================================================
-            # W.O. - DESAFIADO NÃO COMPARECEU (wo_challenger)
-            # Desafiante vence por WO
-            # REGRA: Desafiante ganha 1 posição, desafiado assume
-            #        a posição antiga do desafiante. Todos os
-            #        jogadores entre eles sobem 1 para preencher
-            #        o espaço deixado pelo desafiado.
-            #
-            # Exemplo: Antonio(pos14) desafia Rafael(pos10)
-            #   Rafael não comparece → W.O.
-            #   Resultado: Antonio 14→13, Rafael 10→14
-            #   Manel(11→10), Marcelo(12→11), John(13→12)
+            # W.O. (result_type 'wo_challenger' ou 'wo_challenged')
+            # Movimentação IDÊNTICA à vitória/derrota normal:
+            # - wo_challenger → desafiado não compareceu, desafiante vence
+            #     (cai na branch 'challenger_win' abaixo).
+            # - wo_challenged → desafiante não compareceu, desafiado vence
+            #     (cai na branch 'challenged_win' abaixo).
+            # `result_type` continua gravado em challenges.result_type para
+            # estatísticas, mas a pirâmide se move igual ao resultado normal.
             # =====================================================
-            if result_type == 'wo_challenger' and result == 'challenger_win':
-                print(f"🔴 Processando W.O. - DESAFIADO não compareceu")
-                print(f"   Posições antes: Desafiante={challenger_old_pos}, Desafiado={challenged_old_pos}")
-                
-                new_challenger_pos = challenger_old_pos - 1  # Desafiante ganha 1 posição
-                new_challenged_pos = challenger_old_pos       # Desafiado vai para posição antiga do desafiante
-                
-                # Deslocar todos os jogadores entre o desafiado e o desafiante
-                # (de challenged_old_pos+1 até challenger_old_pos-1) sobem 1 posição
-                # para preencher o espaço deixado pelo desafiado
-                conn.execute('''
-                    UPDATE players 
-                    SET position = position - 1 
-                    WHERE position > ? AND position < ?
-                    AND id != ? AND id != ?
-                    AND active = 1
-                    AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
-                ''', (challenged_old_pos, challenger_old_pos, challenger_id, challenged_id, player_sexo, player_sexo))
-                
-                # Desafiante ganha 1 posição
-                conn.execute('UPDATE players SET position = ? WHERE id = ?', 
-                           (new_challenger_pos, challenger_id))
-                
-                # Desafiado vai para posição antiga do desafiante
-                conn.execute('UPDATE players SET position = ? WHERE id = ?', 
-                           (new_challenged_pos, challenged_id))
-                
-                # Registrar no histórico - Desafiante
-                conn.execute('''
-                    INSERT INTO ranking_history 
-                    (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (challenger_id, challenger_old_pos, new_challenger_pos, 
-                     challenger_old_tier, get_tier_from_position(new_challenger_pos), 
-                     'wo_win_promoted', challenge_id))
-                
-                # Registrar no histórico - Desafiado
-                conn.execute('''
-                    INSERT INTO ranking_history 
-                    (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (challenged_id, challenged_old_pos, new_challenged_pos, 
-                     challenged_old_tier, get_tier_from_position(new_challenged_pos), 
-                     'wo_loss_demoted', challenge_id))
-                
-                print(f"✅ W.O. Desafiado não compareceu:")
-                print(f"   Desafiante {challenger_id}: {challenger_old_pos} → {new_challenger_pos}")
-                print(f"   Desafiado {challenged_id}: {challenged_old_pos} → {new_challenged_pos}")
-            
-            # =====================================================
-            # W.O. - DESAFIANTE NÃO COMPARECEU (wo_challenged)
-            # Desafiado vence por WO
-            # Desafiante perde 4 posições
-            # =====================================================
-            elif result_type == 'wo_challenged' and result == 'challenged_win':
-                print(f"🔴 Processando W.O. - DESAFIANTE não compareceu")
-                print(f"   Posição do desafiante antes: {challenger_old_pos}")
-                
-                # Calcular nova posição do desafiante (desce 4 posições)
-                # Buscar quantos jogadores ativos existem do mesmo sexo
-                max_pos_result = conn.execute('''
-                    SELECT MAX(position) as max_pos FROM players 
-                    WHERE active = 1 AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
-                ''', (player_sexo, player_sexo)).fetchone()
-                
-                max_position = max_pos_result['max_pos'] if max_pos_result and max_pos_result['max_pos'] else challenger_old_pos
-                
-                # Nova posição = atual + 4, limitado ao máximo
-                new_challenger_pos = min(challenger_old_pos + 4, max_position)
-                
-                if new_challenger_pos != challenger_old_pos:
-                    # Puxar jogadores entre as posições para cima (ocupar o espaço deixado)
-                    conn.execute('''
-                        UPDATE players 
-                        SET position = position - 1 
-                        WHERE position > ? AND position <= ?
-                        AND id != ?
-                        AND active = 1
-                        AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
-                    ''', (challenger_old_pos, new_challenger_pos, challenger_id, player_sexo, player_sexo))
-                    
-                    # Atualizar posição do desafiante
-                    conn.execute('UPDATE players SET position = ? WHERE id = ?', 
-                               (new_challenger_pos, challenger_id))
-                    
-                    # Registrar no histórico - Desafiante (penalizado)
-                    conn.execute('''
-                        INSERT INTO ranking_history 
-                        (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ''', (challenger_id, challenger_old_pos, new_challenger_pos, 
-                         challenger_old_tier, get_tier_from_position(new_challenger_pos), 
-                         'wo_penalty_4_positions', challenge_id))
-                    
-                    print(f"✅ W.O. Desafiante não compareceu:")
-                    print(f"   Desafiante {challenger_id} PENALIZADO: {challenger_old_pos} → {new_challenger_pos}")
-                    print(f"   Desafiado {challenged_id} não muda (posição {challenged_old_pos})")
-                else:
-                    print(f"ℹ️ W.O. Desafiante: Desafiante já está na última posição, sem mudança.")
-                
-                # IMPORTANTE: Desafiado NÃO muda de posição
-            
-            # =====================================================
-            # RESULTADO NORMAL - DESAFIANTE VENCE
-            # =====================================================
-            elif result == 'challenger_win':
+            if result == 'challenger_win':
                 new_challenger_pos = challenged_old_pos  # Desafiante vai para posição do desafiado
                 new_challenged_pos = challenged_old_pos + 1  # Desafiado desce 1
                 
@@ -3134,6 +3051,380 @@ def aplicar_penalidade_bloqueio():
         conn.close()
 
 
+def _dias_inatividade(conn, player_id, last_played_date, bloqueio_periodos):
+    """Calcula dias de inatividade descontando períodos de bloqueio."""
+    from datetime import date as _date, datetime as _datetime
+    hoje = _date.today()
+    if not last_played_date:
+        return None
+    try:
+        last_dt = _datetime.strptime(str(last_played_date)[:10], '%Y-%m-%d').date()
+    except Exception:
+        return None
+    bruto = (hoje - last_dt).days
+    desconto = 0
+    for s_str, e_str in bloqueio_periodos.get(player_id, []):
+        try:
+            s = _datetime.strptime(str(s_str)[:10], '%Y-%m-%d').date()
+            e = _datetime.strptime(str(e_str)[:10], '%Y-%m-%d').date() if e_str else hoje
+            ov_s, ov_e = max(s, last_dt), min(e, hoje)
+            if ov_e > ov_s:
+                desconto += (ov_e - ov_s).days
+        except Exception:
+            pass
+    return max(0, bruto - desconto), last_dt
+
+
+def _enviar_aviso_inatividade(conn, player_id, player_name, dias_inativo):
+    """Aviso prévio (25-29 dias) ao grupo do WhatsApp + marca timestamp para não repetir."""
+    dias_para_democao = max(0, 30 - dias_inativo)
+    msg = (
+        f"⚠️ *AVISO DE INATIVIDADE*\n\n"
+        f"🚩 *{player_name}* está há *{dias_inativo} dias* sem jogar.\n\n"
+        f"Caso não jogue nos próximos *{dias_para_democao} dia(s)*, será movido para o final "
+        f"da pirâmide por inatividade (limite: 30 dias)."
+    )
+    try:
+        enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg)
+    except Exception as e:
+        print(f"[WhatsApp] Falha ao enviar aviso de inatividade para {player_name}: {e}")
+    conn.execute(
+        'UPDATE players SET inactivity_warning_at = ? WHERE id = ?',
+        (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), player_id),
+    )
+
+
+def _demover_jogador_por_inatividade(conn, player_id, player_name, current_position, sexo, dias_inativo):
+    """Move jogador para a última posição de seu sexo + registra histórico + notifica grupo."""
+    sexo = sexo or 'masculino'
+    max_pos_row = conn.execute('''
+        SELECT MAX(position) AS max_pos FROM players
+        WHERE active = 1 AND position > 0
+          AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+    ''', (sexo, sexo)).fetchone()
+    max_position = max_pos_row['max_pos'] if max_pos_row and max_pos_row['max_pos'] else current_position
+
+    agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    if max_position > current_position:
+        # Shift up de quem está entre current+1 e max_position
+        conn.execute('''
+            UPDATE players
+            SET position = position - 1
+            WHERE position > ? AND position <= ?
+              AND id != ?
+              AND active = 1
+              AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+        ''', (current_position, max_position, player_id, sexo, sexo))
+
+        old_tier = get_tier_from_position(current_position)
+        new_tier = get_tier_from_position(max_position)
+        conn.execute(
+            'UPDATE players SET position = ?, tier = ?, inactivity_demoted_at = ? WHERE id = ?',
+            (max_position, new_tier, agora, player_id),
+        )
+        conn.execute('''
+            INSERT INTO ranking_history
+            (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+            VALUES (?, ?, ?, ?, ?, ?, NULL)
+        ''', (player_id, current_position, max_position, old_tier, new_tier,
+              f'inatividade_{dias_inativo}d'))
+
+        # Normaliza tiers do sexo afetado
+        for p in conn.execute('''
+            SELECT id, position FROM players
+            WHERE active = 1 AND position > 0
+              AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+        ''', (sexo, sexo)).fetchall():
+            conn.execute('UPDATE players SET tier = ? WHERE id = ?',
+                         (get_tier_from_position(p['position']), p['id']))
+
+        print(f"🏴 REBAIXAMENTO POR INATIVIDADE: {player_name} ({dias_inativo} dias) "
+              f"{current_position} → {max_position}")
+    else:
+        # Já está no fim — só registra timestamp
+        conn.execute('UPDATE players SET inactivity_demoted_at = ? WHERE id = ?', (agora, player_id))
+
+    msg = (
+        f"🏴 *REBAIXAMENTO POR INATIVIDADE*\n\n"
+        f"*{player_name}* foi movido para o final da pirâmide por estar há *{dias_inativo} dias* "
+        f"sem jogar (limite: 30 dias).\n\n"
+        f"Volte às quadras para retomar sua posição! ⛳"
+    )
+    try:
+        enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg)
+    except Exception as e:
+        print(f"[WhatsApp] Falha ao notificar rebaixamento de {player_name}: {e}")
+
+
+def aplicar_democao_inatividade():
+    """Regras de inatividade:
+      - 20+ dias  → bandeira vermelha 🚩 (apenas visual, sem ação aqui).
+      - 25-29 d   → aviso prévio no grupo do WhatsApp (1x por período).
+      - 30+ dias  → rebaixamento para o final da pirâmide + notificação ao grupo.
+
+    Throttle: roda no máximo 1x por dia (system_settings.last_inactivity_check).
+    Reset: timestamps em players.inactivity_* voltam a NULL quando o jogador completa um desafio
+    (ver process_challenge_result), iniciando um novo período."""
+    conn = get_db_connection()
+    try:
+        hoje_str = datetime.now().strftime('%Y-%m-%d')
+        last_check = conn.execute(
+            "SELECT value FROM system_settings WHERE key = 'last_inactivity_check'"
+        ).fetchone()
+        if last_check and last_check['value'] == hoje_str:
+            return
+        # Marca antes de rodar para evitar duplicação em chamadas concorrentes
+        conn.execute('''
+            INSERT INTO system_settings (key, value, updated_at)
+            VALUES ('last_inactivity_check', ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+        ''', (hoje_str,))
+        conn.commit()
+
+        # Histórico de bloqueios (para descontar de dias_inativo)
+        bloqueio_periodos = {}
+        if conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='player_block_history'"
+        ).fetchone():
+            for r in conn.execute(
+                'SELECT player_id, start_date, end_date FROM player_block_history'
+            ).fetchall():
+                bloqueio_periodos.setdefault(r['player_id'], []).append((r['start_date'], r['end_date']))
+        for r in conn.execute(
+            'SELECT id, bloqueio_inicio FROM players WHERE bloqueado = 1 AND bloqueio_inicio IS NOT NULL'
+        ).fetchall():
+            pid = r['id']
+            if not any(e is None for _, e in bloqueio_periodos.get(pid, [])):
+                bloqueio_periodos.setdefault(pid, []).append((r['bloqueio_inicio'], None))
+
+        rows = conn.execute('''
+            SELECT p.id, p.name, p.position, p.sexo, p.bloqueado,
+                   p.inactivity_warning_at, p.inactivity_demoted_at,
+                   MAX(COALESCE(c.updated_at, c.scheduled_date)) AS last_date
+            FROM players p
+            LEFT JOIN challenges c ON (c.challenger_id = p.id OR c.challenged_id = p.id)
+                AND c.status IN ('completed', 'completed_pending')
+            WHERE p.active = 1 AND p.position > 0
+              AND (p.tipo_membro IS NULL OR p.tipo_membro != 'vip')
+            GROUP BY p.id
+        ''').fetchall()
+
+        from datetime import datetime as _datetime
+
+        def _stamp_eh_atual(stamp_str, last_dt):
+            """True se o timestamp foi marcado APÓS o último jogo (ainda vale para o período atual)."""
+            if not stamp_str or not last_dt:
+                return False
+            try:
+                stamp_dt = _datetime.strptime(str(stamp_str)[:10], '%Y-%m-%d').date()
+                return stamp_dt >= last_dt
+            except Exception:
+                return False
+
+        for row in rows:
+            # Jogadores atualmente bloqueados não correm o relógio
+            if row['bloqueado']:
+                continue
+
+            calc = _dias_inatividade(conn, row['id'], row['last_date'], bloqueio_periodos)
+            if calc is None:
+                continue
+            dias_inativo, last_dt = calc
+
+            warning_atual = _stamp_eh_atual(row['inactivity_warning_at'], last_dt)
+            demoted_atual = _stamp_eh_atual(row['inactivity_demoted_at'], last_dt)
+
+            if dias_inativo >= 30 and not demoted_atual:
+                _demover_jogador_por_inatividade(
+                    conn, row['id'], row['name'], row['position'], row['sexo'], dias_inativo
+                )
+            elif 25 <= dias_inativo < 30 and not warning_atual:
+                _enviar_aviso_inatividade(conn, row['id'], row['name'], dias_inativo)
+
+        conn.commit()
+    except Exception as e:
+        print(f"Erro em aplicar_democao_inatividade: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _penalizar_uma_posicao(conn, player_id, current_position, sexo, current_tier, challenge_id, reason):
+    """Aplica penalidade de -1 posição no jogador (swap com quem está logo abaixo).
+
+    Retorna (nova_posicao, houve_movimentacao). Se o jogador já está na última posição
+    de seu sexo, devolve (current_position, False)."""
+    sexo = sexo or 'masculino'
+    max_pos_row = conn.execute('''
+        SELECT MAX(position) AS max_pos FROM players
+        WHERE active = 1 AND position > 0
+          AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+    ''', (sexo, sexo)).fetchone()
+    max_position = max_pos_row['max_pos'] if max_pos_row and max_pos_row['max_pos'] else current_position
+
+    if not current_position or current_position >= max_position:
+        return current_position, False
+
+    nova_pos = current_position + 1
+    # Sobe quem está em nova_pos para a posição atual
+    conn.execute('''
+        UPDATE players
+        SET position = position - 1
+        WHERE position = ?
+          AND id != ?
+          AND active = 1
+          AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+    ''', (nova_pos, player_id, sexo, sexo))
+
+    novo_tier = get_tier_from_position(nova_pos)
+    conn.execute('UPDATE players SET position = ?, tier = ? WHERE id = ?',
+                 (nova_pos, novo_tier, player_id))
+
+    # Normaliza tiers do sexo afetado
+    for p in conn.execute('''
+        SELECT id, position FROM players
+        WHERE active = 1 AND position > 0
+          AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
+    ''', (sexo, sexo)).fetchall():
+        conn.execute('UPDATE players SET tier = ? WHERE id = ?',
+                     (get_tier_from_position(p['position']), p['id']))
+
+    conn.execute('''
+        INSERT INTO ranking_history
+        (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (player_id, current_position, nova_pos, current_tier, novo_tier, reason, challenge_id))
+
+    return nova_pos, True
+
+
+def aplicar_expiracao_resposta_desafio():
+    """Cancela desafios em status 'pending' cujo response_deadline já passou.
+
+    Regra: se o desafiado NÃO RESPONDE até o prazo (23:59 do dia seguinte à criação),
+    o desafio é cancelado e o desafiado perde 1 posição. NÃO é W.O. (W.O. só ocorre
+    após desafio aceito). O desafiante não é afetado.
+
+    Movimentação: o desafiado desce 1 posição (swap com quem está em pos+1, se existir).
+
+    Throttle: 1x/dia via system_settings.last_expiration_check."""
+    conn = get_db_connection()
+    try:
+        hoje_str = datetime.now().strftime('%Y-%m-%d')
+        last_check = conn.execute(
+            "SELECT value FROM system_settings WHERE key = 'last_expiration_check'"
+        ).fetchone()
+        if last_check and last_check['value'] == hoje_str:
+            return
+        conn.execute('''
+            INSERT INTO system_settings (key, value, updated_at)
+            VALUES ('last_expiration_check', ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+        ''', (hoje_str,))
+        conn.commit()
+
+        agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # Busca desafios em 'pending' (ainda não aceitos) cujo prazo já passou
+        expirados = conn.execute('''
+            SELECT c.id, c.challenger_id, c.challenged_id, c.response_deadline,
+                   ch.name AS challenger_name, ch.position AS challenger_pos,
+                   cd.name AS challenged_name, cd.position AS challenged_pos,
+                   cd.sexo AS challenged_sexo, cd.tier AS challenged_tier
+            FROM challenges c
+            JOIN players ch ON ch.id = c.challenger_id
+            JOIN players cd ON cd.id = c.challenged_id
+            WHERE c.status = 'pending'
+              AND c.response_deadline IS NOT NULL
+              AND c.response_deadline < ?
+        ''', (agora,)).fetchall()
+
+        for ch in expirados:
+            challenge_id = ch['id']
+            challenged_id = ch['challenged_id']
+            challenged_pos = ch['challenged_pos']
+            challenged_sexo = ch['challenged_sexo'] or 'masculino'
+            challenged_tier = ch['challenged_tier']
+
+            # Marca o desafio como cancelado
+            conn.execute('''
+                UPDATE challenges
+                SET status = 'cancelled',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (challenge_id,))
+
+            # Log da expiração em challenge_logs
+            try:
+                conn.execute('''
+                    INSERT INTO challenge_logs
+                    (challenge_id, user_id, modified_by, old_status, new_status, old_result, new_result, notes, created_at)
+                    VALUES (?, 'system', 'Sistema', 'pending', 'cancelled', NULL, NULL, ?, ?)
+                ''', (
+                    challenge_id,
+                    'Expirado sem resposta dentro do prazo. Desafiado penalizado em 1 posição.',
+                    agora,
+                ))
+            except Exception as _e_log:
+                print(f"Falha ao gravar challenge_log de expiração: {_e_log}")
+
+            nova_pos, houve_movimentacao = _penalizar_uma_posicao(
+                conn, challenged_id, challenged_pos, challenged_sexo,
+                challenged_tier, challenge_id, 'expirado_sem_resposta',
+            )
+            if houve_movimentacao:
+                print(f"⏱️ EXPIRADO SEM RESPOSTA: {ch['challenged_name']} "
+                      f"penalizado {challenged_pos} → {nova_pos} "
+                      f"(desafio #{challenge_id} de {ch['challenger_name']})")
+            else:
+                print(f"⏱️ EXPIRADO SEM RESPOSTA: {ch['challenged_name']} já está na "
+                      f"última posição, sem movimentação. (desafio #{challenge_id})")
+
+            # Notifica grupo do WhatsApp
+            sufixo_mov = (
+                f"\n\n📉 Penalidade: {ch['challenged_name']} caiu para a posição #{nova_pos}."
+            ) if houve_movimentacao else (
+                f"\n\nℹ️ {ch['challenged_name']} já estava na última posição."
+            )
+            msg = (
+                f"⏱️ *DESAFIO EXPIRADO SEM RESPOSTA*\n\n"
+                f"*{ch['challenger_name']}* (#{ch['challenger_pos']}) desafiou "
+                f"*{ch['challenged_name']}* (#{challenged_pos}), mas o prazo "
+                f"de resposta venceu (23:59 do dia seguinte à criação) e o "
+                f"desafiado não respondeu.\n\n"
+                f"O desafio foi cancelado e o desafiado perde 1 posição."
+                f"{sufixo_mov}"
+            )
+            try:
+                enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg)
+            except Exception as e:
+                print(f"[WhatsApp] Falha ao notificar expiração de #{challenge_id}: {e}")
+
+        conn.commit()
+    except Exception as e:
+        print(f"Erro em aplicar_expiracao_resposta_desafio: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 # ============================================
 # ROTA INDEX COMPLETA - Substitua no app.py
 # ============================================
@@ -3639,18 +3930,11 @@ def challenges_list():
 # Substitua a rota new_challenge existente por esta versão modificada
 
 # ============================================================
-# ROTA NEW_CHALLENGE - COMPLETA E CORRIGIDA
+# ROTA NEW_CHALLENGE
 # ============================================================
 # Prazos:
-# - response_deadline (aceitar/rejeitar): 2 DIAS
-# - scheduled_date (data do jogo): máximo 7 DIAS
-# ============================================================
-
-# ============================================================
-# ROTA NEW_CHALLENGE - COMPLETA
-# ============================================================
-# PRAZOS:
-# - response_deadline (aceitar/rejeitar): 2 DIAS
+# - response_deadline (aceitar/rejeitar/propor 2 datas):
+#     até 23:59 do dia seguinte à criação
 # - scheduled_date (data do jogo): máximo 7 DIAS
 # ============================================================
 
@@ -3825,9 +4109,10 @@ def new_challenge():
         current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         # ============================================================
-        # PRAZO PARA RESPONDER: 2 DIAS (até 23:59 do dia)
+        # PRAZO PARA RESPONDER: até 23:59 do dia seguinte à criação
+        # (desafiado deve responder e oferecer 2 datas; jogo em até 7 dias)
         # ============================================================
-        response_deadline = (datetime.now() + timedelta(days=2)).replace(hour=23, minute=59, second=59).strftime('%Y-%m-%d %H:%M:%S')
+        response_deadline = (datetime.now() + timedelta(days=1)).replace(hour=23, minute=59, second=59).strftime('%Y-%m-%d %H:%M:%S')
         
         conn.execute('''
             INSERT INTO challenges (
@@ -3875,7 +4160,7 @@ def new_challenge():
                 ''')
             
             creator_type = "Admin Principal" if is_main_admin else "Admin" if is_admin else "Jogador"
-            notes = f"Desafio criado. Jogo marcado para {scheduled_date}. Prazo para resposta: 2 dias."
+            notes = f"Desafio criado. Jogo marcado para {scheduled_date}. Prazo para resposta: até 23:59 do dia seguinte."
             
             conn.execute('''
                 INSERT INTO challenge_logs 
@@ -3900,9 +4185,9 @@ def new_challenge():
         # MENSAGEM DE SUCESSO
         # ============================================================
         if is_main_admin:
-            flash('Desafio criado com sucesso! O desafiado terá 2 dias para responder.', 'success')
+            flash('Desafio criado com sucesso! O desafiado deverá responder até as 23:59 do dia seguinte.', 'success')
         else:
-            flash('Desafio criado com sucesso! O desafiado terá 2 dias para aceitar, rejeitar ou propor nova data.', 'success')
+            flash('Desafio criado com sucesso! O desafiado deverá aceitar, rejeitar ou propor 2 novas datas até as 23:59 do dia seguinte.', 'success')
         
         return redirect(url_for('challenges_calendar'))
     
@@ -4431,11 +4716,19 @@ def update_challenge(challenge_id):
         else:
             flash('Status do desafio atualizado para Concluído e ranking atualizado.', 'success')
     else:
-        # Apenas atualizar o status
+        # Rejeição via web: aplica a mesma regra do bot — penaliza desafiado em 1 posição
+        # (não é W.O.; é cancelamento por recusa antes do aceite).
+        if status == 'rejected' and challenge['status'] == 'pending':
+            conn.close()
+            sucesso, mensagem_retorno = rejeitar_desafio(challenge_id, challenge['challenged_id'])
+            flash(mensagem_retorno, 'success' if sucesso else 'error')
+            return redirect(url_for('challenge_detail', challenge_id=challenge_id))
+
+        # Demais transições de status (aceitar, cancelar etc.) seguem o caminho simples
         conn.execute('UPDATE challenges SET status = ? WHERE id = ?', (status, challenge_id))
         conn.commit()
         flash('Status do desafio atualizado com sucesso!', 'success')
-    
+
     conn.close()
     
     return redirect(url_for('challenge_detail', challenge_id=challenge_id))
@@ -5496,16 +5789,29 @@ def create_daily_history_table():
     print("Tabela de histórico diário criada com sucesso.")
 
 # ============================================================
-# FUNÇÃO add_response_deadline_column - CORRIGIDA
+# FUNÇÃO add_response_deadline_column
 # ============================================================
-# Prazo para RESPONDER: 2 dias
+# Prazo para RESPONDER: até 23:59 do dia seguinte à criação
 # ============================================================
 
-# ============================================================
-# FUNÇÃO add_response_deadline_column - CORRIGIDA
-# ============================================================
-# Prazo para RESPONDER: 2 dias
-# ============================================================
+def add_inactivity_tracking_columns():
+    """Cria colunas para rastreio de aviso/rebaixamento por inatividade.
+
+    inactivity_warning_at: datetime do envio do aviso aos 25 dias (a 5 dias do rebaixamento).
+    inactivity_demoted_at:  datetime em que o jogador foi rebaixado por 30+ dias sem jogar.
+
+    Reset: ambos voltam a NULL quando o jogador completa um desafio (ver process_challenge_result)."""
+    conn = get_db_connection()
+    cols = [c[1] for c in conn.execute('PRAGMA table_info(players)').fetchall()]
+    if 'inactivity_warning_at' not in cols:
+        conn.execute('ALTER TABLE players ADD COLUMN inactivity_warning_at DATETIME')
+        print("Coluna 'inactivity_warning_at' adicionada à tabela players.")
+    if 'inactivity_demoted_at' not in cols:
+        conn.execute('ALTER TABLE players ADD COLUMN inactivity_demoted_at DATETIME')
+        print("Coluna 'inactivity_demoted_at' adicionada à tabela players.")
+    conn.commit()
+    conn.close()
+
 
 def add_response_deadline_column():
     conn = get_db_connection()
@@ -5518,16 +5824,14 @@ def add_response_deadline_column():
         # Adicionar coluna de prazo de resposta
         conn.execute('ALTER TABLE challenges ADD COLUMN response_deadline DATETIME')
         print("Coluna 'response_deadline' adicionada à tabela challenges.")
-        
-        # ============================================================
-        # Definir prazo de resposta para desafios existentes: 2 DIAS
-        # ============================================================
+
+        # Prazo: até 23:59 do dia seguinte à criação do desafio
         conn.execute('''
-            UPDATE challenges 
-            SET response_deadline = date(created_at, '+2 days') || ' 23:59:59'
+            UPDATE challenges
+            SET response_deadline = date(created_at, '+1 day') || ' 23:59:59'
             WHERE status = 'pending' AND response_deadline IS NULL
         ''')
-        print("Prazo de resposta (2 dias) definido para desafios pendentes existentes.")
+        print("Prazo de resposta (23:59 do dia seguinte) definido para desafios pendentes existentes.")
     
     conn.commit()
     conn.close()
@@ -5536,11 +5840,11 @@ def add_response_deadline_column():
 # ============================================================
 # SQL PARA CORRIGIR DESAFIOS EXISTENTES
 # ============================================================
-# Execute este SQL diretamente no banco para corrigir
-# desafios pendentes que foram criados com prazo de 7 dias:
+# Execute este SQL diretamente no banco para alinhar
+# desafios pendentes ao prazo atual (23:59 do dia seguinte):
 #
-# UPDATE challenges 
-# SET response_deadline = datetime(created_at, '+2 days')
+# UPDATE challenges
+# SET response_deadline = date(created_at, '+1 day') || ' 23:59:59'
 # WHERE status = 'pending';
 #
 # ============================================================
@@ -9742,7 +10046,8 @@ def _criar_desafio_via_whatsapp_locked(challenger_id, challenged_id, scheduled_d
         
         # Criar o desafio
         current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        response_deadline = (datetime.now() + timedelta(days=2)).replace(hour=23, minute=59, second=59).strftime('%Y-%m-%d %H:%M:%S')
+        # Prazo: até 23:59 do dia seguinte à criação
+        response_deadline = (datetime.now() + timedelta(days=1)).replace(hour=23, minute=59, second=59).strftime('%Y-%m-%d %H:%M:%S')
         
         conn.execute('''
             INSERT INTO challenges (
@@ -9780,7 +10085,7 @@ def _criar_desafio_via_whatsapp_locked(challenger_id, challenged_id, scheduled_d
                 "WhatsApp Bot",
                 None, 
                 'pending', 
-                f"Desafio criado via WhatsApp. Jogo: {scheduled_date}. Prazo resposta: 2 dias.",
+                f"Desafio criado via WhatsApp. Jogo: {scheduled_date}. Prazo resposta: até 23:59 do dia seguinte.",
                 current_datetime
             ))
         except Exception as e:
@@ -9850,12 +10155,12 @@ Você foi desafiado por *{challenge['challenger_name']}* (#{challenge['challenge
 ━━━━━━━━━━━━━━━━━━━━━
 
 *[4]* ✅ Aceitar a data
-*[5]* ❌ Rejeitar (WO - você perde)
+*[5]* ❌ Rejeitar (perde 1 posição)
 *[7]* 📅 Propor 2 novas datas
 
 ━━━━━━━━━━━━━━━━━━━━━
 
-⏰ Prazo para responder: *2 dias*"""
+⏰ Prazo para responder: *até as 23:59 do dia seguinte*"""
         
         telefone_norm = telefone_desafiado  # Já correto no banco
         enviar_mensagem_whatsapp(formatar_jid_whatsapp(telefone_norm), msg)
@@ -10293,42 +10598,92 @@ def aceitar_desafio(challenge_id, player_id):
 
 
 def rejeitar_desafio(challenge_id, player_id):
-    """Rejeita um desafio — aplica WO contra o desafiado (que rejeitou).
-    Regra: desafiante ganha 1 posição, desafiado assume posição antiga do desafiante,
-    todos os jogadores entre eles sobem 1.
-    """
+    """Rejeita um desafio AINDA NÃO ACEITO. Não é W.O.
+
+    Regra: o desafiado respondeu (rejeitou) dentro do prazo, mas se recusou
+    a jogar. Tratamento idêntico ao da não-resposta — desafio cancelado e
+    desafiado perde 1 posição (swap com quem está logo abaixo)."""
     conn = get_db_connection()
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT c.id, c.challenger_id, c.challenged_id, c.status,
+                   ch.name AS challenger_name, ch.position AS challenger_pos,
+                   cd.name AS challenged_name, cd.position AS challenged_pos,
+                   cd.sexo AS challenged_sexo, cd.tier AS challenged_tier
+            FROM challenges c
+            JOIN players ch ON ch.id = c.challenger_id
+            JOIN players cd ON cd.id = c.challenged_id
+            WHERE c.id = ? AND c.challenged_id = ? AND c.status = 'pending'
+        """, (challenge_id, player_id))
+        challenge = cursor.fetchone()
 
-    # Verificar se o desafio existe e o jogador é o desafiado
-    cursor.execute("""
-        SELECT c.id, c.challenger_id, c.challenged_id, c.status
-        FROM challenges c
-        WHERE c.id = ? AND c.challenged_id = ? AND c.status = 'pending'
-    """, (challenge_id, player_id))
+        if not challenge:
+            return False, "Desafio não encontrado ou você não é o desafiado."
 
-    challenge = cursor.fetchone()
+        agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    if not challenge:
-        conn.close()
-        return False, "Desafio não encontrado ou você não é o desafiado."
+        # Marca como rejected (não é W.O. — não há vencedor por W.O.)
+        cursor.execute("""
+            UPDATE challenges
+            SET status = 'rejected', updated_at = ?
+            WHERE id = ?
+        """, (agora, challenge_id))
 
-    # Marcar result_type correto ANTES de chamar process_challenge_result
-    # wo_challenger = WO causado pelo desafiado (desafiante vence)
-    cursor.execute("""
-        UPDATE challenges
-        SET result_type = 'wo_challenger', updated_at = ?
-        WHERE id = ?
-    """, (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), challenge_id))
-    conn.commit()
+        # Log
+        try:
+            cursor.execute('''
+                INSERT INTO challenge_logs
+                (challenge_id, user_id, modified_by, old_status, new_status, old_result, new_result, notes, created_at)
+                VALUES (?, ?, 'Desafiado', 'pending', 'rejected', NULL, NULL, ?, ?)
+            ''', (
+                challenge_id, str(player_id),
+                'Desafio rejeitado pelo desafiado dentro do prazo. Penalidade: -1 posição.',
+                agora,
+            ))
+        except Exception as _e_log:
+            print(f"Falha ao gravar challenge_log de rejeição: {_e_log}")
 
-    # Delegar toda a lógica de posições ao process_challenge_result
-    # (já faz conn.commit() internamente)
-    process_challenge_result(conn, challenge_id, 'completed', 'challenger_win')
+        # Aplica penalidade de -1 posição no desafiado
+        nova_pos, houve_movimentacao = _penalizar_uma_posicao(
+            conn, challenge['challenged_id'], challenge['challenged_pos'],
+            challenge['challenged_sexo'], challenge['challenged_tier'],
+            challenge_id, 'rejeitado_pelo_desafiado',
+        )
+        conn.commit()
 
-    conn.close()
+        # Notifica grupo
+        sufixo_mov = (
+            f"\n\n📉 Penalidade: {challenge['challenged_name']} caiu para a posição #{nova_pos}."
+        ) if houve_movimentacao else (
+            f"\n\nℹ️ {challenge['challenged_name']} já estava na última posição."
+        )
+        try:
+            msg = (
+                f"❌ *DESAFIO REJEITADO*\n\n"
+                f"*{challenge['challenger_name']}* (#{challenge['challenger_pos']}) desafiou "
+                f"*{challenge['challenged_name']}* (#{challenge['challenged_pos']}), que rejeitou.\n\n"
+                f"Desafio cancelado e desafiado perde 1 posição (não é W.O. — ainda não havia aceite)."
+                f"{sufixo_mov}"
+            )
+            enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg)
+        except Exception as _e_wa:
+            print(f"[WhatsApp] Falha ao notificar rejeição de #{challenge_id}: {_e_wa}")
 
-    return True, "Desafio rejeitado. WO aplicado — você perdeu a posição."
+        if houve_movimentacao:
+            return True, f"Desafio rejeitado. Penalidade: você caiu para a posição #{nova_pos}."
+        return True, "Desafio rejeitado. Você já estava na última posição (sem movimentação)."
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return False, f"Erro ao rejeitar desafio: {e}"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================
@@ -10524,9 +10879,9 @@ Escolha uma data em que ele esteja disponível:
 Você desafiou *{oponente_nome}* ({oponente_posicao}º)
 
 📅 Data do jogo: *{data_jogo.strftime('%d/%m/%Y')}*
-⏳ Prazo para resposta: *2 dias*
+⏳ Prazo para resposta: *até as 23:59 do dia seguinte*
 
-O desafiado será notificado e deve aceitar ou rejeitar o desafio.
+O desafiado será notificado e deve aceitar, rejeitar ou propor 2 novas datas.
 
 Boa sorte! 🏌️
 
@@ -10814,13 +11169,13 @@ Você não tem nenhum desafio pendente para rejeitar.
         if len(desafios_pendentes) == 1 and not numeros:
             desafio = desafios_pendentes[0]
             sucesso, mensagem_retorno = rejeitar_desafio(desafio['id'], jogador['id'])
-            
+
             if sucesso:
                 return f"""⚠️ *Desafio Rejeitado*
 
 Você rejeitou o desafio de *{desafio['challenger_name']}*.
 
-WO aplicado - você perdeu a posição.
+{mensagem_retorno}
 
 {rodape_rapido('pt', 1, 3)}"""
             else:
@@ -10831,16 +11186,18 @@ WO aplicado - você perdeu a posição.
             sucesso, mensagem_retorno = rejeitar_desafio(challenge_id, jogador['id'])
 
             if sucesso:
-                return f"""⚠️ *Desafio #{challenge_id} rejeitado.* WO aplicado.
+                return f"""⚠️ *Desafio #{challenge_id} rejeitado.*
+
+{mensagem_retorno}
 
 {rodape_rapido('pt', 1, 3)}"""
             else:
                 return f"❌ {mensagem_retorno}"
-        
+
         lista = "\n".join([f"   #{d['id']} - {d['challenger_name']} (posição {d['challenger_position']}º)" for d in desafios_pendentes])
         return f"""❌ *Rejeitar Desafio*
 
-⚠️ *ATENÇÃO*: Rejeitar resulta em WO!
+⚠️ *ATENÇÃO*: Rejeitar = perde 1 posição (não é W.O., pois ainda não foi aceito).
 
 Seus desafios pendentes:
 {lista}
@@ -11475,14 +11832,14 @@ def corrigir_prazos():
     
     conn = get_db_connection()
     conn.execute('''
-        UPDATE challenges 
-        SET response_deadline = date(created_at, '+2 days') || ' 23:59:59'
+        UPDATE challenges
+        SET response_deadline = date(created_at, '+1 day') || ' 23:59:59'
         WHERE status = 'pending'
     ''')
     conn.commit()
     conn.close()
-    
-    flash('Prazos corrigidos para 2 dias (até 23:59)!', 'success')
+
+    flash('Prazos corrigidos: até as 23:59 do dia seguinte à criação!', 'success')
     return redirect(url_for('admin_dashboard'))
 
 
@@ -11735,7 +12092,7 @@ def notificar_proposta_datas(challenge_id):
 ━━━━━━━━━━━━━━━━━━━━━
 Digite *A*, *B* ou *C* para responder.
 
-⏰ _Você tem 2 dias para responder._"""
+⏰ _Responda até as 23:59 do dia seguinte._"""
         
         telefone_normalizado = telefone_desafiante  # Já correto no banco
         enviar_mensagem_whatsapp(formatar_jid_whatsapp(telefone_normalizado), msg)
@@ -11941,11 +12298,11 @@ The date must be within the next *7 days*.
 Você desafiou *{nome}* ({posicao}º)
 
 📅 Data do jogo: *{data}*
-⏳ Prazo para resposta: *2 dias*
+⏳ Prazo para resposta: *até as 23:59 do dia seguinte*
 
 O desafiado será notificado e pode:
 - Aceitar a data
-- Rejeitar (perde por WO)
+- Rejeitar (perde 1 posição)
 - Propor 2 novas datas
 
 Boa sorte! 🏌️
@@ -11956,11 +12313,11 @@ Boa sorte! 🏌️
 You challenged *{nome}* ({posicao}th)
 
 📅 Game date: *{data}*
-⏳ Response deadline: *2 days*
+⏳ Response deadline: *by 23:59 the next day*
 
 The challenged player will be notified and can:
 - Accept the date
-- Reject (loses by WO)
+- Reject (drops 1 position)
 - Propose 2 new dates
 
 Good luck! 🏌️
@@ -11989,7 +12346,7 @@ Você propôs as seguintes datas para *{nome}*:
 ━━━━━━━━━━━━━━━━━━━━━
 {status}
 
-Ele deve escolher uma das datas em até *2 dias*.
+Ele deve escolher uma das datas até as *23:59 do dia seguinte*.
 
 Você será notificado quando a data for confirmada! 🏌️
 
@@ -12227,27 +12584,27 @@ You have no pending challenges to reject.
 
 Você rejeitou o desafio de *{nome}*.
 
-WO aplicado - você perdeu a posição.
+Penalidade: você perde 1 posição (não é W.O., pois o desafio ainda não havia sido aceito).
 
 {rodape}""",
         'en': """⚠️ *Challenge Rejected*
 
 You rejected the challenge from *{nome}*.
 
-WO applied - you lost the position.
+Penalty: you drop 1 position (this is not a W.O. — the challenge had not been accepted yet).
 
 {rodape}"""
     },
     
     'desafio_rejeitado_id': {
-        'pt': '⚠️ *Desafio #{id} rejeitado.* WO aplicado.\n\n{rodape}',
-        'en': '⚠️ *Challenge #{id} rejected.* WO applied.\n\n{rodape}'
+        'pt': '⚠️ *Desafio #{id} rejeitado.* Penalidade: -1 posição.\n\n{rodape}',
+        'en': '⚠️ *Challenge #{id} rejected.* Penalty: -1 position.\n\n{rodape}'
     },
-    
+
     'rejeitar_lista': {
         'pt': """❌ *Rejeitar Desafio*
 
-⚠️ *ATENÇÃO*: Rejeitar resulta em WO!
+⚠️ *ATENÇÃO*: Rejeitar = perde 1 posição (não é W.O., pois ainda não havia aceite).
 
 Seus desafios pendentes:
 {lista}
@@ -12260,7 +12617,7 @@ Exemplo: *5 123*
 {rodape}""",
         'en': """❌ *Reject Challenge*
 
-⚠️ *WARNING*: Rejecting results in WO!
+⚠️ *WARNING*: Rejecting = drop 1 position (not a W.O. — challenge had not been accepted).
 
 Your pending challenges:
 {lista}
@@ -13424,6 +13781,9 @@ if __name__ == '__main__':
     
     # Adicionar coluna de prazo de resposta à tabela de desafios
     add_response_deadline_column()
+
+    # Colunas de rastreio do aviso/rebaixamento por inatividade (20/30 dias)
+    add_inactivity_tracking_columns()
 
     # Adicionar coluna de país se não existir
     add_country_column()
