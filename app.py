@@ -3149,7 +3149,7 @@ def _demover_jogador_por_inatividade(conn, player_id, player_name, current_posit
         f"🏴 *REBAIXAMENTO POR INATIVIDADE*\n\n"
         f"*{player_name}* foi movido para o final da pirâmide por estar há *{dias_inativo} dias* "
         f"sem jogar (limite: 30 dias).\n\n"
-        f"Volte às quadras para retomar sua posição! ⛳"
+        f"Volte ao Campo para retomar sua posição! ⛳"
     )
     try:
         enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg)
