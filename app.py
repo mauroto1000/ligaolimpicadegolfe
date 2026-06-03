@@ -6471,7 +6471,19 @@ def list_admins():
         return redirect(url_for('dashboard'))
     
     conn = get_db_connection()
-    admins = conn.execute('SELECT id, username, name, email, codigo, created_at, last_login FROM admins ORDER BY name').fetchall()
+    # Defensivo: garantir que a coluna 'codigo' exista (pode estar faltando se
+    # a migração inicial não rodou neste deploy).
+    cols = [c[1] for c in conn.execute('PRAGMA table_info(admins)').fetchall()]
+    if 'codigo' not in cols:
+        try:
+            conn.execute('ALTER TABLE admins ADD COLUMN codigo TEXT')
+            conn.commit()
+        except Exception as _e:
+            print(f"[list_admins] falha ao criar coluna codigo: {_e}")
+    admins = conn.execute(
+        'SELECT id, username, name, email, codigo, created_at, last_login '
+        'FROM admins ORDER BY name'
+    ).fetchall()
     conn.close()
 
     return render_template('list_admins.html', admins=admins)
@@ -13733,6 +13745,39 @@ def parse_data_input(texto):
                 continue
     
     return None
+
+
+# ============================================================
+# Migrações idempotentes executadas no IMPORT do módulo
+# (necessário para deploys WSGI — gunicorn/uwsgi/passenger —
+#  onde o bloco `if __name__ == '__main__'` nunca roda).
+# ============================================================
+def _run_startup_migrations():
+    if not os.path.exists(DATABASE):
+        return  # DB ainda não existe; será criado pelo bloco __main__
+    try:
+        create_authentication_tables()
+    except Exception as _e:
+        print(f"[migrações] create_authentication_tables: {_e}")
+    try:
+        create_system_settings_table()
+    except Exception as _e:
+        print(f"[migrações] create_system_settings_table: {_e}")
+    try:
+        add_response_deadline_column()
+    except Exception as _e:
+        print(f"[migrações] add_response_deadline_column: {_e}")
+    try:
+        add_inactivity_tracking_columns()
+    except Exception as _e:
+        print(f"[migrações] add_inactivity_tracking_columns: {_e}")
+    try:
+        add_result_type_column()
+    except Exception as _e:
+        print(f"[migrações] add_result_type_column: {_e}")
+
+
+_run_startup_migrations()
 
 
 if __name__ == '__main__':
