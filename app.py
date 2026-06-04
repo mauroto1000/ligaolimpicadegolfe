@@ -7079,6 +7079,108 @@ def fix_male_ranking_now():
     return redirect(url_for('pyramid_dynamic'))
 
 
+@app.route('/admin/mover-sem-desafios', methods=['POST'])
+@login_required
+def mover_sem_desafios():
+    """Move para o final da pirâmide (por sexo) todos os jogadores que nunca
+    participaram de NENHUM desafio. A ordem relativa entre eles é preservada,
+    e quem já jogou sobe automaticamente para preencher o espaço.
+    """
+    if not session.get('is_admin', False):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+
+    conn = get_db_connection()
+    try:
+        # IDs de jogadores que JÁ apareceram em algum desafio (qualquer status)
+        played_ids = {
+            r['pid'] for r in conn.execute('''
+                SELECT challenger_id AS pid FROM challenges
+                UNION
+                SELECT challenged_id AS pid FROM challenges
+            ''').fetchall() if r['pid'] is not None
+        }
+
+        total_movidos = 0
+        resumo_por_sexo = []
+
+        for sexo_filtro, sexo_label in (('masculino', 'Masculino'), ('feminino', 'Ladies')):
+            if sexo_filtro == 'masculino':
+                rows = conn.execute('''
+                    SELECT id, position, tier FROM players
+                    WHERE active = 1 AND position > 0
+                      AND (tipo_membro IS NULL OR tipo_membro != 'vip')
+                      AND (sexo != 'feminino' OR sexo IS NULL)
+                    ORDER BY position
+                ''').fetchall()
+            else:
+                rows = conn.execute('''
+                    SELECT id, position, tier FROM players
+                    WHERE active = 1 AND position > 0
+                      AND (tipo_membro IS NULL OR tipo_membro != 'vip')
+                      AND sexo = 'feminino'
+                    ORDER BY position
+                ''').fetchall()
+
+            if not rows:
+                continue
+
+            # Mantém ordem relativa atual (já vem ORDER BY position)
+            ja_jogaram = [r for r in rows if r['id'] in played_ids]
+            sem_desafios = [r for r in rows if r['id'] not in played_ids]
+
+            if not sem_desafios:
+                resumo_por_sexo.append(f"{sexo_label}: nenhum jogador sem desafios.")
+                continue
+
+            # Se TODOS estão sem desafios, não há para onde mover — nada a fazer
+            if not ja_jogaram:
+                resumo_por_sexo.append(
+                    f"{sexo_label}: todos os {len(sem_desafios)} jogadores estão sem desafios "
+                    f"(nada a mover)."
+                )
+                continue
+
+            ordenacao_nova = ja_jogaram + sem_desafios
+
+            for nova_pos, row in enumerate(ordenacao_nova, start=1):
+                novo_tier = get_tier_from_position(nova_pos)
+                if row['position'] != nova_pos or row['tier'] != novo_tier:
+                    conn.execute(
+                        'UPDATE players SET position = ?, tier = ? WHERE id = ?',
+                        (nova_pos, novo_tier, row['id']),
+                    )
+                    # Histórico apenas para os realmente movidos para baixo
+                    if row['id'] in {s['id'] for s in sem_desafios} and nova_pos != row['position']:
+                        conn.execute('''
+                            INSERT INTO ranking_history
+                            (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
+                            VALUES (?, ?, ?, ?, ?, ?, NULL)
+                        ''', (row['id'], row['position'], nova_pos,
+                              row['tier'], novo_tier, 'movido_sem_desafios'))
+
+            total_movidos += len(sem_desafios)
+            resumo_por_sexo.append(
+                f"{sexo_label}: {len(sem_desafios)} jogador(es) sem desafios movido(s) "
+                f"para o final (posições {len(ja_jogaram) + 1}–{len(ordenacao_nova)})."
+            )
+
+        conn.commit()
+
+        if total_movidos == 0:
+            flash('Nenhum jogador para mover. ' + ' '.join(resumo_por_sexo), 'info')
+        else:
+            flash('✅ Reorganização concluída. ' + ' '.join(resumo_por_sexo), 'success')
+    except Exception as e:
+        conn.rollback()
+        flash(f'❌ Erro ao mover jogadores: {e}', 'error')
+        import traceback
+        traceback.print_exc()
+    finally:
+        conn.close()
+
+    return redirect(url_for('pyramid_dynamic'))
+
 
 # Adicione esta rota para análise sistemática
 

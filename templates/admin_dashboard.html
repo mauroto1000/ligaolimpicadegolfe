@@ -248,6 +248,14 @@
                                 </button>
                             </form>
                         </div>
+                        <div class="col-md-3 mb-2">
+                            <form action="{{ url_for('mover_sem_desafios') }}" method="POST"
+                                  onsubmit="return confirm('⚠️ Mover todos os jogadores SEM nenhum desafio (até hoje) para o final da pirâmide?\n\n• A ordem relativa entre eles é preservada.\n• Quem já jogou sobe automaticamente para preencher o espaço.\n• Aplicado separadamente ao Masculino e ao Ladies.\n\nContinuar?')">
+                                <button type="submit" class="btn btn-outline-secondary d-block w-100">
+                                    <i class="fas fa-angle-double-down fa-fw"></i> Mover sem desafios
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>
