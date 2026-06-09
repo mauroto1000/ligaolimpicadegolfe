@@ -291,18 +291,6 @@
     .arrow-challenged { background-color: rgba(0,0,0,0.7); color: white; }
     .arrow-challenger { background-color: rgba(255,255,255,0.9); color: black; border: 1px solid rgba(0,0,0,0.2); }
 
-    /* Bandeiras de inatividade */
-    .inactivity-flag {
-        position: absolute;
-        bottom: 2px;
-        left: 50%;
-        transform: translateX(-50%);
-        font-size: 13px;
-        z-index: 6;
-        line-height: 1;
-        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
-    }
-
     /* Estrela: 5 vitórias reais consecutivas (sem WO). Gold com contorno navy
        para destacar sobre verde, rosa, amarelo e vermelho translúcido. */
     .winning-streak-star {
@@ -560,11 +548,6 @@
                                         {% if displayed.append(true) %}{% endif %}{% if displayed.pop(0) %}{% endif %}
                                     {% endif %}
                                 {% endfor %}
-                                {% if player.dias_inativo is none or player.dias_inativo >= 30 %}
-                                <span class="inactivity-flag">🏴</span>
-                                {% elif player.dias_inativo >= 20 %}
-                                <span class="inactivity-flag">🚩</span>
-                                {% endif %}
                                 {% if player.cinco_vitorias_reais %}
                                 <span class="winning-streak-star" title="5 vitórias consecutivas">★</span>
                                 {% endif %}
@@ -585,8 +568,6 @@
             <div class="print-legend-item"><div class="print-legend-color" style="background:#28a745;"></div><span>Jogador</span></div>
             <div class="print-legend-item"><div class="print-legend-color" style="background:#ffc107;"></div><span>Com desafio</span></div>
             <div class="print-legend-item"><div class="print-legend-color" style="background:#ffc107; border:3px solid #dc3545;"></div><span>Resultado pendente</span></div>
-            <div class="print-legend-item"><span style="font-size:13px;">🚩</span><span class="ms-1">20+ dias (aviso)</span></div>
-            <div class="print-legend-item"><span style="font-size:13px;">🏴</span><span class="ms-1">30+ dias (rebaixado)</span></div>
         </div>
     </div>
 
@@ -660,11 +641,6 @@
                                             {% if displayed.append(true) %}{% endif %}{% if displayed.pop(0) %}{% endif %}
                                         {% endif %}
                                     {% endfor %}
-                                    {% if player.dias_inativo is none or player.dias_inativo >= 30 %}
-                                    <span class="inactivity-flag">🏴</span>
-                                    {% elif player.dias_inativo >= 20 %}
-                                    <span class="inactivity-flag">🚩</span>
-                                    {% endif %}
                                     {% if player.cinco_vitorias_reais %}
                                     <span class="winning-streak-star" title="5 vitórias consecutivas">★</span>
                                     {% endif %}
@@ -687,8 +663,6 @@
             <div class="print-legend-item"><div class="print-legend-color" style="background:#e91e63;"></div><span>Jogadora</span></div>
             <div class="print-legend-item"><div class="print-legend-color" style="background:#ffc107;"></div><span>Com desafio</span></div>
             <div class="print-legend-item"><div class="print-legend-color" style="background:#ffc107; border:3px solid #dc3545;"></div><span>Resultado pendente</span></div>
-            <div class="print-legend-item"><span style="font-size:13px;">🚩</span><span class="ms-1">20+ dias (aviso)</span></div>
-            <div class="print-legend-item"><span style="font-size:13px;">🏴</span><span class="ms-1">30+ dias (rebaixado)</span></div>
         </div>
     </div>
     {% endif %}

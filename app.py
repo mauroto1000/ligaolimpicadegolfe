@@ -1177,12 +1177,6 @@ def admin_dashboard():
         flash('Acesso restrito a administradores.', 'error')
         return redirect(url_for('dashboard'))
 
-    # Avisos/rebaixamentos por inatividade (20/25/30 dias) — throttle interno 1x/dia
-    try:
-        aplicar_democao_inatividade()
-    except Exception as _e:
-        print(f"[inatividade] erro ao aplicar checagem: {_e}")
-
     # Expiração de desafios sem resposta no prazo — throttle interno 1x/dia
     try:
         aplicar_expiracao_resposta_desafio()
@@ -2016,18 +2010,6 @@ def process_challenge_result(conn, challenge_id, status, result, confirmado_por=
             result_origem = ?
         WHERE id = ?
     ''', (status, result, confirmado_por, origem, challenge_id))
-
-    # Reset do controle de inatividade: tanto 'completed' quanto 'completed_pending'
-    # indicam que ambos jogadores efetivamente jogaram (mesmo que com WO, o jogo encerra
-    # o ciclo do desafio e reinicia a contagem). Aviso/rebaixamento anteriores ficam
-    # marcados com timestamp anterior à nova data de jogo, então _stamp_eh_atual()
-    # passará a retornar False — equivalente a reset.
-    if status in ('completed', 'completed_pending') and challenge_data:
-        conn.execute(
-            'UPDATE players SET inactivity_warning_at = NULL, inactivity_demoted_at = NULL '
-            'WHERE id IN (?, ?)',
-            (challenge_data['challenger_id'], challenge_data['challenged_id']),
-        )
 
     # Se for "Concluído (com pendência)", apenas registramos o resultado sem alterar posições
     if status == 'completed_pending':
@@ -3051,213 +3033,6 @@ def aplicar_penalidade_bloqueio():
         conn.close()
 
 
-def _dias_inatividade(conn, player_id, last_played_date, bloqueio_periodos):
-    """Calcula dias de inatividade descontando períodos de bloqueio."""
-    from datetime import date as _date, datetime as _datetime
-    hoje = _date.today()
-    if not last_played_date:
-        return None
-    try:
-        last_dt = _datetime.strptime(str(last_played_date)[:10], '%Y-%m-%d').date()
-    except Exception:
-        return None
-    bruto = (hoje - last_dt).days
-    desconto = 0
-    for s_str, e_str in bloqueio_periodos.get(player_id, []):
-        try:
-            s = _datetime.strptime(str(s_str)[:10], '%Y-%m-%d').date()
-            e = _datetime.strptime(str(e_str)[:10], '%Y-%m-%d').date() if e_str else hoje
-            ov_s, ov_e = max(s, last_dt), min(e, hoje)
-            if ov_e > ov_s:
-                desconto += (ov_e - ov_s).days
-        except Exception:
-            pass
-    return max(0, bruto - desconto), last_dt
-
-
-def _enviar_aviso_inatividade(conn, player_id, player_name, dias_inativo):
-    """Aviso prévio (25-29 dias) ao grupo do WhatsApp + marca timestamp para não repetir."""
-    dias_para_democao = max(0, 30 - dias_inativo)
-    msg = (
-        f"⚠️ *AVISO DE INATIVIDADE*\n\n"
-        f"🚩 *{player_name}* está há *{dias_inativo} dias* sem jogar.\n\n"
-        f"Caso não jogue nos próximos *{dias_para_democao} dia(s)*, será movido para o final "
-        f"da pirâmide por inatividade (limite: 30 dias)."
-    )
-    try:
-        enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg)
-    except Exception as e:
-        print(f"[WhatsApp] Falha ao enviar aviso de inatividade para {player_name}: {e}")
-    conn.execute(
-        'UPDATE players SET inactivity_warning_at = ? WHERE id = ?',
-        (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), player_id),
-    )
-
-
-def _demover_jogador_por_inatividade(conn, player_id, player_name, current_position, sexo, dias_inativo):
-    """Move jogador para a última posição de seu sexo + registra histórico + notifica grupo."""
-    sexo = sexo or 'masculino'
-    max_pos_row = conn.execute('''
-        SELECT MAX(position) AS max_pos FROM players
-        WHERE active = 1 AND position > 0
-          AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
-    ''', (sexo, sexo)).fetchone()
-    max_position = max_pos_row['max_pos'] if max_pos_row and max_pos_row['max_pos'] else current_position
-
-    agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-    if max_position > current_position:
-        # Shift up de quem está entre current+1 e max_position
-        conn.execute('''
-            UPDATE players
-            SET position = position - 1
-            WHERE position > ? AND position <= ?
-              AND id != ?
-              AND active = 1
-              AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
-        ''', (current_position, max_position, player_id, sexo, sexo))
-
-        old_tier = get_tier_from_position(current_position)
-        new_tier = get_tier_from_position(max_position)
-        conn.execute(
-            'UPDATE players SET position = ?, tier = ?, inactivity_demoted_at = ? WHERE id = ?',
-            (max_position, new_tier, agora, player_id),
-        )
-        conn.execute('''
-            INSERT INTO ranking_history
-            (player_id, old_position, new_position, old_tier, new_tier, reason, challenge_id)
-            VALUES (?, ?, ?, ?, ?, ?, NULL)
-        ''', (player_id, current_position, max_position, old_tier, new_tier,
-              f'inatividade_{dias_inativo}d'))
-
-        # Normaliza tiers do sexo afetado
-        for p in conn.execute('''
-            SELECT id, position FROM players
-            WHERE active = 1 AND position > 0
-              AND (sexo = ? OR (sexo IS NULL AND ? != 'feminino'))
-        ''', (sexo, sexo)).fetchall():
-            conn.execute('UPDATE players SET tier = ? WHERE id = ?',
-                         (get_tier_from_position(p['position']), p['id']))
-
-        print(f"🏴 REBAIXAMENTO POR INATIVIDADE: {player_name} ({dias_inativo} dias) "
-              f"{current_position} → {max_position}")
-    else:
-        # Já está no fim — só registra timestamp
-        conn.execute('UPDATE players SET inactivity_demoted_at = ? WHERE id = ?', (agora, player_id))
-
-    msg = (
-        f"🏴 *REBAIXAMENTO POR INATIVIDADE*\n\n"
-        f"*{player_name}* foi movido para o final da pirâmide por estar há *{dias_inativo} dias* "
-        f"sem jogar (limite: 30 dias).\n\n"
-        f"Volte ao Campo para retomar sua posição! ⛳"
-    )
-    try:
-        enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg)
-    except Exception as e:
-        print(f"[WhatsApp] Falha ao notificar rebaixamento de {player_name}: {e}")
-
-
-def aplicar_democao_inatividade():
-    """Regras de inatividade:
-      - 20+ dias  → bandeira vermelha 🚩 (apenas visual, sem ação aqui).
-      - 25-29 d   → aviso prévio no grupo do WhatsApp (1x por período).
-      - 30+ dias  → rebaixamento para o final da pirâmide + notificação ao grupo.
-
-    Throttle: roda no máximo 1x por dia (system_settings.last_inactivity_check).
-    Reset: timestamps em players.inactivity_* voltam a NULL quando o jogador completa um desafio
-    (ver process_challenge_result), iniciando um novo período."""
-    conn = get_db_connection()
-    try:
-        hoje_str = datetime.now().strftime('%Y-%m-%d')
-        last_check = conn.execute(
-            "SELECT value FROM system_settings WHERE key = 'last_inactivity_check'"
-        ).fetchone()
-        if last_check and last_check['value'] == hoje_str:
-            return
-        # Marca antes de rodar para evitar duplicação em chamadas concorrentes
-        conn.execute('''
-            INSERT INTO system_settings (key, value, updated_at)
-            VALUES ('last_inactivity_check', ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-        ''', (hoje_str,))
-        conn.commit()
-
-        # Histórico de bloqueios (para descontar de dias_inativo)
-        bloqueio_periodos = {}
-        if conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='player_block_history'"
-        ).fetchone():
-            for r in conn.execute(
-                'SELECT player_id, start_date, end_date FROM player_block_history'
-            ).fetchall():
-                bloqueio_periodos.setdefault(r['player_id'], []).append((r['start_date'], r['end_date']))
-        for r in conn.execute(
-            'SELECT id, bloqueio_inicio FROM players WHERE bloqueado = 1 AND bloqueio_inicio IS NOT NULL'
-        ).fetchall():
-            pid = r['id']
-            if not any(e is None for _, e in bloqueio_periodos.get(pid, [])):
-                bloqueio_periodos.setdefault(pid, []).append((r['bloqueio_inicio'], None))
-
-        rows = conn.execute('''
-            SELECT p.id, p.name, p.position, p.sexo, p.bloqueado,
-                   p.inactivity_warning_at, p.inactivity_demoted_at,
-                   MAX(COALESCE(c.updated_at, c.scheduled_date)) AS last_date
-            FROM players p
-            LEFT JOIN challenges c ON (c.challenger_id = p.id OR c.challenged_id = p.id)
-                AND c.status IN ('completed', 'completed_pending')
-            WHERE p.active = 1 AND p.position > 0
-              AND (p.tipo_membro IS NULL OR p.tipo_membro != 'vip')
-            GROUP BY p.id
-        ''').fetchall()
-
-        from datetime import datetime as _datetime
-
-        def _stamp_eh_atual(stamp_str, last_dt):
-            """True se o timestamp foi marcado APÓS o último jogo (ainda vale para o período atual)."""
-            if not stamp_str or not last_dt:
-                return False
-            try:
-                stamp_dt = _datetime.strptime(str(stamp_str)[:10], '%Y-%m-%d').date()
-                return stamp_dt >= last_dt
-            except Exception:
-                return False
-
-        for row in rows:
-            # Jogadores atualmente bloqueados não correm o relógio
-            if row['bloqueado']:
-                continue
-
-            calc = _dias_inatividade(conn, row['id'], row['last_date'], bloqueio_periodos)
-            if calc is None:
-                continue
-            dias_inativo, last_dt = calc
-
-            warning_atual = _stamp_eh_atual(row['inactivity_warning_at'], last_dt)
-            demoted_atual = _stamp_eh_atual(row['inactivity_demoted_at'], last_dt)
-
-            if dias_inativo >= 30 and not demoted_atual:
-                _demover_jogador_por_inatividade(
-                    conn, row['id'], row['name'], row['position'], row['sexo'], dias_inativo
-                )
-            elif 25 <= dias_inativo < 30 and not warning_atual:
-                _enviar_aviso_inatividade(conn, row['id'], row['name'], dias_inativo)
-
-        conn.commit()
-    except Exception as e:
-        print(f"Erro em aplicar_democao_inatividade: {e}")
-        import traceback
-        traceback.print_exc()
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
-
-
 def _penalizar_uma_posicao(conn, player_id, current_position, sexo, current_tier, challenge_id, reason):
     """Aplica penalidade de -1 posição no jogador (swap com quem está logo abaixo).
 
@@ -3557,70 +3332,6 @@ def pyramid_dynamic():
         if challenged_id in player_challenges and challenger_id in posicao_visual:
             player_challenges[challenged_id]['challenged_by_positions'].append(posicao_visual[challenger_id])
     
-    # Calcular inatividade: dias desde o último desafio concluído, descontando períodos de bloqueio
-    from datetime import date as _date, datetime as _datetime
-
-    _hoje = _date.today()
-
-    last_played_rows = conn.execute('''
-        SELECT p.id AS player_id,
-               MAX(COALESCE(c.updated_at, c.scheduled_date)) AS last_date
-        FROM players p
-        LEFT JOIN challenges c ON (c.challenger_id = p.id OR c.challenged_id = p.id)
-            AND c.status IN ('completed', 'completed_pending')
-        WHERE p.active = 1 AND p.position > 0
-        GROUP BY p.id
-    ''').fetchall()
-
-    # Carregar histórico de bloqueios (se a tabela já existir)
-    _block_periods = {}
-    _has_history = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='player_block_history'"
-    ).fetchone()
-    if _has_history:
-        for _r in conn.execute(
-            'SELECT player_id, start_date, end_date FROM player_block_history'
-        ).fetchall():
-            _block_periods.setdefault(_r['player_id'], []).append((_r['start_date'], _r['end_date']))
-
-    # Fallback: jogadores ainda bloqueados sem registro aberto no histórico
-    for _r in conn.execute(
-        'SELECT id, bloqueio_inicio FROM players WHERE bloqueado = 1 AND bloqueio_inicio IS NOT NULL'
-    ).fetchall():
-        _pid = _r['id']
-        _has_open = any(_e is None for _, _e in _block_periods.get(_pid, []))
-        if not _has_open:
-            _block_periods.setdefault(_pid, []).append((_r['bloqueio_inicio'], None))
-
-    def _dias_bloqueado_desde(pid, since):
-        total = 0
-        for s_str, e_str in _block_periods.get(pid, []):
-            try:
-                s = _datetime.strptime(str(s_str)[:10], '%Y-%m-%d').date()
-                e = _datetime.strptime(str(e_str)[:10], '%Y-%m-%d').date() if e_str else _hoje
-                ov_start = max(s, since)
-                ov_end   = min(e, _hoje)
-                if ov_end > ov_start:
-                    total += (ov_end - ov_start).days
-            except Exception:
-                pass
-        return total
-
-    inatividade = {}
-    for _r in last_played_rows:
-        _pid = _r['player_id']
-        _last_str = str(_r['last_date'])[:10] if _r['last_date'] else None
-        if _last_str:
-            try:
-                _last_dt = _datetime.strptime(_last_str, '%Y-%m-%d').date()
-                _bruto = (_hoje - _last_dt).days
-                _desconto = _dias_bloqueado_desde(_pid, _last_dt)
-                inatividade[_pid] = max(0, _bruto - _desconto)
-            except Exception:
-                inatividade[_pid] = None
-        else:
-            inatividade[_pid] = None  # Nunca jogou
-
     # Últimas 5 resultados por jogador (mais recente → mais antigo, invertido para exibição)
     # Importante: o vencedor está em `result` (challenger_win/challenged_win);
     # se foi WO, isso fica em `result_type` (wo_challenger/wo_challenged).
@@ -3666,9 +3377,6 @@ def pyramid_dynamic():
         # Adicionar informações sobre as posições envolvidas nos desafios
         player_dict['challenging_positions'] = player_challenges[player['id']]['challenging_positions']
         player_dict['challenged_by_positions'] = player_challenges[player['id']]['challenged_by_positions']
-
-        # Inatividade para sinalização visual na pirâmide
-        player_dict['dias_inativo'] = inatividade.get(player['id'])
 
         # Últimas 5 (ordem cronológica: mais antigo à esquerda, mais recente à direita)
         player_dict['ultimas5'] = list(reversed(_ultimas5_raw.get(player['id'], [])))
@@ -3728,52 +3436,6 @@ def pyramid_print():
     challenges_for_display = [dict(c) for c in challenges_raw
                                if c['status'] in ('pending', 'accepted', 'awaiting_date_confirmation')]
 
-    # Inatividade com desconto de bloqueios
-    from datetime import date as _date, datetime as _datetime
-    _hoje = _date.today()
-
-    last_played_rows = conn.execute('''
-        SELECT p.id AS player_id,
-               MAX(COALESCE(c.updated_at, c.scheduled_date)) AS last_date
-        FROM players p
-        LEFT JOIN challenges c ON (c.challenger_id = p.id OR c.challenged_id = p.id)
-            AND c.status IN ('completed', 'completed_pending')
-        WHERE p.active = 1 AND p.position > 0
-        GROUP BY p.id
-    ''').fetchall()
-
-    _block_periods = {}
-    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='player_block_history'").fetchone():
-        for _r in conn.execute('SELECT player_id, start_date, end_date FROM player_block_history').fetchall():
-            _block_periods.setdefault(_r['player_id'], []).append((_r['start_date'], _r['end_date']))
-    for _r in conn.execute(
-        'SELECT id, bloqueio_inicio FROM players WHERE bloqueado = 1 AND bloqueio_inicio IS NOT NULL'
-    ).fetchall():
-        _pid = _r['id']
-        if not any(_e is None for _, _e in _block_periods.get(_pid, [])):
-            _block_periods.setdefault(_pid, []).append((_r['bloqueio_inicio'], None))
-
-    inatividade = {}
-    for _r in last_played_rows:
-        _pid = _r['player_id']
-        _last_str = str(_r['last_date'])[:10] if _r['last_date'] else None
-        if _last_str:
-            try:
-                _last_dt = _datetime.strptime(_last_str, '%Y-%m-%d').date()
-                _bruto = (_hoje - _last_dt).days
-                _desconto = 0
-                for s_str, e_str in _block_periods.get(_pid, []):
-                    s = _datetime.strptime(str(s_str)[:10], '%Y-%m-%d').date()
-                    e = _datetime.strptime(str(e_str)[:10], '%Y-%m-%d').date() if e_str else _hoje
-                    ov_s, ov_e = max(s, _last_dt), min(e, _hoje)
-                    if ov_e > ov_s:
-                        _desconto += (ov_e - ov_s).days
-                inatividade[_pid] = max(0, _bruto - _desconto)
-            except Exception:
-                inatividade[_pid] = None
-        else:
-            inatividade[_pid] = None
-
     # Posição visual sequencial por sexo (para exibir setas de desafio)
     posicao_visual = {}
     contador_masc = 0
@@ -3824,7 +3486,6 @@ def pyramid_print():
         pd = dict(player)
         pd['has_pending_challenge'] = player['id'] in players_with_challenges
         pd['challenge_status'] = players_with_completed_pending.get(player['id'])
-        pd['dias_inativo'] = inatividade.get(player['id'])
         pd['challenging_positions'] = player_challenges_map.get(player['id'], {}).get('challenging_positions', [])
         pd['challenged_by_positions'] = player_challenges_map.get(player['id'], {}).get('challenged_by_positions', [])
         _r = _ultimas5_reais_print.get(player['id'], [])
@@ -13870,10 +13531,6 @@ def _run_startup_migrations():
     except Exception as _e:
         print(f"[migrações] add_response_deadline_column: {_e}")
     try:
-        add_inactivity_tracking_columns()
-    except Exception as _e:
-        print(f"[migrações] add_inactivity_tracking_columns: {_e}")
-    try:
         add_result_type_column()
     except Exception as _e:
         print(f"[migrações] add_result_type_column: {_e}")
@@ -13928,9 +13585,6 @@ if __name__ == '__main__':
     
     # Adicionar coluna de prazo de resposta à tabela de desafios
     add_response_deadline_column()
-
-    # Colunas de rastreio do aviso/rebaixamento por inatividade (20/30 dias)
-    add_inactivity_tracking_columns()
 
     # Adicionar coluna de país se não existir
     add_country_column()
