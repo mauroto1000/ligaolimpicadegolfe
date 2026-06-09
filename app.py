@@ -4230,12 +4230,35 @@ def edit_challenge(challenge_id):
         else:
             # Atualizar o desafio normalmente
             conn.execute('''
-                UPDATE challenges 
+                UPDATE challenges
                 SET scheduled_date = ?, status = ?, result = ?
                 WHERE id = ?
             ''', (scheduled_date, status, result, challenge_id))
             conn.commit()
-        
+
+        # Notifica o grupo do WhatsApp quando a DATA foi alterada
+        try:
+            data_anterior_raw = str(challenge['scheduled_date'] or '')[:10]
+            data_nova_raw = str(scheduled_date or '')[:10]
+            if data_nova_raw and data_anterior_raw != data_nova_raw:
+                def _fmt(d):
+                    try:
+                        return datetime.strptime(d, '%Y-%m-%d').strftime('%d/%m/%Y')
+                    except Exception:
+                        return d
+                quem = _nome_confirmador(conn, session.get('user_id')) or 'administrador'
+                msg_grupo = (
+                    f"📅 *DATA DO DESAFIO ALTERADA*\n\n"
+                    f"⚔️ *{challenge['challenger_name']}* (#{challenge['challenger_position']}) "
+                    f"vs *{challenge['challenged_name']}* (#{challenge['challenged_position']})\n\n"
+                    f"De: {_fmt(data_anterior_raw)}\n"
+                    f"Para: *{_fmt(data_nova_raw)}*\n\n"
+                    f"_Alteração realizada por {quem}._"
+                )
+                enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
+        except Exception as _e_notif:
+            print(f"[WhatsApp] Falha ao notificar alteração de data do desafio #{challenge_id}: {_e_notif}")
+
         conn.close()
         flash('Desafio atualizado com sucesso!', 'success')
         return redirect(url_for('challenge_detail', challenge_id=challenge_id))
