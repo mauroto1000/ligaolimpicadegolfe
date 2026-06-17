@@ -3021,7 +3021,21 @@ def aplicar_penalidade_bloqueio():
             print(f"⚠️ PENALIDADE BLOQUEIO: {jogador['name']} ({jogador['bloqueio_motivo']}) "
                   f"perdeu {posicoes_perdidas} posição(ões): {player_pos} → {nova_pos} "
                   f"({penalidades}x 7 dias)")
-        
+
+            # Notifica o grupo do WhatsApp sobre a penalidade recorrente
+            try:
+                semanas_txt = f"{penalidades} semana" + ("s" if penalidades != 1 else "")
+                pos_txt = f"{posicoes_perdidas} posição" + ("ões" if posicoes_perdidas != 1 else "")
+                msg_wa = (
+                    f"⏱️ *PENALIDADE POR BLOQUEIO*\n\n"
+                    f"*{jogador['name']}* segue bloqueado ({jogador['bloqueio_motivo'] or 'indisponível'}).\n\n"
+                    f"📉 +{semanas_txt} bloqueado → −{pos_txt}\n"
+                    f"De #{player_pos} → para *#{nova_pos}*"
+                )
+                enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_wa)
+            except Exception as _e_wa:
+                print(f"[WhatsApp] Falha ao notificar penalidade recorrente: {_e_wa}")
+
         conn.commit()
         
     except Exception as e:
@@ -3740,21 +3754,9 @@ def new_challenge():
             flash(error, 'error')
             return redirect(url_for('new_challenge'))
         
-        # ============================================================
-        # VALIDAÇÃO: Disponibilidade do desafiado na data escolhida
-        # ============================================================
-        if not is_main_admin:
-            chave_dia, nome_dia = _DIA_SEMANA_MAP.get(scheduled_date_obj.weekday(), ('seg', 'Seg'))
-            try:
-                disp_dict = json.loads(challenged['disponibilidade']) if challenged['disponibilidade'] else json.loads(DISPONIBILIDADE_DEFAULT)
-            except Exception:
-                disp_dict = json.loads(DISPONIBILIDADE_DEFAULT)
-            dia_disp = disp_dict.get(chave_dia, {"manha": True, "tarde": True})
-            if not dia_disp.get('manha', True) and not dia_disp.get('tarde', True):
-                datas_disp = get_disponibilidade_texto(int(challenged_id))
-                conn.close()
-                flash(f'⛔ {challenged["name"]} não tem disponibilidade em {scheduled_date_obj.strftime("%d/%m/%Y")} ({nome_dia}). Datas disponíveis: {datas_disp}', 'error')
-                return redirect(url_for('new_challenge', challenger_id=challenger_id))
+        # Observação: a disponibilidade do desafiado é apenas informativa —
+        # não bloqueia mais a criação de desafios. O desafiante pode criar
+        # mesmo em dia "indisponível"; cabe ao desafiado aceitar/propor outra data.
 
         # ============================================================
         # RESTRIÇÃO: Não pode desafiar o mesmo jogador em 7 dias
@@ -8698,8 +8700,10 @@ def toggle_bloqueio_jogador(player_id):
         ''')
         conn.commit()
 
-        player = conn.execute('SELECT name, bloqueado FROM players WHERE id = ?',
-                              (player_id,)).fetchone()
+        player = conn.execute(
+            'SELECT name, bloqueado, position, sexo, tier FROM players WHERE id = ?',
+            (player_id,)
+        ).fetchone()
 
         if not player:
             flash('❌ Jogador não encontrado.', 'error')
@@ -8727,6 +8731,10 @@ def toggle_bloqueio_jogador(player_id):
             data_ate = request.form.get('data_ate', None)
             hoje = datetime.now().strftime('%Y-%m-%d')
 
+            posicao_antes = player['position']
+            sexo_jog = player['sexo'] or 'masculino'
+            tier_antes = player['tier']
+
             conn.execute('''
                 UPDATE players
                 SET bloqueado = 1, bloqueio_motivo = ?, bloqueio_ate = ?,
@@ -8738,10 +8746,57 @@ def toggle_bloqueio_jogador(player_id):
                 INSERT INTO player_block_history (player_id, start_date, motivo)
                 VALUES (?, ?, ?)
             ''', (player_id, hoje, motivo))
+
+            # Penalidade IMEDIATA: -1 posição (swap com quem está logo abaixo).
+            nova_pos = posicao_antes
+            houve_mov = False
+            if posicao_antes and posicao_antes > 0:
+                try:
+                    nova_pos, houve_mov = _penalizar_uma_posicao(
+                        conn, player_id, posicao_antes, sexo_jog, tier_antes,
+                        None, 'bloqueio_imediato',
+                    )
+                except Exception as _e_pen:
+                    print(f"[bloqueio] falha ao aplicar penalidade imediata: {_e_pen}")
+
             conn.commit()
 
             msg_data = f" até {data_ate}" if data_ate else ""
-            flash(f'🚫 {player["name"]} foi BLOQUEADO ({motivo}){msg_data}.', 'warning')
+            if houve_mov:
+                flash(
+                    f'🚫 {player["name"]} foi BLOQUEADO ({motivo}){msg_data}. '
+                    f'Penalidade imediata aplicada: #{posicao_antes} → #{nova_pos}. '
+                    f'A cada 7 dias bloqueado, perderá +1 posição.',
+                    'warning',
+                )
+            else:
+                flash(
+                    f'🚫 {player["name"]} foi BLOQUEADO ({motivo}){msg_data}. '
+                    f'Já estava na última posição — sem movimentação imediata. '
+                    f'A cada 7 dias bloqueado, novas penalidades serão tentadas.',
+                    'warning',
+                )
+
+            # Notifica grupo do WhatsApp
+            try:
+                if houve_mov:
+                    msg_wa = (
+                        f"🚫 *JOGADOR BLOQUEADO*\n\n"
+                        f"*{player['name']}* foi bloqueado ({motivo}){msg_data}.\n\n"
+                        f"📉 Penalidade imediata: −1 posição\n"
+                        f"De #{posicao_antes} → para *#{nova_pos}*\n\n"
+                        f"_A cada 7 dias bloqueado, perderá mais 1 posição._"
+                    )
+                else:
+                    msg_wa = (
+                        f"🚫 *JOGADOR BLOQUEADO*\n\n"
+                        f"*{player['name']}* (#{posicao_antes}) foi bloqueado ({motivo}){msg_data}.\n\n"
+                        f"ℹ️ Já estava na última posição — sem movimentação imediata.\n\n"
+                        f"_A cada 7 dias bloqueado, novas penalidades serão tentadas._"
+                    )
+                enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_wa)
+            except Exception as _e_wa:
+                print(f"[WhatsApp] Falha ao notificar bloqueio: {_e_wa}")
         
     except Exception as e:
         flash(f'❌ Erro: {str(e)}', 'error')
@@ -9041,71 +9096,33 @@ def update_player_disponibilidade(player_id):
             campo = f"{dia}_{periodo}"
             disponibilidade[dia][periodo] = campo in request.form
 
-    todos_indisponiveis = all(
-        not disponibilidade[dia][periodo]
-        for dia in dias
-        for periodo in periodos
-    )
-
     conn = get_db_connection()
     conn.execute(
         'UPDATE players SET disponibilidade = ? WHERE id = ?',
         (json.dumps(disponibilidade), player_id)
     )
 
+    # Compatibilidade: se o jogador estava bloqueado pela regra antiga
+    # 'Sem disponibilidade', desbloqueia automaticamente — a regra agora é
+    # apenas informativa e não bloqueia mais a criação de desafios.
     player = conn.execute(
-        'SELECT name, bloqueado, bloqueio_motivo FROM players WHERE id = ?',
+        'SELECT bloqueado, bloqueio_motivo FROM players WHERE id = ?',
         (player_id,)
     ).fetchone()
-
-    hoje = datetime.now().strftime('%Y-%m-%d')
-    MOTIVO_AUTO = 'Sem disponibilidade'
-
-    if todos_indisponiveis and player['bloqueado'] != 1:
-        # Garantir tabela de histórico
+    if player and player['bloqueado'] == 1 and \
+       'disponibilidade' in (player['bloqueio_motivo'] or '').lower():
         conn.execute('''
-            CREATE TABLE IF NOT EXISTS player_block_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                player_id INTEGER NOT NULL,
-                start_date DATE NOT NULL,
-                end_date DATE,
-                motivo TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (player_id) REFERENCES players(id)
-            )
-        ''')
+            UPDATE player_block_history SET end_date = date('now')
+            WHERE player_id = ? AND end_date IS NULL
+        ''', (player_id,))
         conn.execute('''
             UPDATE players
-            SET bloqueado = 1, bloqueio_motivo = ?, bloqueio_ate = NULL,
-                bloqueio_inicio = ?, bloqueio_ultima_penalidade = ?
+            SET bloqueado = 0, bloqueio_motivo = NULL, bloqueio_ate = NULL,
+                bloqueio_inicio = NULL, bloqueio_ultima_penalidade = NULL
             WHERE id = ?
-        ''', (MOTIVO_AUTO, hoje, hoje, player_id))
-        conn.execute('''
-            INSERT INTO player_block_history (player_id, start_date, motivo)
-            VALUES (?, ?, ?)
-        ''', (player_id, hoje, MOTIVO_AUTO))
-        flash('🚫 Todos os horários foram desmarcados — jogador bloqueado automaticamente.', 'warning')
+        ''', (player_id,))
 
-    elif not todos_indisponiveis and player['bloqueado'] == 1:
-        # Desbloquear somente se o bloqueio foi criado automaticamente por disponibilidade
-        motivo_atual = (player['bloqueio_motivo'] or '').lower()
-        if 'disponibilidade' in motivo_atual:
-            conn.execute('''
-                UPDATE player_block_history SET end_date = date('now')
-                WHERE player_id = ? AND end_date IS NULL
-            ''', (player_id,))
-            conn.execute('''
-                UPDATE players
-                SET bloqueado = 0, bloqueio_motivo = NULL, bloqueio_ate = NULL,
-                    bloqueio_inicio = NULL, bloqueio_ultima_penalidade = NULL
-                WHERE id = ?
-            ''', (player_id,))
-            flash('✅ Disponibilidade atualizada — jogador desbloqueado automaticamente.', 'success')
-        else:
-            flash('✅ Disponibilidade atualizada com sucesso!', 'success')
-
-    else:
-        flash('✅ Disponibilidade atualizada com sucesso!', 'success')
+    flash('✅ Disponibilidade atualizada com sucesso!', 'success')
 
     conn.commit()
     conn.close()
@@ -10761,29 +10778,10 @@ Data máxima permitida: *{data_max.strftime('%d/%m/%Y')}*
 
 {rodape_rapido('pt', 0)}"""
 
-            # Verificar disponibilidade do oponente na data escolhida
+            # Disponibilidade agora é apenas informativa — não bloqueia a criação.
             oponente_id = dados['oponente_id']
             oponente_nome = dados['oponente_nome']
             oponente_posicao = dados['oponente_posicao']
-
-            chave_dia, _ = _DIA_SEMANA_MAP.get(data_jogo.weekday(), ('seg', 'Seg'))
-            disp_oponente = get_disponibilidade_texto(oponente_id)
-            conn_tmp = get_db_connection()
-            oponente_row = conn_tmp.execute('SELECT disponibilidade FROM players WHERE id = ?', (oponente_id,)).fetchone()
-            conn_tmp.close()
-            try:
-                disp_dict = json.loads(oponente_row['disponibilidade']) if oponente_row and oponente_row['disponibilidade'] else json.loads(DISPONIBILIDADE_DEFAULT)
-            except Exception:
-                disp_dict = json.loads(DISPONIBILIDADE_DEFAULT)
-            dia_disp = disp_dict.get(chave_dia, {"manha": True, "tarde": True})
-            if not dia_disp.get('manha', True) and not dia_disp.get('tarde', True):
-                datas_disponiveis = get_disponibilidade_texto(oponente_id)
-                return f"""⛔ *{oponente_nome}* não tem disponibilidade em *{data_jogo.strftime('%d/%m/%Y')}*!
-
-Escolha uma data em que ele esteja disponível:
-📅 {datas_disponiveis}
-
-{rodape_rapido('pt', 0)}"""
 
             # CRIAR O DESAFIO!
             data_formatada = data_jogo.strftime('%Y-%m-%d')
@@ -12949,27 +12947,10 @@ def processar_comando_whatsapp_v2(mensagem, telefone):
             if data_jogo > data_max:
                 return get_msg('data_muito_longe', idioma, data_max=data_max.strftime('%d/%m/%Y'), rodape=rodape_rapido(idioma, 0))
 
-            # Verificar disponibilidade do oponente na data escolhida
+            # Disponibilidade do oponente é apenas informativa — não bloqueia.
             oponente_id = dados['oponente_id']
             oponente_nome = dados['oponente_nome']
             oponente_posicao = dados['oponente_posicao']
-
-            chave_dia, _ = _DIA_SEMANA_MAP.get(data_jogo.weekday(), ('seg', 'Seg'))
-            conn_tmp = get_db_connection()
-            oponente_row = conn_tmp.execute('SELECT disponibilidade FROM players WHERE id = ?', (oponente_id,)).fetchone()
-            conn_tmp.close()
-            try:
-                disp_dict = json.loads(oponente_row['disponibilidade']) if oponente_row and oponente_row['disponibilidade'] else json.loads(DISPONIBILIDADE_DEFAULT)
-            except Exception:
-                disp_dict = json.loads(DISPONIBILIDADE_DEFAULT)
-            dia_disp = disp_dict.get(chave_dia, {"manha": True, "tarde": True})
-            if not dia_disp.get('manha', True) and not dia_disp.get('tarde', True):
-                datas_disponiveis = get_disponibilidade_texto(oponente_id, idioma)
-                return get_msg('data_indisponivel_oponente', idioma,
-                               nome=oponente_nome,
-                               data=data_jogo.strftime('%d/%m/%Y'),
-                               datas=datas_disponiveis,
-                               rodape=rodape_rapido(idioma, 0))
 
             data_formatada = data_jogo.strftime('%Y-%m-%d')
 
@@ -13689,6 +13670,39 @@ def _run_startup_migrations():
         add_result_type_column()
     except Exception as _e:
         print(f"[migrações] add_result_type_column: {_e}")
+    # Limpeza única: regra antiga auto-bloqueava jogadores que zeravam a
+    # disponibilidade. Como disponibilidade agora é apenas informativa,
+    # desbloqueia qualquer jogador que esteja preso por esse motivo. Idempotente.
+    try:
+        _conn = get_db_connection()
+        afetados = _conn.execute('''
+            SELECT id FROM players
+            WHERE bloqueado = 1
+              AND LOWER(COALESCE(bloqueio_motivo, '')) LIKE '%disponibilidade%'
+        ''').fetchall()
+        if afetados:
+            _conn.execute('''
+                UPDATE player_block_history
+                SET end_date = date('now')
+                WHERE end_date IS NULL
+                  AND player_id IN (
+                      SELECT id FROM players
+                      WHERE bloqueado = 1
+                        AND LOWER(COALESCE(bloqueio_motivo, '')) LIKE '%disponibilidade%'
+                  )
+            ''')
+            _conn.execute('''
+                UPDATE players
+                SET bloqueado = 0, bloqueio_motivo = NULL, bloqueio_ate = NULL,
+                    bloqueio_inicio = NULL, bloqueio_ultima_penalidade = NULL
+                WHERE bloqueado = 1
+                  AND LOWER(COALESCE(bloqueio_motivo, '')) LIKE '%disponibilidade%'
+            ''')
+            _conn.commit()
+            print(f"[migrações] {len(afetados)} jogador(es) desbloqueado(s) — regra 'Sem disponibilidade' descontinuada.")
+        _conn.close()
+    except Exception as _e:
+        print(f"[migrações] cleanup auto-blocks disponibilidade: {_e}")
 
 
 _run_startup_migrations()
