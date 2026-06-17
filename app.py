@@ -3835,20 +3835,42 @@ def new_challenge():
         conn.commit()
 
         # Notificação WhatsApp
+        notif_result = None
         try:
-            notificar_desafio_criado_whatsapp(challenge_id)
+            notif_result = notificar_desafio_criado_whatsapp(challenge_id)
         except Exception as e:
             print(f"[WhatsApp] Erro ao notificar: {e}")
 
         conn.close()
-        
+
         # ============================================================
-        # MENSAGEM DE SUCESSO
+        # MENSAGEM DE SUCESSO + aviso se a notificação ao desafiado falhou
         # ============================================================
         if is_main_admin:
             flash('Desafio criado com sucesso! O desafiado deverá responder até as 23:59 do dia seguinte.', 'success')
         else:
             flash('Desafio criado com sucesso! O desafiado deverá aceitar, rejeitar ou propor 2 novas datas até as 23:59 do dia seguinte.', 'success')
+
+        if notif_result and not notif_result.get('desafiado_ok'):
+            motivo = notif_result.get('desafiado_motivo', '')
+            if motivo == 'sem_telefone':
+                flash(
+                    '⚠️ O desafiado <strong>não tem telefone cadastrado</strong> — '
+                    'não foi possível enviar notificação por WhatsApp. '
+                    'Avise o jogador por outro meio.',
+                    'warning',
+                )
+            else:
+                flash(
+                    '⚠️ Desafio criado, mas a <strong>notificação por WhatsApp ao desafiado falhou</strong>. '
+                    'Confira o telefone do jogador e/ou avise por outro meio.',
+                    'warning',
+                )
+        if notif_result and not notif_result.get('grupo_ok'):
+            flash(
+                'ℹ️ A notificação no grupo do WhatsApp também não pôde ser enviada (verifique a integração).',
+                'warning',
+            )
         
         return redirect(url_for('challenges_calendar'))
     
@@ -9513,6 +9535,68 @@ def update_player_whatsapp(player_id):
 # Adiciona código do país 55 aos números brasileiros antigos
 # ============================================================
 
+@app.route('/admin/diagnostico-telefones')
+@login_required
+def diagnostico_telefones():
+    """Lista jogadores ativos cujo telefone pode impedir o recebimento de
+    notificações do chatbot WhatsApp. Use para identificar quem precisa atualizar."""
+    if not session.get('is_admin'):
+        flash('Acesso restrito a administradores.', 'error')
+        return redirect(url_for('dashboard'))
+
+    conn = get_db_connection()
+    players = conn.execute('''
+        SELECT id, name, telefone, position, sexo, tipo_membro
+        FROM players
+        WHERE active = 1
+        ORDER BY name
+    ''').fetchall()
+    conn.close()
+
+    sem_telefone = []
+    sem_ddi = []          # ≤11 dígitos — provavelmente BR sem DDI
+    suspeito_curto = []   # 12 dígitos mas começa com algo que não é '55' E não é >12
+    formato_estranho = [] # outros casos
+    ok = []
+
+    for p in players:
+        raw = p['telefone'] or ''
+        digits = re.sub(r'\D', '', raw)
+        entry = {
+            'id': p['id'],
+            'name': p['name'],
+            'position': p['position'],
+            'sexo': p['sexo'],
+            'tipo_membro': p['tipo_membro'],
+            'telefone': raw,
+            'digitos': digits,
+        }
+        if not raw.strip() or not digits:
+            sem_telefone.append(entry)
+        elif len(digits) <= 11:
+            # Falta DDI (BR seria 12-13 dígitos com 55)
+            entry['sugestao'] = '55' + digits
+            sem_ddi.append(entry)
+        elif len(digits) == 12 and not digits.startswith('55'):
+            # 12 dígitos sem 55 — pode ser um país que tem 12 dígitos, ou erro de digitação BR
+            suspeito_curto.append(entry)
+        elif len(digits) > 15:
+            formato_estranho.append(entry)
+        else:
+            # 12-15 dígitos com possível DDI — assumido OK
+            ok.append(entry)
+
+    return render_template(
+        'diagnostico_telefones.html',
+        sem_telefone=sem_telefone,
+        sem_ddi=sem_ddi,
+        suspeito_curto=suspeito_curto,
+        formato_estranho=formato_estranho,
+        total_ok=len(ok),
+        total_geral=len(players),
+    )
+
+
 @app.route('/admin/migrar-telefones')
 @login_required
 def migrar_telefones():
@@ -9912,36 +9996,59 @@ def get_player_phone(player_id):
 
 
 def notificar_desafio_criado_whatsapp(challenge_id):
-    """Notifica o desafiado sobre o novo desafio"""
+    """Notifica o desafiado e o grupo sobre o novo desafio.
+
+    Retorna dict com:
+      - desafiado_ok (bool): notificação privada ao desafiado foi bem-sucedida?
+      - desafiado_motivo (str): explicação se não foi (ex.: 'sem_telefone', 'falha_api')
+      - grupo_ok (bool): mensagem ao grupo foi enviada?
+
+    Todas as tentativas (sucesso ou falha) são registradas em challenge_logs."""
     conn = get_db_connection()
-    
+
     challenge = conn.execute('''
-        SELECT c.*, 
+        SELECT c.*,
                challenger.name as challenger_name,
                challenger.position as challenger_position,
                challenged.name as challenged_name,
+               challenged.id as challenged_id,
                challenged.telefone as challenged_telefone
         FROM challenges c
         JOIN players challenger ON c.challenger_id = challenger.id
         JOIN players challenged ON c.challenged_id = challenged.id
         WHERE c.id = ?
     ''', (challenge_id,)).fetchone()
-    
-    conn.close()
-    
+
     if not challenge:
-        return
-    
+        conn.close()
+        return {'desafiado_ok': False, 'desafiado_motivo': 'desafio_inexistente', 'grupo_ok': False}
+
+    resultado = {'desafiado_ok': False, 'desafiado_motivo': '', 'grupo_ok': False}
+
     # Formatar data
     try:
         data_obj = datetime.strptime(challenge['scheduled_date'], '%Y-%m-%d')
         data_fmt = data_obj.strftime('%d/%m/%Y')
-    except:
+    except Exception:
         data_fmt = challenge['scheduled_date']
-    
-    # Notificar desafiado
+
+    def _log(notes):
+        try:
+            conn.execute('''
+                INSERT INTO challenge_logs
+                (challenge_id, user_id, modified_by, old_status, new_status, old_result, new_result, notes, created_at)
+                VALUES (?, 'system', 'WhatsApp Notify', NULL, NULL, NULL, NULL, ?, ?)
+            ''', (challenge_id, notes, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+        except Exception as e:
+            print(f"[notify-log] falha ao gravar challenge_log: {e}")
+
+    # ===== Notificar desafiado (DM) =====
     telefone_desafiado = challenge['challenged_telefone']
-    if telefone_desafiado:
+    if not telefone_desafiado or not str(telefone_desafiado).strip():
+        resultado['desafiado_motivo'] = 'sem_telefone'
+        _log(f"❌ Notificação ao desafiado FALHOU: jogador {challenge['challenged_name']} sem telefone cadastrado.")
+    else:
+        jid = formatar_jid_whatsapp(telefone_desafiado)
         msg = f"""🏌️ *NOVO DESAFIO!*
 
 Você foi desafiado por *{challenge['challenger_name']}* (#{challenge['challenger_position']})
@@ -9959,22 +10066,44 @@ Você foi desafiado por *{challenge['challenger_name']}* (#{challenge['challenge
 ━━━━━━━━━━━━━━━━━━━━━
 
 ⏰ Prazo para responder: *até as 23:59 do dia seguinte*"""
-        
-        telefone_norm = telefone_desafiado  # Já correto no banco
-        enviar_mensagem_whatsapp(formatar_jid_whatsapp(telefone_norm), msg)
-    
-    # Notificar no grupo
+        try:
+            ok = enviar_mensagem_whatsapp(jid, msg)
+        except Exception as e:
+            ok = False
+            print(f"[notify] exceção ao enviar DM: {e}")
+        if ok:
+            resultado['desafiado_ok'] = True
+            _log(f"✅ Notificação ao desafiado enviada (telefone={telefone_desafiado}, JID={jid}).")
+        else:
+            resultado['desafiado_motivo'] = 'falha_api'
+            _log(f"❌ Notificação ao desafiado FALHOU no Evolution API (telefone={telefone_desafiado}, JID={jid}).")
+
+    # ===== Notificar no grupo =====
     msg_grupo = f"""🏆 *NOVO DESAFIO CRIADO*
 
-⚔️ *{challenge['challenger_name']}* (#{challenge['challenger_position']}) 
-    desafiou 
+⚔️ *{challenge['challenger_name']}* (#{challenge['challenger_position']})
+    desafiou
     *{challenge['challenged_name']}*
 
 📅 Data proposta: {data_fmt}
 
 Boa sorte! 🍀"""
-    
-    enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
+    try:
+        ok_grupo = enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
+    except Exception as e:
+        ok_grupo = False
+        print(f"[notify] exceção ao notificar grupo: {e}")
+    resultado['grupo_ok'] = bool(ok_grupo)
+    if not ok_grupo:
+        _log("⚠️ Notificação ao grupo do WhatsApp FALHOU.")
+
+    try:
+        conn.commit()
+    except Exception:
+        pass
+    conn.close()
+
+    return resultado
 
 
 def notificar_desafio_aceito_bot(challenge_id):
@@ -10051,17 +10180,20 @@ def normalizar_telefone(telefone):
 
 
 def formatar_jid_whatsapp(telefone):
-    """
-    Formata telefone para JID do WhatsApp.
-    Apenas limpa caracteres e adiciona @s.whatsapp.net.
-    NÃO re-normaliza (não adiciona 55), pois o número já deve
-    estar correto no banco de dados.
-    """
+    """Formata telefone para JID do WhatsApp.
+
+    Limpa caracteres não-numéricos e adiciona @s.whatsapp.net.
+    Defensivo: se o número tiver ≤11 dígitos (formato brasileiro local sem DDI),
+    prepende '55' automaticamente para evitar JID inválido. Números com 12+ dígitos
+    são assumidos já com DDI (BR ou estrangeiro)."""
     if not telefone:
         return None
     apenas_numeros = re.sub(r'\D', '', str(telefone))
     if not apenas_numeros:
         return None
+    # Brasileiro sem DDI → adiciona 55
+    if len(apenas_numeros) <= 11:
+        apenas_numeros = '55' + apenas_numeros
     return f"{apenas_numeros}@s.whatsapp.net"
 
 

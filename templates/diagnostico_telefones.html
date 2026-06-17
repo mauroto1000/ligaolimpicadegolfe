@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+
+{% block title %}Diagnóstico de Telefones - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-warning d-flex justify-content-between align-items-center">
+            <h3 class="card-title mb-0"><i class="fas fa-mobile-alt"></i> Diagnóstico de Telefones</h3>
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm btn-light">
+                <i class="fas fa-arrow-left"></i> Voltar
+            </a>
+        </div>
+        <div class="card-body">
+            <p class="lead">
+                Lista de jogadores cujo telefone pode impedir o recebimento de notificações pelo chatbot do WhatsApp.
+            </p>
+
+            <div class="alert alert-info">
+                <strong>Total de jogadores ativos:</strong> {{ total_geral }} —
+                <span class="text-success"><strong>{{ total_ok }}</strong> aparentemente OK</span>,
+                <span class="text-danger"><strong>{{ sem_telefone|length }}</strong> sem telefone</span>,
+                <span class="text-warning"><strong>{{ sem_ddi|length }}</strong> sem DDI</span>,
+                <span class="text-warning"><strong>{{ suspeito_curto|length }}</strong> suspeitos</span>,
+                <span class="text-warning"><strong>{{ formato_estranho|length }}</strong> formato estranho</span>.
+            </div>
+
+            <!-- SEM TELEFONE -->
+            <h4 class="mt-4 text-danger">❌ Sem telefone cadastrado ({{ sem_telefone|length }})</h4>
+            <p class="text-muted">Esses jogadores <strong>nunca</strong> receberão notificação até cadastrarem um número.</p>
+            {% if sem_telefone %}
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead><tr><th>Nome</th><th>Posição</th><th>Sexo</th><th>Ação</th></tr></thead>
+                    <tbody>
+                        {% for p in sem_telefone %}
+                        <tr>
+                            <td>{{ p.name }}</td>
+                            <td>#{{ p.position }}</td>
+                            <td>{{ p.sexo or '—' }}</td>
+                            <td><a href="{{ url_for('player_detail', player_id=p.id) }}" class="btn btn-sm btn-outline-primary">Abrir perfil</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-success py-2">Nenhum jogador sem telefone. 👍</div>
+            {% endif %}
+
+            <!-- SEM DDI -->
+            <h4 class="mt-4 text-warning">⚠️ Sem DDI 55 ({{ sem_ddi|length }})</h4>
+            <p class="text-muted">
+                Telefones com 11 dígitos ou menos — provavelmente brasileiros sem o "55" inicial.
+                A função <code>formatar_jid_whatsapp</code> agora adiciona "55" automaticamente,
+                mas vale corrigir o banco rodando
+                <a href="{{ url_for('migrar_telefones') }}" class="btn btn-sm btn-outline-warning">Migrar telefones (adicionar 55)</a>.
+            </p>
+            {% if sem_ddi %}
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>Nome</th><th>Posição</th><th>Telefone atual</th><th>Dígitos</th><th>Sugestão</th><th>Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in sem_ddi %}
+                        <tr>
+                            <td>{{ p.name }}</td>
+                            <td>#{{ p.position }}</td>
+                            <td><code>{{ p.telefone }}</code></td>
+                            <td>{{ p.digitos|length }}</td>
+                            <td><code>{{ p.sugestao }}</code></td>
+                            <td><a href="{{ url_for('player_detail', player_id=p.id) }}" class="btn btn-sm btn-outline-primary">Abrir perfil</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-success py-2">Nenhum jogador sem DDI. 👍</div>
+            {% endif %}
+
+            <!-- SUSPEITOS -->
+            {% if suspeito_curto %}
+            <h4 class="mt-4 text-warning">⚠️ Possíveis erros (12 dígitos sem 55) ({{ suspeito_curto|length }})</h4>
+            <p class="text-muted">
+                Têm 12 dígitos mas não começam com 55. Pode ser estrangeiro válido ou erro de digitação brasileiro
+                (ex.: faltou um dígito ou trocou ordem). Verifique manualmente.
+            </p>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead><tr><th>Nome</th><th>Posição</th><th>Telefone</th><th>Dígitos</th><th>Ação</th></tr></thead>
+                    <tbody>
+                        {% for p in suspeito_curto %}
+                        <tr>
+                            <td>{{ p.name }}</td>
+                            <td>#{{ p.position }}</td>
+                            <td><code>{{ p.telefone }}</code></td>
+                            <td>{{ p.digitos|length }}</td>
+                            <td><a href="{{ url_for('player_detail', player_id=p.id) }}" class="btn btn-sm btn-outline-primary">Abrir perfil</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- FORMATO ESTRANHO -->
+            {% if formato_estranho %}
+            <h4 class="mt-4 text-warning">⚠️ Formato estranho (>15 dígitos) ({{ formato_estranho|length }})</h4>
+            <p class="text-muted">Mais dígitos do que o esperado para qualquer país. Provável erro de digitação.</p>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead><tr><th>Nome</th><th>Posição</th><th>Telefone</th><th>Dígitos</th><th>Ação</th></tr></thead>
+                    <tbody>
+                        {% for p in formato_estranho %}
+                        <tr>
+                            <td>{{ p.name }}</td>
+                            <td>#{{ p.position }}</td>
+                            <td><code>{{ p.telefone }}</code></td>
+                            <td>{{ p.digitos|length }}</td>
+                            <td><a href="{{ url_for('player_detail', player_id=p.id) }}" class="btn btn-sm btn-outline-primary">Abrir perfil</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+        </div>
+        <div class="card-footer text-muted small">
+            Dica: as falhas de notificação (sucesso/falha) também ficam registradas em <em>Logs de Desafios</em>.
+        </div>
+    </div>
+</div>
+{% endblock %}
