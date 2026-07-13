@@ -11806,15 +11806,22 @@ def webhook_whatsapp():
                     _mensagens_processadas.clear()
 
             # Ignorar mensagens de grupo
-            remote_jid = message_data.get('key', {}).get('remoteJid', '')
+            key_data = message_data.get('key', {})
+            remote_jid = key_data.get('remoteJid', '')
             if '@g.us' in remote_jid:
                 return jsonify({'status': 'ignored', 'reason': 'group_message'})
-            
+
+            # WhatsApp LID: quando o remoteJid vem como @lid, o telefone real
+            # esta em remoteJidAlt (ex: 5521969275688@s.whatsapp.net).
+            remote_jid_alt = key_data.get('remoteJidAlt', '')
+            usar_lid = '@lid' in remote_jid and remote_jid_alt
+            jid_telefone = remote_jid_alt if usar_lid else remote_jid
+
             # Extrair telefone e mensagem
-            telefone = extrair_telefone_do_jid(remote_jid)
-            
-            # Guardar JID original para responder (sem re-normalizar)
-            jid_resposta = remote_jid
+            telefone = extrair_telefone_do_jid(jid_telefone)
+
+            # Responder para o JID com telefone real quando disponivel
+            jid_resposta = jid_telefone
             
             # Extrair texto da mensagem
             message_content = message_data.get('message', {})
