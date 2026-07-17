@@ -11317,22 +11317,67 @@ _Digite o número da opção desejada._"""
 # FUNÇÃO PARA ENVIAR MENSAGEM
 # ============================================================
 
+# ------------------------------------------------------------
+# Controle anti-spam de envio (throttle + anti-duplicata)
+# Evita rajadas e reenvios que fazem o WhatsApp bloquear o numero.
+# ------------------------------------------------------------
+import threading as _wa_threading
+
+_wa_lock = _wa_threading.Lock()
+_wa_estado_envio = {"ultimo": 0.0}   # timestamp do ultimo envio
+_wa_dedup = {}                        # chave (destino+texto) -> timestamp
+
+WA_INTERVALO_MIN_SEG = 3.0            # intervalo minimo entre envios consecutivos
+WA_JITTER_MAX_SEG = 1.5              # atraso aleatorio extra (parecer menos robotico)
+WA_DEDUP_JANELA_SEG = 15.0           # bloquear msg identica ao mesmo destino nesta janela
+
+
 def enviar_mensagem_whatsapp(destinatario, mensagem):
-    """Envia mensagem para um número ou grupo"""
+    """Envia mensagem para um número ou grupo.
+
+    Proteções anti-spam (para não ser bloqueado de novo pelo WhatsApp):
+      - throttle: respeita intervalo mínimo (+ jitter) entre envios consecutivos;
+      - anti-duplicata: não reenvia mensagem idêntica ao mesmo destino em curto intervalo.
+    """
     import requests
-    
+    import time as _time
+    import random as _random
+
+    # --- Anti-duplicata + throttle (serializado) ---
+    with _wa_lock:
+        agora = _time.time()
+
+        # Limpar entradas antigas do cache de dedup
+        for _k in [k for k, t in _wa_dedup.items() if agora - t > WA_DEDUP_JANELA_SEG]:
+            _wa_dedup.pop(_k, None)
+
+        chave = f"{destinatario}||{mensagem}"
+        ultimo_igual = _wa_dedup.get(chave)
+        if ultimo_igual is not None and (agora - ultimo_igual) < WA_DEDUP_JANELA_SEG:
+            print(f"[WhatsApp] Envio duplicado ignorado p/ {destinatario}")
+            return False
+
+        # Throttle: garantir intervalo mínimo (+ jitter) entre envios
+        espera = WA_INTERVALO_MIN_SEG - (agora - _wa_estado_envio["ultimo"])
+        espera += _random.uniform(0, WA_JITTER_MAX_SEG)
+        if espera > 0:
+            _time.sleep(espera)
+
+        _wa_estado_envio["ultimo"] = _time.time()
+        _wa_dedup[chave] = _wa_estado_envio["ultimo"]
+
     url = f"{EVOLUTION_API_URL}/message/sendText/{EVOLUTION_INSTANCE}"
-    
+
     headers = {
         "apikey": EVOLUTION_API_KEY,
         "Content-Type": "application/json"
     }
-    
+
     payload = {
         "number": destinatario,
         "text": mensagem
     }
-    
+
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=30)
         return response.status_code == 200 or response.status_code == 201
