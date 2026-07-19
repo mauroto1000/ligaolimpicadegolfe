@@ -11357,10 +11357,20 @@ def enviar_mensagem_whatsapp(destinatario, mensagem, forcar=False):
     import time as _time
     import random as _random
 
-    # Bloquear SÓ DMs proativas para jogadores. Grupo (@g.us) sempre passa; reativo usa forcar=True.
+    # DMs proativas para jogadores vão pelo TELEGRAM (DM no WhatsApp = risco de ban).
+    # Grupo (@g.us) sempre passa pelo WhatsApp; respostas reativas usam forcar=True.
     _is_grupo = '@g.us' in str(destinatario)
     if not _is_grupo and not forcar and not WHATSAPP_DM_JOGADOR_ATIVO:
-        print(f"[WhatsApp] DM proativa BLOQUEADA (desativada) -> {destinatario}")
+        _tel = extrair_telefone_do_jid(str(destinatario))
+        _jog = get_player_by_phone(_tel) if _tel else None
+        if _jog:
+            _cid = _telegram_chat_id_do_jogador(_jog['id'])
+            if _cid:
+                print(f"[Notif] DM redirecionada p/ Telegram: {_jog.get('name')}")
+                return enviar_telegram(_cid, mensagem)
+            print(f"[Notif] {_jog.get('name')} sem Telegram vinculado — DM nao enviada")
+        else:
+            print(f"[Notif] DM proativa sem jogador correspondente: {destinatario}")
         return False
 
     # --- Anti-duplicata + throttle (serializado) ---
@@ -11452,6 +11462,15 @@ def get_player_by_telegram_chat_id(chat_id):
     row = cur.fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def _telegram_chat_id_do_jogador(player_id):
+    """Retorna o telegram_chat_id de um jogador (ou None se não vinculou o Telegram)."""
+    ensure_telegram_column()
+    conn = get_db_connection()
+    row = conn.execute("SELECT telegram_chat_id FROM players WHERE id = ?", (player_id,)).fetchone()
+    conn.close()
+    return row["telegram_chat_id"] if row and row["telegram_chat_id"] else None
 
 
 def vincular_telegram_a_jogador(chat_id, telefone):
