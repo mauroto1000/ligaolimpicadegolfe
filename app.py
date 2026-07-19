@@ -8974,35 +8974,39 @@ def get_disponibilidade_texto(player_id_or_disp, idioma='pt'):
             disp = json.loads(DISPONIBILIDADE_DEFAULT)
     
     hoje = datetime.now().date()
-    partes = []
-    
+    dias = []  # (dia, nome_dia, manha, tarde) — só dias com alguma disponibilidade
+
     for i in range(7):
         dia = hoje + timedelta(days=i)
-        weekday = dia.weekday()  # 0=seg, 6=dom
-        chave, nome = _DIA_SEMANA_MAP.get(weekday, ('seg', 'Seg'))
-        
+        chave, nome = _DIA_SEMANA_MAP.get(dia.weekday(), ('seg', 'Seg'))
         dia_disp = disp.get(chave, {"manha": True, "tarde": True})
         manha = dia_disp.get('manha', True)
         tarde = dia_disp.get('tarde', True)
-        
-        if manha and tarde:
-            partes.append(f"{dia.strftime('%d/%m')}({nome})")
-        elif manha:
-            if idioma == 'pt':
-                partes.append(f"{dia.strftime('%d/%m')}({nome}-M)")
-            else:
-                partes.append(f"{dia.strftime('%d/%m')}({nome}-AM)")
-        elif tarde:
-            if idioma == 'pt':
-                partes.append(f"{dia.strftime('%d/%m')}({nome}-T)")
-            else:
-                partes.append(f"{dia.strftime('%d/%m')}({nome}-PM)")
-        # Se nem manhã nem tarde: não inclui o dia
-    
-    if not partes:
+        if manha or tarde:
+            dias.append((dia, nome, manha, tarde))
+
+    if not dias:
         return "❌ _Sem disponibilidade_" if idioma == 'pt' else "❌ _No availability_"
-    
-    return ", ".join(partes)
+
+    # Caso mais comum: semana inteira livre (manhã e tarde todos os dias) → frase curta
+    if len(dias) == 7 and all(m and t for (_, _, m, t) in dias):
+        ate = dias[-1][0].strftime('%d/%m')
+        return f"Todos os dias (até {ate})" if idioma == 'pt' else f"Every day (until {ate})"
+
+    # Caso geral: um dia por item, compacto e legível
+    manha_lbl = 'manhã' if idioma == 'pt' else 'morning'
+    tarde_lbl = 'tarde' if idioma == 'pt' else 'afternoon'
+    partes = []
+    for dia, nome, manha, tarde in dias:
+        data_fmt = dia.strftime('%d/%m')
+        if manha and tarde:
+            partes.append(f"{nome} {data_fmt}")
+        elif manha:
+            partes.append(f"{nome} {data_fmt} ({manha_lbl})")
+        else:
+            partes.append(f"{nome} {data_fmt} ({tarde_lbl})")
+
+    return " · ".join(partes)
 
 
 def get_disponibilidade_por_data(possiveis, idioma='pt'):
@@ -11184,10 +11188,11 @@ Você está na posição *{jogador['posicao_ranking']}º*.
         linhas = []
         for i, p in enumerate(disponiveis, 1):
             disp = p.get('disp_texto', '')
-            linhas.append(f"   *{i}* - {p['name']} ({p['position']}º)")
+            bloco = f"*{i}. {p['name']}* ({p['position']}º)"
             if disp:
-                linhas.append(f"      📅 {disp}")
-        lista = "\n".join(linhas)
+                bloco += f"\n     📅 {disp}"
+            linhas.append(bloco)
+        lista = "\n\n".join(linhas)
         
         # Info sobre indisponíveis (se houver)
         info_indisponiveis = ""
@@ -13662,10 +13667,11 @@ Please wait before challenging.
         linhas = []
         for i, p in enumerate(disponiveis, 1):
             disp = p.get('disp_texto', '')
-            linhas.append(f"   *{i}* - {p['name']} ({p['position']}º)")
+            bloco = f"*{i}. {p['name']}* ({p['position']}º)"
             if disp:
-                linhas.append(f"      📅 {disp}")
-        lista = "\n".join(linhas)
+                bloco += f"\n     📅 {disp}"
+            linhas.append(bloco)
+        lista = "\n\n".join(linhas)
         
         # Info sobre indisponíveis
         linhas_indisp = []
