@@ -121,6 +121,11 @@
                 </div>
             </div>
 
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary" id="submit-btn">Criar Desafio</button>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancelar</a>
+            </div>
+
             <!-- Disponibilidade dos possíveis desafiados -->
             <div class="mt-4" id="availability-table-section" style="display:none;">
                 <h4>📅 Disponibilidade dos Jogadores</h4>
@@ -140,10 +145,6 @@
                 <div class="availability-mobile" id="availability-cards"></div>
             </div>
 
-            <div class="mt-4">
-                <button type="submit" class="btn btn-primary" id="submit-btn">Criar Desafio</button>
-                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancelar</a>
-            </div>
         </form>
 
         <!-- Regras para desafios -->
