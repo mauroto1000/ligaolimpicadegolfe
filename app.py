@@ -11331,9 +11331,17 @@ WA_INTERVALO_MIN_SEG = 3.0            # intervalo minimo entre envios consecutiv
 WA_JITTER_MAX_SEG = 1.5              # atraso aleatorio extra (parecer menos robotico)
 WA_DEDUP_JANELA_SEG = 15.0           # bloquear msg identica ao mesmo destino nesta janela
 
+# Interruptor geral das NOTIFICAÇÕES proativas do WhatsApp (grupo + DMs).
+# Desativado para evitar novo bloqueio por spam — a liga migrou para o Telegram.
+# Respostas REATIVAS (a quem escreve pro bot) passam forcar=True e continuam funcionando.
+WHATSAPP_NOTIFICACOES_ATIVAS = False
 
-def enviar_mensagem_whatsapp(destinatario, mensagem):
+
+def enviar_mensagem_whatsapp(destinatario, mensagem, forcar=False):
     """Envia mensagem para um número ou grupo.
+
+    Se WHATSAPP_NOTIFICACOES_ATIVAS for False, bloqueia envios PROATIVOS (grupo e DMs).
+    Use forcar=True apenas para respostas reativas ao usuário (webhook).
 
     Proteções anti-spam (para não ser bloqueado de novo pelo WhatsApp):
       - throttle: respeita intervalo mínimo (+ jitter) entre envios consecutivos;
@@ -11342,6 +11350,11 @@ def enviar_mensagem_whatsapp(destinatario, mensagem):
     import requests
     import time as _time
     import random as _random
+
+    # Interruptor: bloquear notificações proativas (grupo + DM) quando desativado
+    if not WHATSAPP_NOTIFICACOES_ATIVAS and not forcar:
+        print(f"[WhatsApp] Notificacao proativa BLOQUEADA (desativada) -> {destinatario}")
+        return False
 
     # --- Anti-duplicata + throttle (serializado) ---
     with _wa_lock:
@@ -12061,7 +12074,8 @@ def webhook_whatsapp():
             # Enviar resposta usando o JID original (sem re-normalizar)
             if resposta:
                 rodape = "\n\n━━━━━━━━━━━━━━━━━━━━━\n🌐 Visite: www.ligaolimpicadegolfe.com.br"
-                enviar_mensagem_whatsapp(jid_resposta, resposta + rodape)
+                # forcar=True: resposta REATIVA (o usuario escreveu) — nao e spam
+                enviar_mensagem_whatsapp(jid_resposta, resposta + rodape, forcar=True)
             
             return jsonify({'status': 'processed'})
         
