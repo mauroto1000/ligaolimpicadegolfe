@@ -3022,19 +3022,7 @@ def aplicar_penalidade_bloqueio():
                   f"perdeu {posicoes_perdidas} posição(ões): {player_pos} → {nova_pos} "
                   f"({penalidades}x 7 dias)")
 
-            # Notifica o grupo do WhatsApp sobre a penalidade recorrente
-            try:
-                semanas_txt = f"{penalidades} semana" + ("s" if penalidades != 1 else "")
-                pos_txt = f"{posicoes_perdidas} posição" + ("ões" if posicoes_perdidas != 1 else "")
-                msg_wa = (
-                    f"⏱️ *PENALIDADE POR BLOQUEIO*\n\n"
-                    f"*{jogador['name']}* segue bloqueado ({jogador['bloqueio_motivo'] or 'indisponível'}).\n\n"
-                    f"📉 +{semanas_txt} bloqueado → −{pos_txt}\n"
-                    f"De #{player_pos} → para *#{nova_pos}*"
-                )
-                enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_wa)
-            except Exception as _e_wa:
-                print(f"[WhatsApp] Falha ao notificar penalidade recorrente: {_e_wa}")
+            # (aviso de penalidade por bloqueio removido — a regra continua sendo aplicada)
 
         conn.commit()
         
@@ -8762,41 +8750,9 @@ def toggle_bloqueio_jogador(player_id):
             conn.commit()
 
             msg_data = f" até {data_ate}" if data_ate else ""
-            if houve_mov:
-                flash(
-                    f'🚫 {player["name"]} foi BLOQUEADO ({motivo}){msg_data}. '
-                    f'Penalidade imediata aplicada: #{posicao_antes} → #{nova_pos}. '
-                    f'A cada 7 dias bloqueado, perderá +1 posição.',
-                    'warning',
-                )
-            else:
-                flash(
-                    f'🚫 {player["name"]} foi BLOQUEADO ({motivo}){msg_data}. '
-                    f'Já estava na última posição — sem movimentação imediata. '
-                    f'A cada 7 dias bloqueado, novas penalidades serão tentadas.',
-                    'warning',
-                )
+            flash(f'🚫 {player["name"]} foi bloqueado ({motivo}){msg_data}.', 'warning')
 
-            # Notifica grupo do WhatsApp
-            try:
-                if houve_mov:
-                    msg_wa = (
-                        f"🚫 *JOGADOR BLOQUEADO*\n\n"
-                        f"*{player['name']}* foi bloqueado ({motivo}){msg_data}.\n\n"
-                        f"📉 Penalidade imediata: −1 posição\n"
-                        f"De #{posicao_antes} → para *#{nova_pos}*\n\n"
-                        f"_A cada 7 dias bloqueado, perderá mais 1 posição._"
-                    )
-                else:
-                    msg_wa = (
-                        f"🚫 *JOGADOR BLOQUEADO*\n\n"
-                        f"*{player['name']}* (#{posicao_antes}) foi bloqueado ({motivo}){msg_data}.\n\n"
-                        f"ℹ️ Já estava na última posição — sem movimentação imediata.\n\n"
-                        f"_A cada 7 dias bloqueado, novas penalidades serão tentadas._"
-                    )
-                enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_wa)
-            except Exception as _e_wa:
-                print(f"[WhatsApp] Falha ao notificar bloqueio: {_e_wa}")
+            # (aviso de penalidade por bloqueio removido — a regra continua sendo aplicada)
         
     except Exception as e:
         flash(f'❌ Erro: {str(e)}', 'error')
