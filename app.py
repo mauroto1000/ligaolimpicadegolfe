@@ -3206,7 +3206,7 @@ def aplicar_expiracao_resposta_desafio():
 # ROTA INDEX COMPLETA - Substitua no app.py
 # ============================================
 
-@app.route('/')
+@app.route('/ranking')
 @login_required
 def index():
     # Verificar e aplicar penalidades de bloqueio (a cada 7 dias)
@@ -14081,7 +14081,14 @@ def gerar_chaveamento_playoff(ano):
                     return pid, label, None
                 a, b = val
                 elim_id = elim_match_id_por_par.get((a, b))
-                label = f"Vencedor Elim. {a + offset}x{b + offset}"
+                j1 = jogador_na_posicao_relativa(a)
+                j2 = jogador_na_posicao_relativa(b)
+                if j1 and j2:
+                    # Mostra os dois candidatos reais, não só o número da eliminatória,
+                    # pra ficar claro de onde esse classificado sai.
+                    label = f"Vencedor: {j1['name']} ou {j2['name']}"
+                else:
+                    label = f"Vencedor Elim. {a + offset}x{b + offset}"
                 return None, label, elim_id
 
             oitavas_match_ids = []
@@ -14346,7 +14353,7 @@ def admin_playoffs_resultado(match_id):
     return redirect(url_for('admin_playoffs'))
 
 
-@app.route('/playoffs')
+@app.route('/')
 @login_required
 def playoffs_bracket():
     conn = get_db_connection()

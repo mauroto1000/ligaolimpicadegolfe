@@ -4,71 +4,177 @@
 
 {% block head %}
 <style>
+    .playoffs-hero {
+        background: linear-gradient(135deg, #1a5f2a 0%, #2d8a3e 55%, #1a5f2a 100%);
+        border-radius: 14px;
+        padding: 28px 24px;
+        margin-bottom: 24px;
+        color: #fff;
+        text-align: center;
+        box-shadow: 0 6px 20px rgba(26, 95, 42, 0.35);
+    }
+    .playoffs-hero h2 {
+        margin: 0;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+    }
+    .playoffs-hero .trophy {
+        color: #d4af37;
+        text-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }
+    .playoffs-hero .status-badge {
+        display: inline-block;
+        margin-top: 8px;
+        padding: 4px 14px;
+        border-radius: 20px;
+        background: rgba(212, 175, 55, 0.25);
+        border: 1px solid #d4af37;
+        color: #ffe9a8;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
     .bracket-tabs {
         display: flex;
-        gap: 8px;
+        gap: 10px;
         margin-bottom: 20px;
     }
     .bracket-tabs button {
-        border: 2px solid #002970;
-        background: #fff;
-        color: #002970;
-        border-radius: 20px;
-        padding: 8px 20px;
-        font-weight: 600;
+        border: none;
+        border-radius: 24px;
+        padding: 10px 26px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
         transition: all 0.2s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
     }
-    .bracket-tabs button.active {
-        background: #002970;
+    .bracket-tabs button.tab-campeao {
+        background: #eef7ee;
+        color: #1a5f2a;
+        border: 2px solid #1a5f2a;
+    }
+    .bracket-tabs button.tab-campeao.active {
+        background: linear-gradient(135deg, #1a5f2a, #2d8a3e);
         color: #fff;
     }
+    .bracket-tabs button.tab-prata {
+        background: #f2f2f4;
+        color: #555b6e;
+        border: 2px solid #8a8f9c;
+    }
+    .bracket-tabs button.tab-prata.active {
+        background: linear-gradient(135deg, #8a8f9c, #c4c8d1);
+        color: #fff;
+    }
+
     .bracket-section { display: none; }
     .bracket-section.active { display: block; }
 
+    .bracket-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 16px;
+        font-size: 12px;
+        color: #555;
+    }
+    .bracket-legend span { display: flex; align-items: center; gap: 6px; }
+    .bracket-legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
     .bracket-wrapper { overflow-x: auto; padding-bottom: 1rem; }
-    .bracket-columns { display: flex; gap: 20px; min-width: 900px; }
-    .bracket-round { flex: 1; min-width: 170px; }
+    .bracket-columns { display: flex; gap: 20px; min-width: 950px; }
+    .bracket-round { flex: 1; min-width: 175px; }
     .bracket-round h6 {
         text-align: center;
         font-weight: 700;
-        color: #002970;
+        color: #fff;
         text-transform: uppercase;
         font-size: 12px;
         letter-spacing: 0.03em;
         margin-bottom: 12px;
+        padding: 6px 4px;
+        border-radius: 8px;
     }
+    .round-eliminatoria h6 { background: linear-gradient(135deg, #e67e22, #f39c12); }
+    .round-oitavas h6      { background: linear-gradient(135deg, #2980b9, #5bc0de); }
+    .round-quartas h6      { background: linear-gradient(135deg, #8e44ad, #b370cf); }
+    .round-semifinal h6    { background: linear-gradient(135deg, #16a085, #20c997); }
+    .round-final h6        { background: linear-gradient(135deg, #b8860b, #d4af37); color: #3a2e00; }
+
     .bracket-match {
         background: #fff;
         border: 1px solid #dee2e6;
+        border-left: 4px solid #ccc;
         border-radius: 8px;
         margin-bottom: 22px;
         font-size: 13px;
         overflow: hidden;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     }
+    .round-eliminatoria .bracket-match { border-left-color: #f39c12; }
+    .round-oitavas .bracket-match      { border-left-color: #5bc0de; }
+    .round-quartas .bracket-match      { border-left-color: #b370cf; }
+    .round-semifinal .bracket-match    { border-left-color: #20c997; }
+    .round-final .bracket-match        { border-left-color: #d4af37; box-shadow: 0 2px 10px rgba(212,175,55,0.35); }
+
     .bracket-match .slot {
         display: flex;
         justify-content: space-between;
+        align-items: center;
         padding: 6px 10px;
         border-bottom: 1px solid #f1f1f1;
+        gap: 6px;
     }
     .bracket-match .slot:last-child { border-bottom: none; }
-    .bracket-match .slot.winner { font-weight: 700; color: #28a745; background: #f0fbf3; }
-    .bracket-match .slot.pending { color: #adb5bd; font-style: italic; }
+    .bracket-match .slot.winner {
+        font-weight: 700;
+        color: #14532d;
+        background: #e6f7ea;
+    }
+    .bracket-match .slot.winner .fa-trophy { color: #d4af37; margin-right: 4px; }
+    .bracket-match .slot.pending {
+        color: #9aa0a6;
+        font-style: italic;
+        background: #fafafa;
+        font-size: 12px;
+    }
+
+    @media (max-width: 576px) {
+        .bracket-tabs button { padding: 8px 18px; font-size: 13px; }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <h2 class="mb-3">
-        <i class="fas fa-sitemap"></i> Playoffs{% if edicao %} {{ edicao.year }}{% endif %}
-    </h2>
+    <div class="playoffs-hero">
+        <h2><i class="fas fa-trophy trophy"></i> Playoffs{% if edicao %} {{ edicao.year }}{% endif %}</h2>
+        {% if edicao %}
+        <div class="status-badge">
+            {% if edicao.status == 'completed' %}
+                <i class="fas fa-flag-checkered"></i> Edição encerrada
+            {% else %}
+                <i class="fas fa-golf-ball"></i> Em andamento
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
 
     {% if not edicao %}
     <div class="alert alert-info">O chaveamento dos playoffs ainda não foi gerado.</div>
     {% else %}
     <div class="bracket-tabs">
-        <button type="button" class="active" data-bracket="campeao">Campeão</button>
-        <button type="button" data-bracket="prata">Liga Prata</button>
+        <button type="button" class="tab-campeao active" data-bracket="campeao">
+            <i class="fas fa-crown"></i> Campeão
+        </button>
+        <button type="button" class="tab-prata" data-bracket="prata">
+            <i class="fas fa-medal"></i> Liga Prata
+        </button>
+    </div>
+
+    <div class="bracket-legend">
+        <span><span class="dot" style="background:#28a745;"></span> Venceu e avançou</span>
+        <span><span class="dot" style="background:#9aa0a6;"></span> Aguardando definição (passe o mouse para ver a origem)</span>
     </div>
 
     {% for bracket_key, bracket_label in [('campeao', 'Campeão'), ('prata', 'Liga Prata')] %}
@@ -81,18 +187,22 @@
                 {% for round_key in round_order %}
                 {% set matches = brackets[bracket_key].get(round_key, []) %}
                 {% if matches %}
-                <div class="bracket-round">
+                <div class="bracket-round round-{{ round_key }}">
                     <h6>{{ round_labels[round_key] }}</h6>
                     {% for m in matches|sort(attribute='slot') %}
                     <div class="bracket-match">
                         <div class="slot
                             {% if m.winner_id and m.winner_id == m.player1_id %}winner
-                            {%- elif not m.player1_id %} pending{% endif %}">
+                            {%- elif not m.player1_id %} pending{% endif %}"
+                            {% if not m.player1_id %}title="Ainda não definido — {{ m.player1_label or 'aguardando fase anterior' }}"{% endif %}>
+                            {% if m.winner_id and m.winner_id == m.player1_id %}<i class="fas fa-trophy"></i>{% endif %}
                             {{ m.player1_name or m.player1_label or '?' }}
                         </div>
                         <div class="slot
                             {% if m.winner_id and m.winner_id == m.player2_id %}winner
-                            {%- elif not m.player2_id %} pending{% endif %}">
+                            {%- elif not m.player2_id %} pending{% endif %}"
+                            {% if not m.player2_id %}title="Ainda não definido — {{ m.player2_label or 'aguardando fase anterior' }}"{% endif %}>
+                            {% if m.winner_id and m.winner_id == m.player2_id %}<i class="fas fa-trophy"></i>{% endif %}
                             {{ m.player2_name or m.player2_label or '?' }}
                         </div>
                     </div>
