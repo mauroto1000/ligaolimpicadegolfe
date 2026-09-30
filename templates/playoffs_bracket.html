@@ -24,7 +24,7 @@
     }
     .playoffs-hero .status-badge {
         display: inline-block;
-        margin-top: 8px;
+        margin: 8px 4px 0;
         padding: 4px 14px;
         border-radius: 20px;
         background: rgba(212, 175, 55, 0.25);
@@ -32,6 +32,11 @@
         color: #ffe9a8;
         font-size: 13px;
         font-weight: 600;
+    }
+    .playoffs-hero .status-badge-encerrada {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.5);
+        color: #fff;
     }
 
     .bracket-tabs {
@@ -111,6 +116,15 @@
         overflow: hidden;
         box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     }
+    .elim-letra-badge {
+        background: #f39c12;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+        text-align: center;
+        padding: 3px 6px;
+        letter-spacing: 0.02em;
+    }
     .round-eliminatoria .bracket-match { border-left-color: #f39c12; }
     .round-oitavas .bracket-match      { border-left-color: #5bc0de; }
     .round-quartas .bracket-match      { border-left-color: #b370cf; }
@@ -151,12 +165,13 @@
         <h2><i class="fas fa-trophy trophy"></i> Playoffs{% if edicao %} {{ edicao.year }}{% endif %}</h2>
         {% if edicao %}
         <div class="status-badge">
-            {% if edicao.status == 'completed' %}
-                <i class="fas fa-flag-checkered"></i> Edição encerrada
-            {% else %}
-                <i class="fas fa-golf-ball"></i> Em andamento
-            {% endif %}
+            <i class="fas fa-calendar-alt"></i> Período: 01/10/{{ edicao.year }} a 30/11/{{ edicao.year }}
         </div>
+        {% if edicao.status == 'completed' %}
+        <div class="status-badge status-badge-encerrada">
+            <i class="fas fa-flag-checkered"></i> Edição encerrada
+        </div>
+        {% endif %}
         {% endif %}
     </div>
 
@@ -191,6 +206,9 @@
                     <h6>{{ round_labels[round_key] }}</h6>
                     {% for m in matches|sort(attribute='slot') %}
                     <div class="bracket-match">
+                        {% if m.elim_letra %}
+                        <div class="elim-letra-badge">Eliminatória {{ m.elim_letra }}</div>
+                        {% endif %}
                         <div class="slot
                             {% if m.winner_id and m.winner_id == m.player1_id %}winner
                             {%- elif not m.player1_id %} pending{% endif %}"

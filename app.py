@@ -13899,6 +13899,10 @@ PLAYOFF_OITAVAS_SEED_ORDER = [
 
 PLAYOFF_BRACKETS = [('campeao', 0), ('prata', 24)]
 
+# Letra de identificação de cada partida da eliminatória (A-H), na mesma ordem
+# de PLAYOFF_ELIMINATORIA_PAIRS — mais fácil de falar/escrever do que "14x19".
+PLAYOFF_ELIMINATORIA_LETRAS = 'ABCDEFGH'
+
 ROUND_LABELS_PT = {
     'eliminatoria': 'Eliminatória',
     'oitavas': 'Oitavas de Final',
@@ -14060,7 +14064,10 @@ def gerar_chaveamento_playoff(ano):
 
             # ----- Eliminatória -----
             elim_match_id_por_par = {}
+            elim_letra_por_par = {}
             for slot, (a, b) in enumerate(PLAYOFF_ELIMINATORIA_PAIRS):
+                letra = PLAYOFF_ELIMINATORIA_LETRAS[slot]
+                elim_letra_por_par[(a, b)] = letra
                 j1 = jogador_na_posicao_relativa(a)
                 j2 = jogador_na_posicao_relativa(b)
                 if not j1 or not j2:
@@ -14081,14 +14088,15 @@ def gerar_chaveamento_playoff(ano):
                     return pid, label, None
                 a, b = val
                 elim_id = elim_match_id_por_par.get((a, b))
+                letra = elim_letra_por_par.get((a, b), '?')
                 j1 = jogador_na_posicao_relativa(a)
                 j2 = jogador_na_posicao_relativa(b)
                 if j1 and j2:
-                    # Mostra os dois candidatos reais, não só o número da eliminatória,
+                    # Mostra a letra da eliminatória + os dois candidatos reais,
                     # pra ficar claro de onde esse classificado sai.
-                    label = f"Vencedor: {j1['name']} ou {j2['name']}"
+                    label = f"Vencedor Eliminatória {letra}: {j1['name']} ou {j2['name']}"
                 else:
-                    label = f"Vencedor Elim. {a + offset}x{b + offset}"
+                    label = f"Vencedor Eliminatória {letra}"
                 return None, label, elim_id
 
             oitavas_match_ids = []
@@ -14316,6 +14324,9 @@ def admin_playoffs():
         for m in matches:
             row = dict(m)
             row['round_label'] = ROUND_LABELS_PT.get(m['round'], m['round'])
+            if m['round'] == 'eliminatoria' and 0 <= m['slot'] < len(PLAYOFF_ELIMINATORIA_LETRAS):
+                row['elim_letra'] = PLAYOFF_ELIMINATORIA_LETRAS[m['slot']]
+                row['round_label'] = f"Eliminatória {row['elim_letra']}"
             if m['status'] == 'completed':
                 concluidas.append(row)
             elif m['player1_id'] and m['player2_id']:
@@ -14373,6 +14384,8 @@ def playoffs_bracket():
         for m in matches:
             row = dict(m)
             row['round_label'] = ROUND_LABELS_PT.get(m['round'], m['round'])
+            if m['round'] == 'eliminatoria' and 0 <= m['slot'] < len(PLAYOFF_ELIMINATORIA_LETRAS):
+                row['elim_letra'] = PLAYOFF_ELIMINATORIA_LETRAS[m['slot']]
             brackets.setdefault(m['bracket'], {}).setdefault(m['round'], []).append(row)
     conn.close()
 
