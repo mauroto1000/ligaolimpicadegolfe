@@ -278,7 +278,7 @@
                         <span class="round-periodo">{{ periodos_por_round[round_key] }}</span>
                         {% endif %}
                     </h6>
-                    {% for m in matches|sort(attribute='slot') %}
+                    {% for m in matches %}
                     <div class="bracket-match">
                         {% if m.round_badge %}
                         <div class="round-badge">{{ m.round_badge }}</div>

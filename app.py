@@ -13904,6 +13904,12 @@ PLAYOFF_BRACKETS = [('campeao', 0), ('prata', 24)]
 # Mais fácil de falar/escrever do que "14x19" ou "posição 3".
 PLAYOFF_LETRAS = 'ABCDEFGH'
 
+# Ordem de EXIBIÇÃO das oitavas (slots, não muda o chaveamento em si) — cada
+# oitavas fica na mesma altura da eliminatória (A-H, topo a baixo) que a
+# alimenta, pra ficar visualmente perto de onde o vencedor "sai".
+# Eliminatória A→Oitavas B, B→F, C→G, D→C, E→D, F→H, G→E, H→A.
+OITAVAS_ORDEM_EXIBICAO = [1, 5, 6, 2, 3, 7, 4, 0]
+
 ROUND_LABELS_PT = {
     'eliminatoria': 'Eliminatória',
     'oitavas': 'Oitavas de Final',
@@ -14472,6 +14478,11 @@ def playoffs_bracket():
         for row in rows:
             brackets.setdefault(row['bracket'], {}).setdefault(row['round'], []).append(row)
         for bracket_key, rounds in brackets.items():
+            for round_key, lst in rounds.items():
+                lst.sort(key=lambda r: r['slot'])
+            if 'oitavas' in rounds:
+                por_slot = {r['slot']: r for r in rounds['oitavas']}
+                rounds['oitavas'] = [por_slot[s] for s in OITAVAS_ORDEM_EXIBICAO if s in por_slot]
             final_rows = rounds.get('final')
             if final_rows and final_rows[0]['winner_id']:
                 campeoes[bracket_key] = final_rows[0]['winner_name']
