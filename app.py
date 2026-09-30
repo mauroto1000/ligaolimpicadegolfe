@@ -14400,8 +14400,6 @@ def _anotar_rows_playoff(rows):
     """Enriquece cada partida (dict) com o selo do próprio round ("Oitavas A")
     e, pra quem ainda não tem os dois jogadores definidos, com a origem de onde
     vem cada vaga ("Venc. Oitavas A" + os nomes, quando já conhecidos)."""
-    by_id = {r['id']: r for r in rows}
-
     origem_por_destino = {}
     for r in rows:
         letra = _letra_da_rodada(r['round'], r['slot'])
@@ -14427,63 +14425,28 @@ def _anotar_rows_playoff(rows):
                     row[f'{lado}_origem_letra'] = origem['letra']
                     row[f'{lado}_origem_abrev'] = origem['abrev']
                     row[f'{lado}_origem_texto'] = origem['texto']
-    return by_id
 
 
-def _montar_colunas_piramide(rows):
-    """Organiza as partidas de UM bracket em colunas espelhadas, tipo pirâmide
-    simétrica (igual ao regulamento em PDF):
-    Elim-E | Oitavas-E | Quartas-E | Semi-E | FINAL | Semi-D | Quartas-D | Oitavas-D | Elim-D.
+# Janela sugerida de cada fase dentro do período geral (01/10 a 30/11) — datas
+# fixas de calendário (mês, dia), só o ano muda conforme a edição.
+PLAYOFF_PERIODOS_SUGERIDOS = [
+    ('eliminatoria', 10, 1, 10, 11),
+    ('oitavas', 10, 12, 10, 25),
+    ('quartas', 10, 26, 11, 8),
+    ('semifinal', 11, 9, 11, 19),
+    ('final', 11, 20, 11, 30),
+]
 
-    Cada rodada é dividida ao meio pelo `slot` (metade menor = lado esquerdo);
-    a Eliminatória é dividida conforme o lado da oitavas que ela alimenta.
-    Retorna (colunas, nome_do_campeao)."""
-    by_id = {r['id']: r for r in rows}
-    por_round = {}
-    for r in rows:
-        por_round.setdefault(r['round'], []).append(r)
-    for lst in por_round.values():
-        lst.sort(key=lambda r: r['slot'])
 
-    def metade(lista):
-        corte = len(lista) // 2
-        return lista[:corte], lista[corte:]
-
-    oitavas_e, oitavas_d = metade(por_round.get('oitavas', []))
-    quartas_e, quartas_d = metade(por_round.get('quartas', []))
-    semi_e, semi_d = metade(por_round.get('semifinal', []))
-    final = por_round.get('final', [])
-
-    slots_oitavas_esquerda = {m['slot'] for m in oitavas_e}
-    elim_e, elim_d = [], []
-    for m in por_round.get('eliminatoria', []):
-        destino = by_id.get(m['next_match_id'])
-        if destino is not None and destino['slot'] in slots_oitavas_esquerda:
-            elim_e.append(m)
-        else:
-            elim_d.append(m)
-
-    colunas = [
-        ('eliminatoria', elim_e),
-        ('oitavas', oitavas_e),
-        ('quartas', quartas_e),
-        ('semifinal', semi_e),
-        ('final', final),
-        ('semifinal', semi_d),
-        ('quartas', quartas_d),
-        ('oitavas', oitavas_d),
-        ('eliminatoria', elim_d),
+def _periodos_playoff_sugeridos():
+    return [
+        {
+            'round': round_key,
+            'label': ROUND_LABELS_PT.get(round_key, round_key),
+            'periodo': f"{d1:02d}/{m1:02d} a {d2:02d}/{m2:02d}",
+        }
+        for round_key, m1, d1, m2, d2 in PLAYOFF_PERIODOS_SUGERIDOS
     ]
-
-    campeao_nome = None
-    campeao_pendente = False
-    if final:
-        if final[0]['winner_id']:
-            campeao_nome = final[0]['winner_name']
-        else:
-            campeao_pendente = True
-
-    return colunas, campeao_nome, campeao_pendente
 
 
 @app.route('/')
@@ -14492,7 +14455,8 @@ def playoffs_bracket():
     conn = get_db_connection()
     edicao = conn.execute('SELECT * FROM playoff_editions ORDER BY id DESC LIMIT 1').fetchone()
 
-    brackets_info = {}
+    brackets = {'campeao': {}, 'prata': {}}
+    campeoes = {}
     if edicao:
         matches = conn.execute('''
             SELECT m.*, p1.name as player1_name, p2.name as player2_name, w.name as winner_name
@@ -14505,20 +14469,18 @@ def playoffs_bracket():
         ''', (edicao['id'],)).fetchall()
         rows = [dict(m) for m in matches]
         _anotar_rows_playoff(rows)
-
-        for bracket_key in ('campeao', 'prata'):
-            rows_do_bracket = [r for r in rows if r['bracket'] == bracket_key]
-            if not rows_do_bracket:
-                continue
-            colunas, campeao_nome, campeao_pendente = _montar_colunas_piramide(rows_do_bracket)
-            brackets_info[bracket_key] = {
-                'colunas': colunas,
-                'campeao_nome': campeao_nome,
-                'campeao_pendente': campeao_pendente,
-            }
+        for row in rows:
+            brackets.setdefault(row['bracket'], {}).setdefault(row['round'], []).append(row)
+        for bracket_key, rounds in brackets.items():
+            final_rows = rounds.get('final')
+            if final_rows and final_rows[0]['winner_id']:
+                campeoes[bracket_key] = final_rows[0]['winner_name']
     conn.close()
 
-    return render_template('playoffs_bracket.html', edicao=edicao, brackets_info=brackets_info)
+    round_order = ['eliminatoria', 'oitavas', 'quartas', 'semifinal', 'final']
+    return render_template('playoffs_bracket.html', edicao=edicao, brackets=brackets,
+                            round_order=round_order, round_labels=ROUND_LABELS_PT,
+                            campeoes=campeoes, periodos=_periodos_playoff_sugeridos())
 
 
 # ============================================================

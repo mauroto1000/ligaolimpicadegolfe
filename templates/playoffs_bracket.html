@@ -39,6 +39,37 @@
         color: #fff;
     }
 
+    /* ---- Período das etapas ---- */
+    .periodos-card {
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin-bottom: 24px;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+    }
+    .periodos-card h5 {
+        font-weight: 700;
+        color: #1a5f2a;
+        margin-bottom: 14px;
+    }
+    .periodos-table { width: 100%; border-collapse: collapse; }
+    .periodos-table th {
+        text-align: left;
+        font-size: 13px;
+        color: #444;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #eee;
+    }
+    .periodos-table td {
+        padding: 10px 4px;
+        border-bottom: 1px solid #f1f1f1;
+        font-size: 14px;
+    }
+    .periodos-table tr:last-child td { border-bottom: none; }
+    .periodos-table td.fase { font-weight: 700; }
+    .periodos-table td.periodo { color: #1a5f2a; font-weight: 600; }
+
     .bracket-tabs {
         display: flex;
         gap: 10px;
@@ -86,75 +117,62 @@
     .bracket-legend span { display: flex; align-items: center; gap: 6px; }
     .bracket-legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 
-    /* ---- Pirâmide simétrica (espelhada) ---- */
     .bracket-wrapper { overflow-x: auto; padding-bottom: 1rem; }
-    .bracket-columns-piramide {
-        display: flex;
-        align-items: stretch;
-        gap: 12px;
-        min-width: 1500px;
-    }
-    .bracket-round-col {
-        flex: 1;
-        min-width: 150px;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-around;
-    }
-    .bracket-round-col.is-final { min-width: 170px; }
-    .bracket-round-col h6 {
+    .bracket-columns { display: flex; gap: 20px; min-width: 950px; }
+    .bracket-round { flex: 1; min-width: 175px; }
+    .bracket-round h6 {
         text-align: center;
         font-weight: 700;
         color: #fff;
         text-transform: uppercase;
-        font-size: 11px;
+        font-size: 12px;
         letter-spacing: 0.03em;
-        margin-bottom: 10px;
-        padding: 5px 4px;
+        margin-bottom: 12px;
+        padding: 6px 4px;
         border-radius: 8px;
     }
-    .col-eliminatoria h6 { background: linear-gradient(135deg, #e67e22, #f39c12); }
-    .col-oitavas h6      { background: linear-gradient(135deg, #2980b9, #5bc0de); }
-    .col-quartas h6      { background: linear-gradient(135deg, #8e44ad, #b370cf); }
-    .col-semifinal h6    { background: linear-gradient(135deg, #16a085, #20c997); }
-    .col-final h6        { background: linear-gradient(135deg, #b8860b, #d4af37); color: #3a2e00; }
+    .round-eliminatoria h6 { background: linear-gradient(135deg, #e67e22, #f39c12); }
+    .round-oitavas h6      { background: linear-gradient(135deg, #2980b9, #5bc0de); }
+    .round-quartas h6      { background: linear-gradient(135deg, #8e44ad, #b370cf); }
+    .round-semifinal h6    { background: linear-gradient(135deg, #16a085, #20c997); }
+    .round-final h6        { background: linear-gradient(135deg, #b8860b, #d4af37); color: #3a2e00; }
 
     .bracket-match {
         background: #fff;
         border: 1px solid #dee2e6;
         border-left: 4px solid #ccc;
         border-radius: 8px;
-        font-size: 12px;
+        margin-bottom: 22px;
+        font-size: 13px;
         overflow: hidden;
         box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     }
-    .col-eliminatoria .bracket-match { border-left-color: #f39c12; }
-    .col-oitavas .bracket-match      { border-left-color: #5bc0de; }
-    .col-quartas .bracket-match      { border-left-color: #b370cf; }
-    .col-semifinal .bracket-match    { border-left-color: #20c997; }
-    .col-final .bracket-match        { border-left-color: #d4af37; box-shadow: 0 2px 10px rgba(212,175,55,0.35); }
+    .round-eliminatoria .bracket-match { border-left-color: #f39c12; }
+    .round-oitavas .bracket-match      { border-left-color: #5bc0de; }
+    .round-quartas .bracket-match      { border-left-color: #b370cf; }
+    .round-semifinal .bracket-match    { border-left-color: #20c997; }
+    .round-final .bracket-match        { border-left-color: #d4af37; box-shadow: 0 2px 10px rgba(212,175,55,0.35); }
 
     .round-badge {
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 700;
         text-align: center;
         padding: 3px 6px;
         color: #fff;
         letter-spacing: 0.02em;
     }
-    .col-eliminatoria .round-badge { background: #f39c12; }
-    .col-oitavas .round-badge      { background: #2980b9; }
-    .col-quartas .round-badge      { background: #8e44ad; }
-    .col-semifinal .round-badge    { background: #16a085; }
+    .round-eliminatoria .round-badge { background: #f39c12; }
+    .round-oitavas .round-badge      { background: #2980b9; }
+    .round-quartas .round-badge      { background: #8e44ad; }
+    .round-semifinal .round-badge    { background: #16a085; }
 
     .bracket-match .slot {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 6px 8px;
+        padding: 6px 10px;
         border-bottom: 1px solid #f1f1f1;
         gap: 6px;
-        min-height: 30px;
     }
     .bracket-match .slot:last-child { border-bottom: none; }
     .bracket-match .slot.winner {
@@ -167,7 +185,7 @@
         color: #9aa0a6;
         font-style: italic;
         background: #fafafa;
-        font-size: 11px;
+        font-size: 12px;
     }
     .origem-slot {
         display: flex;
@@ -188,14 +206,14 @@
         letter-spacing: 0.02em;
     }
     .origem-nomes {
-        font-size: 10px;
-        line-height: 1.25;
+        font-size: 11px;
+        line-height: 1.3;
     }
 
-    /* ---- CAMPEÃO (apex da pirâmide) ---- */
+    /* ---- CAMPEÃO ---- */
     .campeao-apex {
         text-align: center;
-        margin-top: 26px;
+        margin-top: 10px;
     }
     .campeao-box {
         display: inline-flex;
@@ -247,6 +265,28 @@
         {% endif %}
     </div>
 
+    {% if edicao %}
+    <div class="periodos-card">
+        <h5><i class="fas fa-calendar-week"></i> Período sugerido de cada fase</h5>
+        <table class="periodos-table">
+            <thead>
+                <tr><th>Fase</th><th>Período sugerido</th></tr>
+            </thead>
+            <tbody>
+                {% for p in periodos %}
+                <tr>
+                    <td class="fase">
+                        {% if p.round == 'final' %}<i class="fas fa-trophy" style="color:#d4af37;"></i>{% endif %}
+                        {{ p.label }}
+                    </td>
+                    <td class="periodo">{{ p.periodo }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
     {% if not edicao %}
     <div class="alert alert-info">O chaveamento dos playoffs ainda não foi gerado.</div>
     {% else %}
@@ -265,18 +305,18 @@
     </div>
 
     {% for bracket_key, bracket_label in [('campeao', 'Campeão'), ('prata', 'Liga Prata')] %}
-    {% set info = brackets_info.get(bracket_key) %}
     <div class="bracket-section {% if bracket_key == 'campeao' %}active{% endif %}" id="bracket-{{ bracket_key }}">
-        {% if not info %}
+        {% if not brackets.get(bracket_key) %}
         <p class="text-muted">Sem partidas neste bracket.</p>
         {% else %}
         <div class="bracket-wrapper">
-            <div class="bracket-columns-piramide">
-                {% for round_key, col_matches in info.colunas %}
-                {% if col_matches %}
-                <div class="bracket-round-col col-{{ round_key }}{% if round_key == 'final' %} is-final{% endif %}">
-                    <h6>{{ {'eliminatoria': 'Eliminatória', 'oitavas': 'Oitavas', 'quartas': 'Quartas', 'semifinal': 'Semifinal', 'final': 'FINAL'}[round_key] }}</h6>
-                    {% for m in col_matches %}
+            <div class="bracket-columns">
+                {% for round_key in round_order %}
+                {% set matches = brackets[bracket_key].get(round_key, []) %}
+                {% if matches %}
+                <div class="bracket-round round-{{ round_key }}">
+                    <h6>{{ round_labels[round_key] }}</h6>
+                    {% for m in matches|sort(attribute='slot') %}
                     <div class="bracket-match">
                         {% if m.round_badge %}
                         <div class="round-badge">{{ m.round_badge }}</div>
@@ -320,12 +360,12 @@
         </div>
 
         <div class="campeao-apex">
-            <div class="campeao-box {% if not info.campeao_nome %}pendente{% endif %}">
+            <div class="campeao-box {% if not campeoes.get(bracket_key) %}pendente{% endif %}">
                 <i class="fas fa-trophy"></i>
                 <div class="campeao-titulo">
                     {% if bracket_key == 'campeao' %}CAMPEÃO{% else %}CAMPEÃO DA LIGA PRATA{% endif %}
                 </div>
-                <div class="campeao-nome">{{ info.campeao_nome or 'A definir' }}</div>
+                <div class="campeao-nome">{{ campeoes.get(bracket_key) or 'A definir' }}</div>
             </div>
         </div>
         {% endif %}
