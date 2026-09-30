@@ -199,6 +199,11 @@
                                 <i class="fas fa-book"></i> Regulamento
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.path == url_for('playoffs_bracket') %}active{% endif %}" href="{{ url_for('playoffs_bracket') }}">
+                                <i class="fas fa-sitemap"></i> Playoffs
+                            </a>
+                        </li>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle {% if 'challenges' in request.path %}active{% endif %}" href="#" id="challengesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fas fa-trophy"></i> Desafios

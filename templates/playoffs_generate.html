@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Gerar Chaveamento de Playoffs - Liga Olímpica de Golfe{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4"><i class="fas fa-sitemap"></i> Gerar Chaveamento de Playoffs</h2>
+
+    <div class="alert alert-info">
+        Isso vai travar o ranking masculino atual e montar os brackets <strong>Campeão</strong>
+        (posições 1-24) e <strong>Liga Prata</strong> (posições 25-48), conforme o
+        Regulamento v3-3-0. Confira os jogadores abaixo antes de confirmar — depois de gerado,
+        o chaveamento não pode ser recriado sem antes concluir ou remover a edição atual.
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <p class="mb-1"><strong>Jogadores elegíveis (masculino, ativos):</strong> {{ preview.total }}</p>
+            <p class="mb-1"><strong>Bracket Campeão:</strong> {{ preview.campeao|length }} jogador(es)</p>
+            <p class="mb-1"><strong>Bracket Liga Prata:</strong> {{ preview.prata|length }} jogador(es)</p>
+            {% if preview.sobrando %}
+            <p class="text-warning mb-1">
+                <i class="fas fa-info-circle"></i>
+                {{ preview.sobrando|length }} jogador(es) elegível(is) ficam fora dos 48 primeiros
+                e não entram em nenhum bracket.
+            </p>
+            {% endif %}
+            {% if preview.total < 24 %}
+            <p class="text-danger mb-0">
+                <i class="fas fa-exclamation-triangle"></i>
+                Menos de 24 jogadores elegíveis — o bracket Campeão ficará incompleto (algumas
+                partidas da eliminatória/oitavas podem ficar sem os dois jogadores definidos).
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <h5>Campeão</h5>
+            {% if preview.campeao %}
+            <ol>
+                {% for j in preview.campeao %}
+                <li>{{ j.name }}</li>
+                {% endfor %}
+            </ol>
+            {% else %}
+            <p class="text-muted">Nenhum jogador elegível.</p>
+            {% endif %}
+        </div>
+        <div class="col-md-6">
+            <h5>Liga Prata</h5>
+            {% if preview.prata %}
+            <ol start="25">
+                {% for j in preview.prata %}
+                <li>{{ j.name }}</li>
+                {% endfor %}
+            </ol>
+            {% else %}
+            <p class="text-muted">Nenhum jogador elegível.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <form method="POST"
+          onsubmit="return confirm('Confirma a geração do chaveamento? Essa ação trava o ranking masculino atual para o playoff.');">
+        <input type="hidden" name="ano" value="{{ ano }}">
+        <button type="submit" class="btn btn-primary" {% if preview.total < 9 %}disabled{% endif %}>
+            <i class="fas fa-check"></i> Confirmar e Gerar Chaveamento {{ ano }}
+        </button>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary">Cancelar</a>
+    </form>
+</div>
+{% endblock %}

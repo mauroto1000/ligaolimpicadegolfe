@@ -13870,6 +13870,511 @@ def parse_data_input(texto):
 
 
 # ============================================================
+# PLAYOFFS (MATA-MATA) — MASCULINO
+# Regulamento v3-3-0: bracket "Campeão" (posições 1-24) e "Liga Prata"
+# (posições 25-48) gerados a partir do ranking masculino travado.
+# Sistema paralelo à escada regular: NÃO mexe em position/tier/ranking_history.
+# ============================================================
+
+# Pares da eliminatória prévia, em posição RELATIVA (1-24) dentro do bracket.
+# A Liga Prata usa a mesma lista somando 24 a cada número (conferido contra o PDF).
+PLAYOFF_ELIMINATORIA_PAIRS = [
+    (9, 24), (12, 21), (15, 18), (10, 23),
+    (13, 20), (16, 17), (11, 22), (14, 19),
+]
+
+# Ordem das 16 vagas das oitavas de final, em posição RELATIVA (1-24).
+# ('seed', N): jogador com bye direto. ('elim', (a, b)): vencedor da eliminatória
+# entre as posições relativas a e b.
+PLAYOFF_OITAVAS_SEED_ORDER = [
+    ('seed', 1), ('elim', (14, 19)),
+    ('seed', 8), ('elim', (9, 24)),
+    ('seed', 5), ('elim', (10, 23)),
+    ('seed', 4), ('elim', (13, 20)),
+    ('seed', 2), ('elim', (11, 22)),
+    ('seed', 7), ('elim', (12, 21)),
+    ('seed', 6), ('elim', (15, 18)),
+    ('seed', 3), ('elim', (16, 17)),
+]
+
+PLAYOFF_BRACKETS = [('campeao', 0), ('prata', 24)]
+
+ROUND_LABELS_PT = {
+    'eliminatoria': 'Eliminatória',
+    'oitavas': 'Oitavas de Final',
+    'quartas': 'Quartas de Final',
+    'semifinal': 'Semifinal',
+    'final': 'Final',
+}
+
+
+def create_playoff_tables():
+    conn = get_db_connection()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS playoff_editions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            year INTEGER NOT NULL,
+            locked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            status TEXT NOT NULL DEFAULT 'seeded'
+        )
+    ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS playoff_seeds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            edition_id INTEGER NOT NULL REFERENCES playoff_editions(id),
+            bracket TEXT NOT NULL,
+            seed INTEGER NOT NULL,
+            player_id INTEGER NOT NULL REFERENCES players(id),
+            position_at_lock INTEGER NOT NULL
+        )
+    ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS playoff_matches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            edition_id INTEGER NOT NULL REFERENCES playoff_editions(id),
+            bracket TEXT NOT NULL,
+            round TEXT NOT NULL,
+            slot INTEGER NOT NULL,
+            player1_id INTEGER REFERENCES players(id),
+            player2_id INTEGER REFERENCES players(id),
+            player1_label TEXT,
+            player2_label TEXT,
+            winner_id INTEGER REFERENCES players(id),
+            result TEXT,
+            result_type TEXT DEFAULT 'normal',
+            status TEXT NOT NULL DEFAULT 'pending',
+            scheduled_date DATE,
+            next_match_id INTEGER REFERENCES playoff_matches(id),
+            next_match_slot TEXT,
+            updated_at DATETIME
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+
+def _elegiveis_playoff_masculino(conn):
+    """Jogadores elegíveis (ativos, não-VIP, masculino) ordenados pela posição —
+    mesmo critério usado em pyramid_dynamic()/get_possiveis_desafiados()."""
+    rows = conn.execute('''
+        SELECT id, name, position
+        FROM players
+        WHERE active = 1
+          AND position > 0
+          AND (tipo_membro IS NULL OR tipo_membro != 'vip')
+          AND (sexo = 'masculino' OR sexo IS NULL OR sexo = '')
+        ORDER BY position
+    ''').fetchall()
+    return [dict(r) for r in rows]
+
+
+def preview_playoff_seeds():
+    """Para a tela de confirmação: mostra o corte Campeão/Prata sem gravar nada."""
+    conn = get_db_connection()
+    elegiveis = _elegiveis_playoff_masculino(conn)
+    conn.close()
+    return {
+        'total': len(elegiveis),
+        'campeao': elegiveis[:24],
+        'prata': elegiveis[24:48],
+        'sobrando': elegiveis[48:],
+    }
+
+
+def _criar_match_playoff(conn, edition_id, bracket, round_, slot,
+                          player1_id=None, player2_id=None,
+                          player1_label=None, player2_label=None):
+    cur = conn.execute('''
+        INSERT INTO playoff_matches
+            (edition_id, bracket, round, slot, player1_id, player2_id, player1_label, player2_label)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (edition_id, bracket, round_, slot, player1_id, player2_id, player1_label, player2_label))
+    return cur.lastrowid
+
+
+def _set_next_match_playoff(conn, match_id, next_match_id, next_match_slot):
+    conn.execute('''
+        UPDATE playoff_matches SET next_match_id = ?, next_match_slot = ? WHERE id = ?
+    ''', (next_match_id, next_match_slot, match_id))
+
+
+def _criar_rodada_seguinte_playoff(conn, edition_id, bracket, round_name, prev_round_label, prev_match_ids):
+    """Pareia sequencialmente os vencedores da rodada anterior (slot 0+1 -> nova partida 0, etc.)."""
+    novos_ids = []
+    for slot in range(0, len(prev_match_ids), 2):
+        m1 = prev_match_ids[slot]
+        m2 = prev_match_ids[slot + 1] if slot + 1 < len(prev_match_ids) else None
+        label1 = f"Vencedor {prev_round_label} {slot + 1}"
+        label2 = f"Vencedor {prev_round_label} {slot + 2}" if m2 else None
+        match_id = _criar_match_playoff(
+            conn, edition_id, bracket, round_name, slot // 2,
+            player1_label=label1, player2_label=label2,
+        )
+        _set_next_match_playoff(conn, m1, match_id, 'player1')
+        if m2:
+            _set_next_match_playoff(conn, m2, match_id, 'player2')
+        novos_ids.append(match_id)
+    return novos_ids
+
+
+def gerar_chaveamento_playoff(ano):
+    """Trava o ranking masculino atual e gera os brackets Campeão (1-24) e
+    Liga Prata (25-48) conforme o Regulamento v3-3-0.
+
+    Lança ValueError se já existir uma edição ativa para o ano ou se não houver
+    jogadores suficientes para montar ao menos a eliminatória do Campeão."""
+    conn = get_db_connection()
+    try:
+        existente = conn.execute('''
+            SELECT id FROM playoff_editions WHERE year = ? AND status != 'completed'
+        ''', (ano,)).fetchone()
+        if existente:
+            raise ValueError(f'Já existe uma edição de playoff {ano} em andamento (id={existente["id"]}).')
+
+        elegiveis = _elegiveis_playoff_masculino(conn)
+        if len(elegiveis) < 9:
+            raise ValueError(
+                f'Só há {len(elegiveis)} jogador(es) elegível(is) — mínimo de 9 para montar a eliminatória.'
+            )
+
+        edition_id = conn.execute('''
+            INSERT INTO playoff_editions (year, status) VALUES (?, 'seeded')
+        ''', (ano,)).lastrowid
+
+        resumo = {'edition_id': edition_id, 'brackets': {}}
+
+        for bracket, offset in PLAYOFF_BRACKETS:
+            grupo = elegiveis[offset:offset + 24]
+            if not grupo:
+                continue
+
+            def jogador_na_posicao_relativa(rel, _grupo=grupo):
+                idx = rel - 1
+                return _grupo[idx] if 0 <= idx < len(_grupo) else None
+
+            for seed_idx, jogador in enumerate(grupo, start=1):
+                conn.execute('''
+                    INSERT INTO playoff_seeds (edition_id, bracket, seed, player_id, position_at_lock)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (edition_id, bracket, seed_idx, jogador['id'], jogador['position']))
+
+            # ----- Eliminatória -----
+            elim_match_id_por_par = {}
+            for slot, (a, b) in enumerate(PLAYOFF_ELIMINATORIA_PAIRS):
+                j1 = jogador_na_posicao_relativa(a)
+                j2 = jogador_na_posicao_relativa(b)
+                if not j1 or not j2:
+                    continue  # grupo incompleto (ex.: Prata com menos de 24 jogadores)
+                match_id = _criar_match_playoff(
+                    conn, edition_id, bracket, 'eliminatoria', slot,
+                    player1_id=j1['id'], player2_id=j2['id'],
+                    player1_label=j1['name'], player2_label=j2['name'],
+                )
+                elim_match_id_por_par[(a, b)] = match_id
+
+            # ----- Oitavas -----
+            def resolver_slot_oitavas(tipo, val):
+                if tipo == 'seed':
+                    j = jogador_na_posicao_relativa(val)
+                    pid = j['id'] if j else None
+                    label = j['name'] if j else f'Seed {val + offset}'
+                    return pid, label, None
+                a, b = val
+                elim_id = elim_match_id_por_par.get((a, b))
+                label = f"Vencedor Elim. {a + offset}x{b + offset}"
+                return None, label, elim_id
+
+            oitavas_match_ids = []
+            for i in range(0, len(PLAYOFF_OITAVAS_SEED_ORDER), 2):
+                tipo1, val1 = PLAYOFF_OITAVAS_SEED_ORDER[i]
+                tipo2, val2 = PLAYOFF_OITAVAS_SEED_ORDER[i + 1]
+                p1_id, p1_label, p1_elim = resolver_slot_oitavas(tipo1, val1)
+                p2_id, p2_label, p2_elim = resolver_slot_oitavas(tipo2, val2)
+
+                match_id = _criar_match_playoff(
+                    conn, edition_id, bracket, 'oitavas', i // 2,
+                    player1_id=p1_id, player2_id=p2_id,
+                    player1_label=p1_label, player2_label=p2_label,
+                )
+                oitavas_match_ids.append(match_id)
+                if p1_elim:
+                    _set_next_match_playoff(conn, p1_elim, match_id, 'player1')
+                if p2_elim:
+                    _set_next_match_playoff(conn, p2_elim, match_id, 'player2')
+
+            # ----- Quartas / Semifinal / Final -----
+            quartas_ids = _criar_rodada_seguinte_playoff(
+                conn, edition_id, bracket, 'quartas', 'Oitavas', oitavas_match_ids)
+            semifinal_ids = _criar_rodada_seguinte_playoff(
+                conn, edition_id, bracket, 'semifinal', 'Quartas', quartas_ids)
+            _criar_rodada_seguinte_playoff(
+                conn, edition_id, bracket, 'final', 'Semifinal', semifinal_ids)
+
+            resumo['brackets'][bracket] = {'jogadores': len(grupo)}
+
+        conn.commit()
+        return resumo
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def registrar_resultado_playoff(match_id, winner_id, result_type='normal'):
+    """Registra o vencedor de uma partida de playoff e avança para a próxima fase.
+
+    Retorna {'next_match_id', 'proxima_completa', 'edition_completa'}. Não envia
+    notificações — isso é responsabilidade de quem chama (ver notificar_playoff_*)."""
+    conn = get_db_connection()
+    try:
+        match = conn.execute('SELECT * FROM playoff_matches WHERE id = ?', (match_id,)).fetchone()
+        if not match:
+            raise ValueError('Partida de playoff não encontrada.')
+        if match['status'] == 'completed':
+            raise ValueError('Essa partida já tem resultado registrado.')
+        if winner_id not in (match['player1_id'], match['player2_id']):
+            raise ValueError('O vencedor precisa ser um dos dois jogadores da partida.')
+
+        result = 'player1_win' if winner_id == match['player1_id'] else 'player2_win'
+        agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        conn.execute('''
+            UPDATE playoff_matches
+            SET winner_id = ?, result = ?, result_type = ?, status = 'completed', updated_at = ?
+            WHERE id = ?
+        ''', (winner_id, result, result_type, agora, match_id))
+
+        proxima_completa = False
+        edition_completa = False
+        if match['next_match_id']:
+            campo = 'player1_id' if match['next_match_slot'] == 'player1' else 'player2_id'
+            conn.execute(f'UPDATE playoff_matches SET {campo} = ? WHERE id = ?',
+                         (winner_id, match['next_match_id']))
+            prox = conn.execute('SELECT player1_id, player2_id FROM playoff_matches WHERE id = ?',
+                                 (match['next_match_id'],)).fetchone()
+            proxima_completa = bool(prox['player1_id'] and prox['player2_id'])
+        else:
+            conn.execute("UPDATE playoff_editions SET status = 'completed' WHERE id = ?",
+                         (match['edition_id'],))
+            edition_completa = True
+
+        conn.commit()
+        return {
+            'next_match_id': match['next_match_id'],
+            'proxima_completa': proxima_completa,
+            'edition_completa': edition_completa,
+        }
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def _jid_whatsapp_do_jogador(player_id):
+    tel = get_player_phone(player_id)
+    return formatar_jid_whatsapp(tel) if tel else None
+
+
+def notificar_playoff_confronto_definido(match_id):
+    """Avisa os dois jogadores (DM) e o grupo quando uma partida de playoff passa
+    a ter os dois participantes definidos."""
+    conn = get_db_connection()
+    match = conn.execute('''
+        SELECT m.*, p1.name as player1_name, p2.name as player2_name
+        FROM playoff_matches m
+        LEFT JOIN players p1 ON m.player1_id = p1.id
+        LEFT JOIN players p2 ON m.player2_id = p2.id
+        WHERE m.id = ?
+    ''', (match_id,)).fetchone()
+    conn.close()
+    if not match or not match['player1_id'] or not match['player2_id']:
+        return
+
+    fase = ROUND_LABELS_PT.get(match['round'], match['round'])
+    bracket_label = 'Campeão' if match['bracket'] == 'campeao' else 'Liga Prata'
+
+    for jogador_id, adversario_nome in (
+        (match['player1_id'], match['player2_name']),
+        (match['player2_id'], match['player1_name']),
+    ):
+        jid = _jid_whatsapp_do_jogador(jogador_id)
+        if not jid:
+            continue
+        msg = (
+            f"🏆 *PLAYOFF {bracket_label.upper()} — {fase.upper()}*\n\n"
+            f"Seu confronto já está definido!\n"
+            f"Adversário: *{adversario_nome}*\n\n"
+            f"Combinem data e horário. Boa sorte! 🍀"
+        )
+        try:
+            enviar_mensagem_whatsapp(jid, msg)
+        except Exception as e:
+            print(f"[playoff-notify] falha DM confronto: {e}")
+
+    msg_grupo = (
+        f"🏆 *PLAYOFF {bracket_label.upper()} — {fase.upper()}*\n\n"
+        f"⚔️ *{match['player1_name']}* x *{match['player2_name']}*"
+    )
+    try:
+        enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
+    except Exception as e:
+        print(f"[playoff-notify] falha grupo confronto: {e}")
+
+
+def notificar_playoff_resultado(match_id):
+    """Avisa o grupo e o vencedor quando uma partida de playoff é decidida."""
+    conn = get_db_connection()
+    match = conn.execute('''
+        SELECT m.*, p1.name as player1_name, p2.name as player2_name, w.name as winner_name
+        FROM playoff_matches m
+        LEFT JOIN players p1 ON m.player1_id = p1.id
+        LEFT JOIN players p2 ON m.player2_id = p2.id
+        LEFT JOIN players w ON m.winner_id = w.id
+        WHERE m.id = ?
+    ''', (match_id,)).fetchone()
+    conn.close()
+    if not match or not match['winner_id']:
+        return
+
+    fase = ROUND_LABELS_PT.get(match['round'], match['round'])
+    bracket_label = 'Campeão' if match['bracket'] == 'campeao' else 'Liga Prata'
+    wo = match['result_type'] in ('wo_player1', 'wo_player2')
+
+    msg_grupo = (
+        f"✅ *RESULTADO — PLAYOFF {bracket_label.upper()} ({fase})*\n\n"
+        f"*{match['player1_name']}* x *{match['player2_name']}*\n"
+        f"🏅 Vencedor: *{match['winner_name']}*{' (W.O.)' if wo else ''}"
+    )
+    try:
+        enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
+    except Exception as e:
+        print(f"[playoff-notify] falha grupo resultado: {e}")
+
+    jid = _jid_whatsapp_do_jogador(match['winner_id'])
+    if jid:
+        msg = f"🎉 Você venceu e avançou na *{fase}* do Playoff {bracket_label}! Continue assim! 🏌️"
+        try:
+            enviar_mensagem_whatsapp(jid, msg)
+        except Exception as e:
+            print(f"[playoff-notify] falha DM resultado: {e}")
+
+
+@app.route('/admin/playoffs/gerar', methods=['GET', 'POST'])
+@login_required
+def admin_playoffs_gerar():
+    if not session.get('is_admin'):
+        flash('Acesso restrito.', 'error')
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        ano = request.form.get('ano', type=int) or datetime.now().year
+        try:
+            gerar_chaveamento_playoff(ano)
+            flash(f'Chaveamento de playoffs {ano} gerado com sucesso!', 'success')
+            return redirect(url_for('admin_playoffs'))
+        except ValueError as e:
+            flash(str(e), 'error')
+            return redirect(url_for('admin_playoffs_gerar'))
+
+    preview = preview_playoff_seeds()
+    return render_template('playoffs_generate.html', preview=preview, ano=datetime.now().year)
+
+
+@app.route('/admin/playoffs')
+@login_required
+def admin_playoffs():
+    if not session.get('is_admin'):
+        flash('Acesso restrito.', 'error')
+        return redirect(url_for('index'))
+
+    conn = get_db_connection()
+    edicao = conn.execute('SELECT * FROM playoff_editions ORDER BY id DESC LIMIT 1').fetchone()
+
+    pendentes = []
+    concluidas = []
+    if edicao:
+        matches = conn.execute('''
+            SELECT m.*, p1.name as player1_name, p2.name as player2_name, w.name as winner_name
+            FROM playoff_matches m
+            LEFT JOIN players p1 ON m.player1_id = p1.id
+            LEFT JOIN players p2 ON m.player2_id = p2.id
+            LEFT JOIN players w ON m.winner_id = w.id
+            WHERE m.edition_id = ?
+            ORDER BY m.bracket,
+                     CASE m.round WHEN 'eliminatoria' THEN 0 WHEN 'oitavas' THEN 1
+                                  WHEN 'quartas' THEN 2 WHEN 'semifinal' THEN 3 ELSE 4 END,
+                     m.slot
+        ''', (edicao['id'],)).fetchall()
+        for m in matches:
+            row = dict(m)
+            row['round_label'] = ROUND_LABELS_PT.get(m['round'], m['round'])
+            if m['status'] == 'completed':
+                concluidas.append(row)
+            elif m['player1_id'] and m['player2_id']:
+                pendentes.append(row)
+    conn.close()
+
+    return render_template('playoffs_admin.html', edicao=edicao, pendentes=pendentes, concluidas=concluidas)
+
+
+@app.route('/admin/playoffs/match/<int:match_id>/resultado', methods=['POST'])
+@login_required
+def admin_playoffs_resultado(match_id):
+    if not session.get('is_admin'):
+        flash('Acesso restrito.', 'error')
+        return redirect(url_for('index'))
+
+    winner_id = request.form.get('winner_id', type=int)
+    result_type = request.form.get('result_type', 'normal')
+
+    try:
+        resultado = registrar_resultado_playoff(match_id, winner_id, result_type)
+        flash('Resultado registrado!', 'success')
+        if resultado.get('next_match_id') and resultado.get('proxima_completa'):
+            try:
+                notificar_playoff_confronto_definido(resultado['next_match_id'])
+            except Exception as e:
+                print(f"[playoff-notify] falha ao notificar confronto: {e}")
+        try:
+            notificar_playoff_resultado(match_id)
+        except Exception as e:
+            print(f"[playoff-notify] falha ao notificar resultado: {e}")
+    except ValueError as e:
+        flash(str(e), 'error')
+
+    return redirect(url_for('admin_playoffs'))
+
+
+@app.route('/playoffs')
+@login_required
+def playoffs_bracket():
+    conn = get_db_connection()
+    edicao = conn.execute('SELECT * FROM playoff_editions ORDER BY id DESC LIMIT 1').fetchone()
+
+    brackets = {'campeao': {}, 'prata': {}}
+    if edicao:
+        matches = conn.execute('''
+            SELECT m.*, p1.name as player1_name, p2.name as player2_name, w.name as winner_name
+            FROM playoff_matches m
+            LEFT JOIN players p1 ON m.player1_id = p1.id
+            LEFT JOIN players p2 ON m.player2_id = p2.id
+            LEFT JOIN players w ON m.winner_id = w.id
+            WHERE m.edition_id = ?
+            ORDER BY m.slot
+        ''', (edicao['id'],)).fetchall()
+        for m in matches:
+            row = dict(m)
+            row['round_label'] = ROUND_LABELS_PT.get(m['round'], m['round'])
+            brackets.setdefault(m['bracket'], {}).setdefault(m['round'], []).append(row)
+    conn.close()
+
+    round_order = ['eliminatoria', 'oitavas', 'quartas', 'semifinal', 'final']
+    return render_template('playoffs_bracket.html', edicao=edicao, brackets=brackets,
+                            round_order=round_order, round_labels=ROUND_LABELS_PT)
+
+
+# ============================================================
 # Migrações idempotentes executadas no IMPORT do módulo
 # (necessário para deploys WSGI — gunicorn/uwsgi/passenger —
 #  onde o bloco `if __name__ == '__main__'` nunca roda).
@@ -13893,6 +14398,10 @@ def _run_startup_migrations():
         add_result_type_column()
     except Exception as _e:
         print(f"[migrações] add_result_type_column: {_e}")
+    try:
+        create_playoff_tables()
+    except Exception as _e:
+        print(f"[migrações] create_playoff_tables: {_e}")
     # Limpeza única: regra antiga auto-bloqueava jogadores que zeravam a
     # disponibilidade. Como disponibilidade agora é apenas informativa,
     # desbloqueia qualquer jogador que esteja preso por esse motivo. Idempotente.

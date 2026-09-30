@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% block title %}Playoffs - Liga Olímpica de Golfe{% endblock %}
+
+{% block head %}
+<style>
+    .bracket-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 20px;
+    }
+    .bracket-tabs button {
+        border: 2px solid #002970;
+        background: #fff;
+        color: #002970;
+        border-radius: 20px;
+        padding: 8px 20px;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    .bracket-tabs button.active {
+        background: #002970;
+        color: #fff;
+    }
+    .bracket-section { display: none; }
+    .bracket-section.active { display: block; }
+
+    .bracket-wrapper { overflow-x: auto; padding-bottom: 1rem; }
+    .bracket-columns { display: flex; gap: 20px; min-width: 900px; }
+    .bracket-round { flex: 1; min-width: 170px; }
+    .bracket-round h6 {
+        text-align: center;
+        font-weight: 700;
+        color: #002970;
+        text-transform: uppercase;
+        font-size: 12px;
+        letter-spacing: 0.03em;
+        margin-bottom: 12px;
+    }
+    .bracket-match {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        margin-bottom: 22px;
+        font-size: 13px;
+        overflow: hidden;
+    }
+    .bracket-match .slot {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 10px;
+        border-bottom: 1px solid #f1f1f1;
+    }
+    .bracket-match .slot:last-child { border-bottom: none; }
+    .bracket-match .slot.winner { font-weight: 700; color: #28a745; background: #f0fbf3; }
+    .bracket-match .slot.pending { color: #adb5bd; font-style: italic; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-3">
+        <i class="fas fa-sitemap"></i> Playoffs{% if edicao %} {{ edicao.year }}{% endif %}
+    </h2>
+
+    {% if not edicao %}
+    <div class="alert alert-info">O chaveamento dos playoffs ainda não foi gerado.</div>
+    {% else %}
+    <div class="bracket-tabs">
+        <button type="button" class="active" data-bracket="campeao">Campeão</button>
+        <button type="button" data-bracket="prata">Liga Prata</button>
+    </div>
+
+    {% for bracket_key, bracket_label in [('campeao', 'Campeão'), ('prata', 'Liga Prata')] %}
+    <div class="bracket-section {% if bracket_key == 'campeao' %}active{% endif %}" id="bracket-{{ bracket_key }}">
+        {% if not brackets.get(bracket_key) %}
+        <p class="text-muted">Sem partidas neste bracket.</p>
+        {% else %}
+        <div class="bracket-wrapper">
+            <div class="bracket-columns">
+                {% for round_key in round_order %}
+                {% set matches = brackets[bracket_key].get(round_key, []) %}
+                {% if matches %}
+                <div class="bracket-round">
+                    <h6>{{ round_labels[round_key] }}</h6>
+                    {% for m in matches|sort(attribute='slot') %}
+                    <div class="bracket-match">
+                        <div class="slot
+                            {% if m.winner_id and m.winner_id == m.player1_id %}winner
+                            {%- elif not m.player1_id %} pending{% endif %}">
+                            {{ m.player1_name or m.player1_label or '?' }}
+                        </div>
+                        <div class="slot
+                            {% if m.winner_id and m.winner_id == m.player2_id %}winner
+                            {%- elif not m.player2_id %} pending{% endif %}">
+                            {{ m.player2_name or m.player2_label or '?' }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.bracket-tabs button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-bracket');
+        document.querySelectorAll('.bracket-section').forEach(function (el) {
+            el.classList.remove('active');
+        });
+        document.getElementById('bracket-' + key).classList.add('active');
+        document.querySelectorAll('.bracket-tabs button').forEach(function (b) {
+            b.classList.remove('active');
+        });
+        btn.classList.add('active');
+    });
+});
+</script>
+{% endblock %}
