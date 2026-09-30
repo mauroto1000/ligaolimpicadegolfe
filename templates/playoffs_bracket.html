@@ -39,37 +39,6 @@
         color: #fff;
     }
 
-    /* ---- Período das etapas ---- */
-    .periodos-card {
-        background: #fff;
-        border: 1px solid #e5e5e5;
-        border-radius: 12px;
-        padding: 18px 20px;
-        margin-bottom: 24px;
-        box-shadow: 0 1px 6px rgba(0,0,0,0.06);
-    }
-    .periodos-card h5 {
-        font-weight: 700;
-        color: #1a5f2a;
-        margin-bottom: 14px;
-    }
-    .periodos-table { width: 100%; border-collapse: collapse; }
-    .periodos-table th {
-        text-align: left;
-        font-size: 13px;
-        color: #444;
-        padding-bottom: 8px;
-        border-bottom: 2px solid #eee;
-    }
-    .periodos-table td {
-        padding: 10px 4px;
-        border-bottom: 1px solid #f1f1f1;
-        font-size: 14px;
-    }
-    .periodos-table tr:last-child td { border-bottom: none; }
-    .periodos-table td.fase { font-weight: 700; }
-    .periodos-table td.periodo { color: #1a5f2a; font-weight: 600; }
-
     .bracket-tabs {
         display: flex;
         gap: 10px;
@@ -128,9 +97,19 @@
         font-size: 12px;
         letter-spacing: 0.03em;
         margin-bottom: 12px;
-        padding: 6px 4px;
+        padding: 6px 4px 5px;
         border-radius: 8px;
     }
+    .bracket-round h6 .round-periodo {
+        display: block;
+        font-weight: 600;
+        text-transform: none;
+        font-size: 10.5px;
+        letter-spacing: normal;
+        opacity: 0.9;
+        margin-top: 2px;
+    }
+    .round-final h6 .round-periodo { opacity: 0.75; }
     .round-eliminatoria h6 { background: linear-gradient(135deg, #e67e22, #f39c12); }
     .round-oitavas h6      { background: linear-gradient(135deg, #2980b9, #5bc0de); }
     .round-quartas h6      { background: linear-gradient(135deg, #8e44ad, #b370cf); }
@@ -265,28 +244,6 @@
         {% endif %}
     </div>
 
-    {% if edicao %}
-    <div class="periodos-card">
-        <h5><i class="fas fa-calendar-week"></i> Período sugerido de cada fase</h5>
-        <table class="periodos-table">
-            <thead>
-                <tr><th>Fase</th><th>Período sugerido</th></tr>
-            </thead>
-            <tbody>
-                {% for p in periodos %}
-                <tr>
-                    <td class="fase">
-                        {% if p.round == 'final' %}<i class="fas fa-trophy" style="color:#d4af37;"></i>{% endif %}
-                        {{ p.label }}
-                    </td>
-                    <td class="periodo">{{ p.periodo }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
-
     {% if not edicao %}
     <div class="alert alert-info">O chaveamento dos playoffs ainda não foi gerado.</div>
     {% else %}
@@ -315,7 +272,12 @@
                 {% set matches = brackets[bracket_key].get(round_key, []) %}
                 {% if matches %}
                 <div class="bracket-round round-{{ round_key }}">
-                    <h6>{{ round_labels[round_key] }}</h6>
+                    <h6>
+                        {{ round_labels[round_key] }}
+                        {% if periodos_por_round.get(round_key) %}
+                        <span class="round-periodo">{{ periodos_por_round[round_key] }}</span>
+                        {% endif %}
+                    </h6>
                     {% for m in matches|sort(attribute='slot') %}
                     <div class="bracket-match">
                         {% if m.round_badge %}

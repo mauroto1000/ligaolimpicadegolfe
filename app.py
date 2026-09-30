@@ -14478,9 +14478,10 @@ def playoffs_bracket():
     conn.close()
 
     round_order = ['eliminatoria', 'oitavas', 'quartas', 'semifinal', 'final']
+    periodos_por_round = {p['round']: p['periodo'] for p in _periodos_playoff_sugeridos()}
     return render_template('playoffs_bracket.html', edicao=edicao, brackets=brackets,
                             round_order=round_order, round_labels=ROUND_LABELS_PT,
-                            campeoes=campeoes, periodos=_periodos_playoff_sugeridos())
+                            campeoes=campeoes, periodos_por_round=periodos_por_round)
 
 
 # ============================================================
