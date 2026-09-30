@@ -14381,12 +14381,39 @@ def playoffs_bracket():
             WHERE m.edition_id = ?
             ORDER BY m.slot
         ''', (edicao['id'],)).fetchall()
-        for m in matches:
-            row = dict(m)
-            row['round_label'] = ROUND_LABELS_PT.get(m['round'], m['round'])
-            if m['round'] == 'eliminatoria' and 0 <= m['slot'] < len(PLAYOFF_ELIMINATORIA_LETRAS):
-                row['elim_letra'] = PLAYOFF_ELIMINATORIA_LETRAS[m['slot']]
-            brackets.setdefault(m['bracket'], {}).setdefault(m['round'], []).append(row)
+
+        rows = [dict(m) for m in matches]
+
+        # Mapeia, pra cada (próxima partida, slot), a letra + os dois candidatos
+        # da eliminatória que alimenta aquela vaga — usado pra dar um selo claro
+        # tipo "Elim. H" em vez de embutir tudo numa frase só.
+        origem_por_destino = {}
+        for r in rows:
+            if r['round'] == 'eliminatoria' and r['next_match_id']:
+                letra = (PLAYOFF_ELIMINATORIA_LETRAS[r['slot']]
+                         if 0 <= r['slot'] < len(PLAYOFF_ELIMINATORIA_LETRAS) else '?')
+                nome1 = r['player1_name'] or r['player1_label'] or '?'
+                nome2 = r['player2_name'] or r['player2_label'] or '?'
+                origem_por_destino[(r['next_match_id'], r['next_match_slot'])] = {
+                    'letra': letra,
+                    'texto': f"{nome1} ou {nome2}",
+                }
+
+        for row in rows:
+            row['round_label'] = ROUND_LABELS_PT.get(row['round'], row['round'])
+            if row['round'] == 'eliminatoria' and 0 <= row['slot'] < len(PLAYOFF_ELIMINATORIA_LETRAS):
+                row['elim_letra'] = PLAYOFF_ELIMINATORIA_LETRAS[row['slot']]
+            if not row['player1_id']:
+                origem = origem_por_destino.get((row['id'], 'player1'))
+                if origem:
+                    row['player1_origem_letra'] = origem['letra']
+                    row['player1_origem_texto'] = origem['texto']
+            if not row['player2_id']:
+                origem = origem_por_destino.get((row['id'], 'player2'))
+                if origem:
+                    row['player2_origem_letra'] = origem['letra']
+                    row['player2_origem_texto'] = origem['texto']
+            brackets.setdefault(row['bracket'], {}).setdefault(row['round'], []).append(row)
     conn.close()
 
     round_order = ['eliminatoria', 'oitavas', 'quartas', 'semifinal', 'final']

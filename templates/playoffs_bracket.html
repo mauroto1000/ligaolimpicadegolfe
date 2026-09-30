@@ -152,6 +152,28 @@
         background: #fafafa;
         font-size: 12px;
     }
+    .origem-slot {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        width: 100%;
+    }
+    .origem-tag {
+        display: inline-block;
+        align-self: flex-start;
+        background: #f39c12;
+        color: #fff;
+        font-style: normal;
+        font-weight: 700;
+        font-size: 10px;
+        padding: 1px 7px;
+        border-radius: 10px;
+        letter-spacing: 0.02em;
+    }
+    .origem-nomes {
+        font-size: 11px;
+        line-height: 1.3;
+    }
 
     @media (max-width: 576px) {
         .bracket-tabs button { padding: 8px 18px; font-size: 13px; }
@@ -212,16 +234,32 @@
                         <div class="slot
                             {% if m.winner_id and m.winner_id == m.player1_id %}winner
                             {%- elif not m.player1_id %} pending{% endif %}"
-                            {% if not m.player1_id %}title="Ainda não definido — {{ m.player1_label or 'aguardando fase anterior' }}"{% endif %}>
-                            {% if m.winner_id and m.winner_id == m.player1_id %}<i class="fas fa-trophy"></i>{% endif %}
-                            {{ m.player1_name or m.player1_label or '?' }}
+                            {% if not m.player1_id %}title="Ainda não definido — {{ m.player1_origem_texto or m.player1_label or 'aguardando fase anterior' }}"{% endif %}>
+                            {% if m.winner_id and m.winner_id == m.player1_id %}
+                                <i class="fas fa-trophy"></i> {{ m.player1_name }}
+                            {% elif m.player1_origem_letra %}
+                                <span class="origem-slot">
+                                    <span class="origem-tag">Elim. {{ m.player1_origem_letra }}</span>
+                                    <span class="origem-nomes">{{ m.player1_origem_texto }}</span>
+                                </span>
+                            {% else %}
+                                {{ m.player1_name or m.player1_label or '?' }}
+                            {% endif %}
                         </div>
                         <div class="slot
                             {% if m.winner_id and m.winner_id == m.player2_id %}winner
                             {%- elif not m.player2_id %} pending{% endif %}"
-                            {% if not m.player2_id %}title="Ainda não definido — {{ m.player2_label or 'aguardando fase anterior' }}"{% endif %}>
-                            {% if m.winner_id and m.winner_id == m.player2_id %}<i class="fas fa-trophy"></i>{% endif %}
-                            {{ m.player2_name or m.player2_label or '?' }}
+                            {% if not m.player2_id %}title="Ainda não definido — {{ m.player2_origem_texto or m.player2_label or 'aguardando fase anterior' }}"{% endif %}>
+                            {% if m.winner_id and m.winner_id == m.player2_id %}
+                                <i class="fas fa-trophy"></i> {{ m.player2_name }}
+                            {% elif m.player2_origem_letra %}
+                                <span class="origem-slot">
+                                    <span class="origem-tag">Elim. {{ m.player2_origem_letra }}</span>
+                                    <span class="origem-nomes">{{ m.player2_origem_texto }}</span>
+                                </span>
+                            {% else %}
+                                {{ m.player2_name or m.player2_label or '?' }}
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
