@@ -14399,6 +14399,8 @@ def admin_playoffs_resultado(match_id):
     except ValueError as e:
         flash(str(e), 'error')
 
+    if request.form.get('voltar') == 'bracket':
+        return redirect(url_for('playoffs_bracket'))
     return redirect(url_for('admin_playoffs'))
 
 

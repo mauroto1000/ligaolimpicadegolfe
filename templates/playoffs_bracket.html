@@ -166,6 +166,13 @@
         background: #fafafa;
         font-size: 12px;
     }
+    .lancar-resultado { border-top: 1px solid #f1f1f1; padding: 6px 10px; font-size: 12px; }
+    .lancar-resultado summary { cursor: pointer; color: #1a5f2a; font-weight: 700; }
+    .lancar-resultado form { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .lancar-resultado select, .lancar-resultado button {
+        font-size: 12px; padding: 4px 6px; border-radius: 6px; border: 1px solid #cfd6cf;
+    }
+    .lancar-resultado button { background: #1a5f2a; color: #fff; border: none; font-weight: 700; cursor: pointer; }
     .origem-slot {
         display: flex;
         flex-direction: column;
@@ -313,6 +320,26 @@
                                 {{ m.player2_name or m.player2_label or '?' }}
                             {% endif %}
                         </div>
+                        {% if session.is_admin and m.status != 'completed' and m.player1_id and m.player2_id %}
+                        <details class="lancar-resultado">
+                            <summary>Lançar resultado</summary>
+                            <form method="POST" action="{{ url_for('admin_playoffs_resultado', match_id=m.id) }}"
+                                  onsubmit="return confirm('Confirma o resultado desta partida?');">
+                                <input type="hidden" name="voltar" value="bracket">
+                                <select name="winner_id" required>
+                                    <option value="">Vencedor...</option>
+                                    <option value="{{ m.player1_id }}">{{ m.player1_name }}</option>
+                                    <option value="{{ m.player2_id }}">{{ m.player2_name }}</option>
+                                </select>
+                                <select name="result_type">
+                                    <option value="normal">Normal</option>
+                                    <option value="wo_player1">W.O. — {{ m.player1_name }}</option>
+                                    <option value="wo_player2">W.O. — {{ m.player2_name }}</option>
+                                </select>
+                                <button type="submit">Salvar</button>
+                            </form>
+                        </details>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
