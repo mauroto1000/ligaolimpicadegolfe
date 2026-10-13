@@ -75,7 +75,7 @@
     <div class="table-responsive">
         <table class="table table-sm">
             <thead>
-                <tr><th>Bracket</th><th>Fase</th><th>Confronto</th><th>Vencedor</th></tr>
+                <tr><th>Bracket</th><th>Fase</th><th>Confronto</th><th>Vencedor</th><th></th></tr>
             </thead>
             <tbody>
                 {% for m in concluidas %}
@@ -86,6 +86,14 @@
                     <td>
                         <strong>{{ m.winner_name }}</strong>
                         {% if m.result_type != 'normal' %}<span class="text-muted">(W.O.)</span>{% endif %}
+                    </td>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin_playoffs_desfazer', match_id=m.id) }}"
+                              onsubmit="return confirm('Desfazer esse resultado? A partida volta para pendente.');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="fas fa-undo"></i> Desfazer
+                            </button>
+                        </form>
                     </td>
                 </tr>
                 {% endfor %}

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, make_response
 import sqlite3
 from datetime import datetime, timedelta
 import os
@@ -13946,6 +13946,16 @@ def _letra_da_rodada(round_name, slot):
     return None
 
 
+def _sem_cache(html):
+    """Marca a resposta pra nunca ser guardada em cache pelo navegador — as
+    telas de playoff mudam a cada resultado lançado e precisam refletir sempre
+    o estado mais recente do banco, mesmo com vários admins mexendo ao mesmo tempo."""
+    resp = make_response(html)
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
+
+
 def create_playoff_tables():
     conn = get_db_connection()
     conn.execute('''
@@ -14222,6 +14232,52 @@ def registrar_resultado_playoff(match_id, winner_id, result_type='normal'):
         conn.close()
 
 
+def desfazer_resultado_playoff(match_id):
+    """Desfaz o resultado de uma partida de playoff, voltando-a pra 'pending' e
+    limpando a vaga que ela tinha preenchido na próxima fase.
+
+    Bloqueia (ValueError) se a próxima partida já tiver sido decidida — nesse
+    caso é preciso desfazer primeiro o resultado dela, pra não corromper o
+    chaveamento. Retorna {'next_match_id'} pra quem chamou avisar quem precisar."""
+    conn = get_db_connection()
+    try:
+        match = conn.execute('SELECT * FROM playoff_matches WHERE id = ?', (match_id,)).fetchone()
+        if not match:
+            raise ValueError('Partida de playoff não encontrada.')
+        if match['status'] != 'completed':
+            raise ValueError('Essa partida ainda não tem resultado lançado.')
+
+        if match['next_match_id']:
+            proxima = conn.execute('SELECT * FROM playoff_matches WHERE id = ?',
+                                    (match['next_match_id'],)).fetchone()
+            if proxima and proxima['status'] == 'completed':
+                letra_prox = _letra_da_rodada(proxima['round'], proxima['slot'])
+                nome_fase = ROUND_CURTO_PT.get(proxima['round'], proxima['round'])
+                ref = f"{nome_fase} {letra_prox}" if letra_prox else nome_fase
+                raise ValueError(f"A próxima partida ({ref}) já tem resultado — desfaça o resultado dela primeiro.")
+            campo = 'player1_id' if match['next_match_slot'] == 'player1' else 'player2_id'
+            conn.execute(f'UPDATE playoff_matches SET {campo} = NULL WHERE id = ?',
+                         (match['next_match_id'],))
+        else:
+            conn.execute("UPDATE playoff_editions SET status = 'in_progress' WHERE id = ? AND status = 'completed'",
+                         (match['edition_id'],))
+
+        agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        conn.execute('''
+            UPDATE playoff_matches
+            SET winner_id = NULL, result = NULL, result_type = 'normal', status = 'pending', updated_at = ?
+            WHERE id = ?
+        ''', (agora, match_id))
+
+        conn.commit()
+        return {'next_match_id': match['next_match_id']}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def _jid_whatsapp_do_jogador(player_id):
     tel = get_player_phone(player_id)
     return formatar_jid_whatsapp(tel) if tel else None
@@ -14253,7 +14309,7 @@ def notificar_playoff_confronto_definido(match_id):
         if not jid:
             continue
         msg = (
-            f"🏆 *PLAYOFF {bracket_label.upper()} — {fase.upper()}*\n\n"
+            f"🏆 *PLAYOFFS — {fase.upper()}*\n\n"
             f"Seu confronto já está definido!\n"
             f"Adversário: *{adversario_nome}*\n\n"
             f"Combinem data e horário. Boa sorte! 🍀"
@@ -14264,7 +14320,7 @@ def notificar_playoff_confronto_definido(match_id):
             print(f"[playoff-notify] falha DM confronto: {e}")
 
     msg_grupo = (
-        f"🏆 *PLAYOFF {bracket_label.upper()} — {fase.upper()}*\n\n"
+        f"🏆 *PLAYOFFS — {fase.upper()}*\n\n"
         f"⚔️ *{match['player1_name']}* x *{match['player2_name']}*"
     )
     try:
@@ -14293,7 +14349,7 @@ def notificar_playoff_resultado(match_id):
     wo = match['result_type'] in ('wo_player1', 'wo_player2')
 
     msg_grupo = (
-        f"✅ *RESULTADO — PLAYOFF {bracket_label.upper()} ({fase})*\n\n"
+        f"✅ *RESULTADO — PLAYOFFS ({fase})*\n\n"
         f"*{match['player1_name']}* x *{match['player2_name']}*\n"
         f"🏅 Vencedor: *{match['winner_name']}*{' (W.O.)' if wo else ''}"
     )
@@ -14304,7 +14360,7 @@ def notificar_playoff_resultado(match_id):
 
     jid = _jid_whatsapp_do_jogador(match['winner_id'])
     if jid:
-        msg = f"🎉 Você venceu e avançou na *{fase}* do Playoff {bracket_label}! Continue assim! 🏌️"
+        msg = f"🎉 Você venceu e avançou na *{fase}* dos PLAYOFFS! Continue assim! 🏌️"
         try:
             enviar_mensagem_whatsapp(jid, msg)
         except Exception as e:
@@ -14371,7 +14427,7 @@ def admin_playoffs():
                 pendentes.append(row)
     conn.close()
 
-    return render_template('playoffs_admin.html', edicao=edicao, pendentes=pendentes, concluidas=concluidas)
+    return _sem_cache(render_template('playoffs_admin.html', edicao=edicao, pendentes=pendentes, concluidas=concluidas))
 
 
 @app.route('/admin/playoffs/match/<int:match_id>/resultado', methods=['POST'])
@@ -14387,15 +14443,34 @@ def admin_playoffs_resultado(match_id):
     try:
         resultado = registrar_resultado_playoff(match_id, winner_id, result_type)
         flash('Resultado registrado!', 'success')
+        # Resultado primeiro, depois o confronto da próxima fase (ordem no WhatsApp).
+        try:
+            notificar_playoff_resultado(match_id)
+        except Exception as e:
+            print(f"[playoff-notify] falha ao notificar resultado: {e}")
         if resultado.get('next_match_id') and resultado.get('proxima_completa'):
             try:
                 notificar_playoff_confronto_definido(resultado['next_match_id'])
             except Exception as e:
                 print(f"[playoff-notify] falha ao notificar confronto: {e}")
-        try:
-            notificar_playoff_resultado(match_id)
-        except Exception as e:
-            print(f"[playoff-notify] falha ao notificar resultado: {e}")
+    except ValueError as e:
+        flash(str(e), 'error')
+
+    if request.form.get('voltar') == 'bracket':
+        return redirect(url_for('playoffs_bracket'))
+    return redirect(url_for('admin_playoffs'))
+
+
+@app.route('/admin/playoffs/match/<int:match_id>/desfazer', methods=['POST'])
+@login_required
+def admin_playoffs_desfazer(match_id):
+    if not session.get('is_admin'):
+        flash('Acesso restrito.', 'error')
+        return redirect(url_for('index'))
+
+    try:
+        desfazer_resultado_playoff(match_id)
+        flash('Resultado desfeito — a partida voltou para pendente.', 'success')
     except ValueError as e:
         flash(str(e), 'error')
 
@@ -14492,9 +14567,9 @@ def playoffs_bracket():
 
     round_order = ['eliminatoria', 'oitavas', 'quartas', 'semifinal', 'final']
     periodos_por_round = {p['round']: p['periodo'] for p in _periodos_playoff_sugeridos()}
-    return render_template('playoffs_bracket.html', edicao=edicao, brackets=brackets,
+    return _sem_cache(render_template('playoffs_bracket.html', edicao=edicao, brackets=brackets,
                             round_order=round_order, round_labels=ROUND_LABELS_PT,
-                            campeoes=campeoes, periodos_por_round=periodos_por_round)
+                            campeoes=campeoes, periodos_por_round=periodos_por_round))
 
 
 # ============================================================
