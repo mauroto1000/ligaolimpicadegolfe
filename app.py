@@ -14283,54 +14283,12 @@ def _jid_whatsapp_do_jogador(player_id):
     return formatar_jid_whatsapp(tel) if tel else None
 
 
-def notificar_playoff_confronto_definido(match_id):
-    """Avisa os dois jogadores (DM) e o grupo quando uma partida de playoff passa
-    a ter os dois participantes definidos."""
-    conn = get_db_connection()
-    match = conn.execute('''
-        SELECT m.*, p1.name as player1_name, p2.name as player2_name
-        FROM playoff_matches m
-        LEFT JOIN players p1 ON m.player1_id = p1.id
-        LEFT JOIN players p2 ON m.player2_id = p2.id
-        WHERE m.id = ?
-    ''', (match_id,)).fetchone()
-    conn.close()
-    if not match or not match['player1_id'] or not match['player2_id']:
-        return
-
-    fase = ROUND_LABELS_PT.get(match['round'], match['round'])
-    bracket_label = 'Campeão' if match['bracket'] == 'campeao' else 'Liga Prata'
-
-    for jogador_id, adversario_nome in (
-        (match['player1_id'], match['player2_name']),
-        (match['player2_id'], match['player1_name']),
-    ):
-        jid = _jid_whatsapp_do_jogador(jogador_id)
-        if not jid:
-            continue
-        msg = (
-            f"🏆 *PLAYOFFS — {fase.upper()}*\n\n"
-            f"Seu confronto já está definido!\n"
-            f"Adversário: *{adversario_nome}*\n\n"
-            f"Combinem data e horário. Boa sorte! 🍀"
-        )
-        try:
-            enviar_mensagem_whatsapp(jid, msg)
-        except Exception as e:
-            print(f"[playoff-notify] falha DM confronto: {e}")
-
-    msg_grupo = (
-        f"🏆 *PLAYOFFS — {fase.upper()}*\n\n"
-        f"⚔️ *{match['player1_name']}* x *{match['player2_name']}*"
-    )
-    try:
-        enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
-    except Exception as e:
-        print(f"[playoff-notify] falha grupo confronto: {e}")
-
-
-def notificar_playoff_resultado(match_id):
-    """Avisa o grupo e o vencedor quando uma partida de playoff é decidida."""
+def notificar_playoff_resultado_e_proximo(match_id, next_match_id=None, proxima_completa=False):
+    """Avisa o grupo do resultado de uma partida de playoff — e, se essa vitória
+    já definiu o próximo confronto, inclui os dois NA MESMA mensagem (um abaixo
+    do outro), pra não sair picotado nem correr risco de chegar fora de ordem
+    no WhatsApp. DMs pros jogadores (parabéns ao vencedor, aviso de adversário
+    pros dois da próxima fase) continuam indo cada uma na sua, por fora."""
     conn = get_db_connection()
     match = conn.execute('''
         SELECT m.*, p1.name as player1_name, p2.name as player2_name, w.name as winner_name
@@ -14340,12 +14298,20 @@ def notificar_playoff_resultado(match_id):
         LEFT JOIN players w ON m.winner_id = w.id
         WHERE m.id = ?
     ''', (match_id,)).fetchone()
+    prox = None
+    if next_match_id and proxima_completa:
+        prox = conn.execute('''
+            SELECT m.*, p1.name as player1_name, p2.name as player2_name
+            FROM playoff_matches m
+            LEFT JOIN players p1 ON m.player1_id = p1.id
+            LEFT JOIN players p2 ON m.player2_id = p2.id
+            WHERE m.id = ?
+        ''', (next_match_id,)).fetchone()
     conn.close()
     if not match or not match['winner_id']:
         return
 
     fase = ROUND_LABELS_PT.get(match['round'], match['round'])
-    bracket_label = 'Campeão' if match['bracket'] == 'campeao' else 'Liga Prata'
     wo = match['result_type'] in ('wo_player1', 'wo_player2')
 
     msg_grupo = (
@@ -14353,11 +14319,22 @@ def notificar_playoff_resultado(match_id):
         f"*{match['player1_name']}* x *{match['player2_name']}*\n"
         f"🏅 Vencedor: *{match['winner_name']}*{' (W.O.)' if wo else ''}"
     )
+
+    prox_definido = bool(prox and prox['player1_id'] and prox['player2_id'])
+    if prox_definido:
+        fase_prox = ROUND_LABELS_PT.get(prox['round'], prox['round'])
+        msg_grupo += (
+            f"\n\n━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"🏆 *PLAYOFFS — {fase_prox.upper()}*\n\n"
+            f"⚔️ *{prox['player1_name']}* x *{prox['player2_name']}*"
+        )
+
     try:
         enviar_mensagem_whatsapp(WHATSAPP_GRUPO_LIGA, msg_grupo)
     except Exception as e:
-        print(f"[playoff-notify] falha grupo resultado: {e}")
+        print(f"[playoff-notify] falha grupo resultado+confronto: {e}")
 
+    # DM pro vencedor, separada.
     jid = _jid_whatsapp_do_jogador(match['winner_id'])
     if jid:
         msg = f"🎉 Você venceu e avançou na *{fase}* dos PLAYOFFS! Continue assim! 🏌️"
@@ -14365,6 +14342,27 @@ def notificar_playoff_resultado(match_id):
             enviar_mensagem_whatsapp(jid, msg)
         except Exception as e:
             print(f"[playoff-notify] falha DM resultado: {e}")
+
+    # DMs pros dois jogadores do próximo confronto, se já definido.
+    if prox_definido:
+        fase_prox = ROUND_LABELS_PT.get(prox['round'], prox['round'])
+        for jogador_id, adversario_nome in (
+            (prox['player1_id'], prox['player2_name']),
+            (prox['player2_id'], prox['player1_name']),
+        ):
+            jid2 = _jid_whatsapp_do_jogador(jogador_id)
+            if not jid2:
+                continue
+            msg2 = (
+                f"🏆 *PLAYOFFS — {fase_prox.upper()}*\n\n"
+                f"Seu confronto já está definido!\n"
+                f"Adversário: *{adversario_nome}*\n\n"
+                f"Combinem data e horário. Boa sorte! 🍀"
+            )
+            try:
+                enviar_mensagem_whatsapp(jid2, msg2)
+            except Exception as e:
+                print(f"[playoff-notify] falha DM confronto: {e}")
 
 
 @app.route('/admin/playoffs/gerar', methods=['GET', 'POST'])
@@ -14443,16 +14441,13 @@ def admin_playoffs_resultado(match_id):
     try:
         resultado = registrar_resultado_playoff(match_id, winner_id, result_type)
         flash('Resultado registrado!', 'success')
-        # Resultado primeiro, depois o confronto da próxima fase (ordem no WhatsApp).
+        # Resultado + próximo confronto (quando já definido) em UMA mensagem só pro grupo.
         try:
-            notificar_playoff_resultado(match_id)
+            notificar_playoff_resultado_e_proximo(
+                match_id, resultado.get('next_match_id'), resultado.get('proxima_completa')
+            )
         except Exception as e:
-            print(f"[playoff-notify] falha ao notificar resultado: {e}")
-        if resultado.get('next_match_id') and resultado.get('proxima_completa'):
-            try:
-                notificar_playoff_confronto_definido(resultado['next_match_id'])
-            except Exception as e:
-                print(f"[playoff-notify] falha ao notificar confronto: {e}")
+            print(f"[playoff-notify] falha ao notificar: {e}")
     except ValueError as e:
         flash(str(e), 'error')
 
