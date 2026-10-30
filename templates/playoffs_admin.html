@@ -51,10 +51,12 @@
                                 <option value="{{ m.player1_id }}">{{ m.player1_name }}</option>
                                 <option value="{{ m.player2_id }}">{{ m.player2_name }}</option>
                             </select>
-                            <select name="result_type" class="form-select form-select-sm">
+                            <select name="result_type" class="form-select form-select-sm"
+                                    onchange="this.form.winner_id.disabled = (this.value === 'wo_duplo');">
                                 <option value="normal">Normal</option>
                                 <option value="wo_player1">W.O. — {{ m.player1_name }}</option>
                                 <option value="wo_player2">W.O. — {{ m.player2_name }}</option>
+                                <option value="wo_duplo">W.O. duplo (nenhum compareceu)</option>
                             </select>
                             <button type="submit" class="btn btn-sm btn-success">
                                 <i class="fas fa-check"></i>
@@ -82,18 +84,27 @@
                 <tr>
                     <td>{{ 'Campeão' if m.bracket == 'campeao' else 'Liga Prata' }}</td>
                     <td>{{ m.round_label }}</td>
-                    <td>{{ m.player1_name }} x {{ m.player2_name }}</td>
+                    <td>{{ m.player1_name or '—' }} x {{ m.player2_name or '—' }}</td>
                     <td>
+                        {% if m.is_wo_duplo %}
+                        <span class="text-danger">W.O. duplo — ninguém avançou</span>
+                        {% else %}
                         <strong>{{ m.winner_name }}</strong>
-                        {% if m.result_type != 'normal' %}<span class="text-muted">(W.O.)</span>{% endif %}
+                        {% if m.result_type == 'wo_auto' %}<span class="text-muted">(W.O. automático)</span>
+                        {% elif m.result_type != 'normal' %}<span class="text-muted">(W.O.)</span>{% endif %}
+                        {% endif %}
                     </td>
                     <td>
+                        {% if m.is_wo_automatico %}
+                        <small class="text-muted">Automático — desfaça a partida de origem</small>
+                        {% else %}
                         <form method="POST" action="{{ url_for('admin_playoffs_desfazer', match_id=m.id) }}"
-                              onsubmit="return confirm('Desfazer esse resultado? A partida volta para pendente.');">
+                              onsubmit="return confirm('Desfazer esse resultado? A partida volta para pendente (W.O. automáticos gerados por ela também são desfeitos).');">
                             <button type="submit" class="btn btn-sm btn-outline-danger">
                                 <i class="fas fa-undo"></i> Desfazer
                             </button>
                         </form>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

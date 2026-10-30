@@ -166,6 +166,13 @@
         background: #fafafa;
         font-size: 12px;
     }
+    .bracket-match .slot.wo-duplo {
+        color: #b02a37;
+        background: #fdf0f1;
+        text-decoration: line-through;
+    }
+    .origem-tag.origem-wo-duplo { background: #b02a37; }
+    .wo-duplo-nota { border-top: 1px solid #f1f1f1; padding: 4px 10px; font-size: 11px; color: #b02a37; font-weight: 700; }
     .lancar-resultado { border-top: 1px solid #f1f1f1; padding: 6px 10px; font-size: 12px; }
     .lancar-resultado summary { cursor: pointer; color: #1a5f2a; font-weight: 700; }
     .lancar-resultado form { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
@@ -292,10 +299,15 @@
                         {% endif %}
                         <div class="slot
                             {% if m.winner_id and m.winner_id == m.player1_id %}winner
+                            {%- elif m.is_wo_duplo and m.player1_id %} wo-duplo
                             {%- elif not m.player1_id %} pending{% endif %}"
-                            {% if not m.player1_id %}title="Ainda não definido — {{ m.player1_origem_texto or m.player1_label or 'aguardando fase anterior' }}"{% endif %}>
+                            {% if not m.player1_id %}title="{% if m.player1_origem_wo_duplo %}Vaga vazia — W.O. duplo na fase anterior{% else %}Ainda não definido — {{ m.player1_origem_texto or m.player1_label or 'aguardando fase anterior' }}{% endif %}"{% endif %}>
                             {% if m.winner_id and m.winner_id == m.player1_id %}
                                 <i class="fas fa-trophy"></i> {{ m.player1_name }}
+                            {% elif m.player1_origem_wo_duplo %}
+                                <span class="origem-slot">
+                                    <span class="origem-tag origem-wo-duplo">W.O. duplo {{ m.player1_origem_abrev }} {{ m.player1_origem_letra }}</span>
+                                </span>
                             {% elif m.player1_origem_letra %}
                                 <span class="origem-slot">
                                     <span class="origem-tag">Venc. {{ m.player1_origem_abrev }} {{ m.player1_origem_letra }}</span>
@@ -307,10 +319,15 @@
                         </div>
                         <div class="slot
                             {% if m.winner_id and m.winner_id == m.player2_id %}winner
+                            {%- elif m.is_wo_duplo and m.player2_id %} wo-duplo
                             {%- elif not m.player2_id %} pending{% endif %}"
-                            {% if not m.player2_id %}title="Ainda não definido — {{ m.player2_origem_texto or m.player2_label or 'aguardando fase anterior' }}"{% endif %}>
+                            {% if not m.player2_id %}title="{% if m.player2_origem_wo_duplo %}Vaga vazia — W.O. duplo na fase anterior{% else %}Ainda não definido — {{ m.player2_origem_texto or m.player2_label or 'aguardando fase anterior' }}{% endif %}"{% endif %}>
                             {% if m.winner_id and m.winner_id == m.player2_id %}
                                 <i class="fas fa-trophy"></i> {{ m.player2_name }}
+                            {% elif m.player2_origem_wo_duplo %}
+                                <span class="origem-slot">
+                                    <span class="origem-tag origem-wo-duplo">W.O. duplo {{ m.player2_origem_abrev }} {{ m.player2_origem_letra }}</span>
+                                </span>
                             {% elif m.player2_origem_letra %}
                                 <span class="origem-slot">
                                     <span class="origem-tag">Venc. {{ m.player2_origem_abrev }} {{ m.player2_origem_letra }}</span>
@@ -320,6 +337,11 @@
                                 {{ m.player2_name or m.player2_label or '?' }}
                             {% endif %}
                         </div>
+                        {% if m.is_wo_duplo %}
+                        <div class="wo-duplo-nota"><i class="fas fa-user-slash"></i> W.O. duplo — ninguém avançou</div>
+                        {% elif m.result_type == 'wo_auto' %}
+                        <div class="wo-duplo-nota">Avançou por W.O. (adversário saiu de W.O. duplo)</div>
+                        {% endif %}
                         {% if session.is_admin and m.status != 'completed' and m.player1_id and m.player2_id %}
                         <details class="lancar-resultado">
                             <summary>Lançar resultado</summary>
@@ -331,15 +353,17 @@
                                     <option value="{{ m.player1_id }}">{{ m.player1_name }}</option>
                                     <option value="{{ m.player2_id }}">{{ m.player2_name }}</option>
                                 </select>
-                                <select name="result_type">
+                                <select name="result_type"
+                                        onchange="this.form.winner_id.disabled = (this.value === 'wo_duplo');">
                                     <option value="normal">Normal</option>
                                     <option value="wo_player1">W.O. — {{ m.player1_name }}</option>
                                     <option value="wo_player2">W.O. — {{ m.player2_name }}</option>
+                                    <option value="wo_duplo">W.O. duplo (nenhum compareceu)</option>
                                 </select>
                                 <button type="submit">Salvar</button>
                             </form>
                         </details>
-                        {% elif session.is_admin and m.status == 'completed' %}
+                        {% elif session.is_admin and m.status == 'completed' and not m.is_wo_automatico %}
                         <details class="lancar-resultado">
                             <summary>Desfazer resultado</summary>
                             <form method="POST" action="{{ url_for('admin_playoffs_desfazer', match_id=m.id) }}"

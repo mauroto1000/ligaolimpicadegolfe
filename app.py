@@ -14182,11 +14182,97 @@ def gerar_chaveamento_playoff(ano):
         conn.close()
 
 
+# Tipos de resultado de playoff:
+#   'normal' / 'wo_player1' / 'wo_player2' — lançados pelo admin, com vencedor.
+#   'wo_duplo'      — lançado pelo admin: nenhum dos dois compareceu, ninguém avança.
+#   'wo_auto'       — automático: o adversário da vaga vinha de um W.O. duplo,
+#                     então quem estava do outro lado avança por W.O.
+#   'wo_duplo_auto' — automático: as DUAS vagas vinham de W.O. duplo.
+PLAYOFF_RESULT_TYPES_ADMIN = ('normal', 'wo_player1', 'wo_player2', 'wo_duplo')
+PLAYOFF_WO_DUPLO = ('wo_duplo', 'wo_duplo_auto')
+PLAYOFF_WO_AUTOMATICOS = ('wo_auto', 'wo_duplo_auto')
+
+
+def _ref_partida_playoff(match):
+    """Referência curta de uma partida pra mensagens de erro (ex.: "Oitavas B")."""
+    letra = _letra_da_rodada(match['round'], match['slot'])
+    nome_fase = ROUND_CURTO_PT.get(match['round'], match['round'])
+    return f"{nome_fase} {letra}" if letra else nome_fase
+
+
+def _avancar_vencedor_playoff(conn, match, winner_id):
+    """Coloca o vencedor (se houver — W.O. duplo não tem) na vaga da próxima
+    fase, ou encerra a edição se `match` for a final."""
+    proxima_completa = False
+    edition_completa = False
+    if match['next_match_id']:
+        if winner_id:
+            campo = 'player1_id' if match['next_match_slot'] == 'player1' else 'player2_id'
+            conn.execute(f'UPDATE playoff_matches SET {campo} = ? WHERE id = ?',
+                         (winner_id, match['next_match_id']))
+            prox = conn.execute('SELECT player1_id, player2_id FROM playoff_matches WHERE id = ?',
+                                 (match['next_match_id'],)).fetchone()
+            proxima_completa = bool(prox['player1_id'] and prox['player2_id'])
+    else:
+        conn.execute("UPDATE playoff_editions SET status = 'completed' WHERE id = ?",
+                     (match['edition_id'],))
+        edition_completa = True
+    return {
+        'next_match_id': match['next_match_id'],
+        'proxima_completa': proxima_completa,
+        'edition_completa': edition_completa,
+    }
+
+
+def _vaga_eliminada_por_wo_duplo(conn, match_id, lado):
+    """True se a partida que alimenta a vaga `lado` de `match_id` terminou em W.O. duplo."""
+    return conn.execute(f'''
+        SELECT 1 FROM playoff_matches
+        WHERE next_match_id = ? AND next_match_slot = ? AND status = 'completed'
+          AND result_type IN ({','.join('?' * len(PLAYOFF_WO_DUPLO))})
+    ''', (match_id, lado, *PLAYOFF_WO_DUPLO)).fetchone() is not None
+
+
+def _resolver_wo_automatico_playoff(conn, match_id, agora):
+    """A partir de `match_id`, resolve em cascata as partidas que ficaram sem
+    adversário por W.O. duplo: quem está do outro lado avança por W.O.
+    ('wo_auto'); se as duas vagas vieram de W.O. duplo, a partida também vira
+    W.O. duplo ('wo_duplo_auto'). Retorna, em ordem, um dict por partida resolvida
+    ({'match_id', 'next_match_id', 'proxima_completa', 'edition_completa'})."""
+    resolvidas = []
+    while match_id:
+        m = conn.execute('SELECT * FROM playoff_matches WHERE id = ?', (match_id,)).fetchone()
+        if not m or m['status'] == 'completed':
+            break
+        vazio1 = not m['player1_id'] and _vaga_eliminada_por_wo_duplo(conn, m['id'], 'player1')
+        vazio2 = not m['player2_id'] and _vaga_eliminada_por_wo_duplo(conn, m['id'], 'player2')
+        if vazio1 and vazio2:
+            winner_id, result, result_type = None, 'wo_duplo', 'wo_duplo_auto'
+        elif vazio1 and m['player2_id']:
+            winner_id, result, result_type = m['player2_id'], 'player2_win', 'wo_auto'
+        elif vazio2 and m['player1_id']:
+            winner_id, result, result_type = m['player1_id'], 'player1_win', 'wo_auto'
+        else:
+            break  # ainda falta definir alguém da fase anterior
+        conn.execute('''
+            UPDATE playoff_matches
+            SET winner_id = ?, result = ?, result_type = ?, status = 'completed', updated_at = ?
+            WHERE id = ?
+        ''', (winner_id, result, result_type, agora, m['id']))
+        resolvidas.append({'match_id': m['id'], **_avancar_vencedor_playoff(conn, m, winner_id)})
+        match_id = m['next_match_id']
+    return resolvidas
+
+
 def registrar_resultado_playoff(match_id, winner_id, result_type='normal'):
     """Registra o vencedor de uma partida de playoff e avança para a próxima fase.
 
-    Retorna {'next_match_id', 'proxima_completa', 'edition_completa'}. Não envia
-    notificações — isso é responsabilidade de quem chama (ver notificar_playoff_*)."""
+    Com result_type='wo_duplo' não há vencedor: ninguém avança, e o adversário
+    da próxima fase passa automaticamente por W.O. (ver _resolver_wo_automatico_playoff).
+
+    Retorna {'next_match_id', 'proxima_completa', 'edition_completa', 'automaticas'}
+    — `automaticas` lista as partidas resolvidas por W.O. automático em seguida.
+    Não envia notificações — isso é responsabilidade de quem chama (ver notificar_playoff_*)."""
     conn = get_db_connection()
     try:
         match = conn.execute('SELECT * FROM playoff_matches WHERE id = ?', (match_id,)).fetchone()
@@ -14194,10 +14280,19 @@ def registrar_resultado_playoff(match_id, winner_id, result_type='normal'):
             raise ValueError('Partida de playoff não encontrada.')
         if match['status'] == 'completed':
             raise ValueError('Essa partida já tem resultado registrado.')
-        if winner_id not in (match['player1_id'], match['player2_id']):
-            raise ValueError('O vencedor precisa ser um dos dois jogadores da partida.')
+        if result_type not in PLAYOFF_RESULT_TYPES_ADMIN:
+            raise ValueError('Tipo de resultado inválido.')
+        if not (match['player1_id'] and match['player2_id']):
+            raise ValueError('A partida ainda não tem os dois jogadores definidos.')
 
-        result = 'player1_win' if winner_id == match['player1_id'] else 'player2_win'
+        if result_type == 'wo_duplo':
+            winner_id = None
+            result = 'wo_duplo'
+        else:
+            if winner_id not in (match['player1_id'], match['player2_id']):
+                raise ValueError('O vencedor precisa ser um dos dois jogadores da partida.')
+            result = 'player1_win' if winner_id == match['player1_id'] else 'player2_win'
+
         agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         conn.execute('''
             UPDATE playoff_matches
@@ -14205,26 +14300,11 @@ def registrar_resultado_playoff(match_id, winner_id, result_type='normal'):
             WHERE id = ?
         ''', (winner_id, result, result_type, agora, match_id))
 
-        proxima_completa = False
-        edition_completa = False
-        if match['next_match_id']:
-            campo = 'player1_id' if match['next_match_slot'] == 'player1' else 'player2_id'
-            conn.execute(f'UPDATE playoff_matches SET {campo} = ? WHERE id = ?',
-                         (winner_id, match['next_match_id']))
-            prox = conn.execute('SELECT player1_id, player2_id FROM playoff_matches WHERE id = ?',
-                                 (match['next_match_id'],)).fetchone()
-            proxima_completa = bool(prox['player1_id'] and prox['player2_id'])
-        else:
-            conn.execute("UPDATE playoff_editions SET status = 'completed' WHERE id = ?",
-                         (match['edition_id'],))
-            edition_completa = True
+        resultado = _avancar_vencedor_playoff(conn, match, winner_id)
+        resultado['automaticas'] = _resolver_wo_automatico_playoff(conn, match['next_match_id'], agora)
 
         conn.commit()
-        return {
-            'next_match_id': match['next_match_id'],
-            'proxima_completa': proxima_completa,
-            'edition_completa': edition_completa,
-        }
+        return resultado
     except Exception:
         conn.rollback()
         raise
@@ -14232,13 +14312,40 @@ def registrar_resultado_playoff(match_id, winner_id, result_type='normal'):
         conn.close()
 
 
+def _desfazer_resultado_playoff(conn, match, agora):
+    """Núcleo do desfazer (sem commit). Partidas seguintes resolvidas por W.O.
+    automático são desfeitas junto, em cascata; resultado lançado pelo admin
+    na próxima fase bloqueia (ValueError)."""
+    if match['next_match_id']:
+        proxima = conn.execute('SELECT * FROM playoff_matches WHERE id = ?',
+                                (match['next_match_id'],)).fetchone()
+        if proxima and proxima['status'] == 'completed':
+            if proxima['result_type'] not in PLAYOFF_WO_AUTOMATICOS:
+                raise ValueError(f"A próxima partida ({_ref_partida_playoff(proxima)}) já tem resultado "
+                                 f"— desfaça o resultado dela primeiro.")
+            _desfazer_resultado_playoff(conn, proxima, agora)
+        campo = 'player1_id' if match['next_match_slot'] == 'player1' else 'player2_id'
+        conn.execute(f'UPDATE playoff_matches SET {campo} = NULL WHERE id = ?',
+                     (match['next_match_id'],))
+    else:
+        conn.execute("UPDATE playoff_editions SET status = 'in_progress' WHERE id = ? AND status = 'completed'",
+                     (match['edition_id'],))
+
+    conn.execute('''
+        UPDATE playoff_matches
+        SET winner_id = NULL, result = NULL, result_type = 'normal', status = 'pending', updated_at = ?
+        WHERE id = ?
+    ''', (agora, match['id']))
+
+
 def desfazer_resultado_playoff(match_id):
     """Desfaz o resultado de uma partida de playoff, voltando-a pra 'pending' e
     limpando a vaga que ela tinha preenchido na próxima fase.
 
-    Bloqueia (ValueError) se a próxima partida já tiver sido decidida — nesse
-    caso é preciso desfazer primeiro o resultado dela, pra não corromper o
-    chaveamento. Retorna {'next_match_id'} pra quem chamou avisar quem precisar."""
+    Bloqueia (ValueError) se a próxima partida já tiver sido decidida pelo admin
+    — nesse caso é preciso desfazer primeiro o resultado dela, pra não corromper
+    o chaveamento. W.O. automático não pode ser desfeito direto: some sozinho ao
+    desfazer a partida de origem. Retorna {'next_match_id'} pra quem chamou avisar quem precisar."""
     conn = get_db_connection()
     try:
         match = conn.execute('SELECT * FROM playoff_matches WHERE id = ?', (match_id,)).fetchone()
@@ -14246,28 +14353,11 @@ def desfazer_resultado_playoff(match_id):
             raise ValueError('Partida de playoff não encontrada.')
         if match['status'] != 'completed':
             raise ValueError('Essa partida ainda não tem resultado lançado.')
+        if match['result_type'] in PLAYOFF_WO_AUTOMATICOS:
+            raise ValueError('Esse W.O. foi automático (W.O. duplo na fase anterior) '
+                             '— desfaça o resultado da partida de origem.')
 
-        if match['next_match_id']:
-            proxima = conn.execute('SELECT * FROM playoff_matches WHERE id = ?',
-                                    (match['next_match_id'],)).fetchone()
-            if proxima and proxima['status'] == 'completed':
-                letra_prox = _letra_da_rodada(proxima['round'], proxima['slot'])
-                nome_fase = ROUND_CURTO_PT.get(proxima['round'], proxima['round'])
-                ref = f"{nome_fase} {letra_prox}" if letra_prox else nome_fase
-                raise ValueError(f"A próxima partida ({ref}) já tem resultado — desfaça o resultado dela primeiro.")
-            campo = 'player1_id' if match['next_match_slot'] == 'player1' else 'player2_id'
-            conn.execute(f'UPDATE playoff_matches SET {campo} = NULL WHERE id = ?',
-                         (match['next_match_id'],))
-        else:
-            conn.execute("UPDATE playoff_editions SET status = 'in_progress' WHERE id = ? AND status = 'completed'",
-                         (match['edition_id'],))
-
-        agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        conn.execute('''
-            UPDATE playoff_matches
-            SET winner_id = NULL, result = NULL, result_type = 'normal', status = 'pending', updated_at = ?
-            WHERE id = ?
-        ''', (agora, match_id))
+        _desfazer_resultado_playoff(conn, match, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
         conn.commit()
         return {'next_match_id': match['next_match_id']}
@@ -14308,17 +14398,33 @@ def notificar_playoff_resultado_e_proximo(match_id, next_match_id=None, proxima_
             WHERE m.id = ?
         ''', (next_match_id,)).fetchone()
     conn.close()
-    if not match or not match['winner_id']:
+    # W.O. duplo em cascata (as duas vagas vazias) não tem ninguém pra citar.
+    if not match or match['result_type'] == 'wo_duplo_auto':
+        return
+    if not match['winner_id'] and match['result_type'] != 'wo_duplo':
         return
 
     fase = ROUND_LABELS_PT.get(match['round'], match['round'])
     wo = match['result_type'] in ('wo_player1', 'wo_player2')
 
-    msg_grupo = (
-        f"✅ *RESULTADO — PLAYOFFS ({fase})*\n\n"
-        f"*{match['player1_name']}* x *{match['player2_name']}*\n"
-        f"🏅 Vencedor: *{match['winner_name']}*{' (W.O.)' if wo else ''}"
-    )
+    if match['result_type'] == 'wo_duplo':
+        msg_grupo = (
+            f"✅ *RESULTADO — PLAYOFFS ({fase})*\n\n"
+            f"*{match['player1_name']}* x *{match['player2_name']}*\n"
+            f"❌ W.O. duplo — nenhum dos dois avança."
+        )
+    elif match['result_type'] == 'wo_auto':
+        msg_grupo = (
+            f"✅ *RESULTADO — PLAYOFFS ({fase})*\n\n"
+            f"🏅 *{match['winner_name']}* avança por W.O. "
+            f"(o adversário dessa fase saiu de um W.O. duplo)"
+        )
+    else:
+        msg_grupo = (
+            f"✅ *RESULTADO — PLAYOFFS ({fase})*\n\n"
+            f"*{match['player1_name']}* x *{match['player2_name']}*\n"
+            f"🏅 Vencedor: *{match['winner_name']}*{' (W.O.)' if wo else ''}"
+        )
 
     prox_definido = bool(prox and prox['player1_id'] and prox['player2_id'])
     if prox_definido:
@@ -14335,9 +14441,13 @@ def notificar_playoff_resultado_e_proximo(match_id, next_match_id=None, proxima_
         print(f"[playoff-notify] falha grupo resultado+confronto: {e}")
 
     # DM pro vencedor, separada.
-    jid = _jid_whatsapp_do_jogador(match['winner_id'])
+    jid = _jid_whatsapp_do_jogador(match['winner_id']) if match['winner_id'] else None
     if jid:
-        msg = f"🎉 Você venceu e avançou na *{fase}* dos PLAYOFFS! Continue assim! 🏌️"
+        if match['result_type'] == 'wo_auto':
+            msg = (f"🎉 Seu adversário na *{fase}* dos PLAYOFFS saiu de um W.O. duplo — "
+                   f"você avançou por W.O.! 🏌️")
+        else:
+            msg = f"🎉 Você venceu e avançou na *{fase}* dos PLAYOFFS! Continue assim! 🏌️"
         try:
             enviar_mensagem_whatsapp(jid, msg)
         except Exception as e:
@@ -14419,6 +14529,8 @@ def admin_playoffs():
                 row['round_label'] = f"{ROUND_CURTO_PT.get(m['round'], m['round'])} {letra}"
             else:
                 row['round_label'] = ROUND_LABELS_PT.get(m['round'], m['round'])
+            row['is_wo_duplo'] = m['result_type'] in PLAYOFF_WO_DUPLO
+            row['is_wo_automatico'] = m['result_type'] in PLAYOFF_WO_AUTOMATICOS
             if m['status'] == 'completed':
                 concluidas.append(row)
             elif m['player1_id'] and m['player2_id']:
@@ -14440,14 +14552,21 @@ def admin_playoffs_resultado(match_id):
 
     try:
         resultado = registrar_resultado_playoff(match_id, winner_id, result_type)
-        flash('Resultado registrado!', 'success')
-        # Resultado + próximo confronto (quando já definido) em UMA mensagem só pro grupo.
-        try:
-            notificar_playoff_resultado_e_proximo(
-                match_id, resultado.get('next_match_id'), resultado.get('proxima_completa')
-            )
-        except Exception as e:
-            print(f"[playoff-notify] falha ao notificar: {e}")
+        automaticas = resultado.get('automaticas', [])
+        if automaticas:
+            flash(f'Resultado registrado! {len(automaticas)} partida(s) seguinte(s) resolvida(s) '
+                  f'automaticamente por W.O.', 'success')
+        else:
+            flash('Resultado registrado!', 'success')
+        # Resultado + próximo confronto (quando já definido) em UMA mensagem só pro grupo;
+        # depois, uma mensagem por partida resolvida por W.O. automático, na ordem.
+        for info in [{'match_id': match_id, **resultado}] + automaticas:
+            try:
+                notificar_playoff_resultado_e_proximo(
+                    info['match_id'], info.get('next_match_id'), info.get('proxima_completa')
+                )
+            except Exception as e:
+                print(f"[playoff-notify] falha ao notificar: {e}")
     except ValueError as e:
         flash(str(e), 'error')
 
@@ -14484,15 +14603,19 @@ def _anotar_rows_playoff(rows):
         if letra and r['next_match_id']:
             nome1 = r['player1_name']
             nome2 = r['player2_name']
+            wo_duplo = r['status'] == 'completed' and r['result_type'] in PLAYOFF_WO_DUPLO
             origem_por_destino[(r['next_match_id'], r['next_match_slot'])] = {
                 'letra': letra,
                 'abrev': ROUND_ABREV_PT.get(r['round'], r['round']),
                 'texto': f"{nome1} ou {nome2}" if nome1 and nome2 else None,
+                'wo_duplo': wo_duplo,
             }
 
     for row in rows:
         letra = _letra_da_rodada(row['round'], row['slot'])
         row['round_label'] = ROUND_LABELS_PT.get(row['round'], row['round'])
+        row['is_wo_duplo'] = row['status'] == 'completed' and row['result_type'] in PLAYOFF_WO_DUPLO
+        row['is_wo_automatico'] = row['result_type'] in PLAYOFF_WO_AUTOMATICOS
         if letra:
             row['round_letra'] = letra
             row['round_badge'] = f"{ROUND_CURTO_PT.get(row['round'], row['round'])} {letra}"
@@ -14503,6 +14626,7 @@ def _anotar_rows_playoff(rows):
                     row[f'{lado}_origem_letra'] = origem['letra']
                     row[f'{lado}_origem_abrev'] = origem['abrev']
                     row[f'{lado}_origem_texto'] = origem['texto']
+                    row[f'{lado}_origem_wo_duplo'] = origem['wo_duplo']
 
 
 # Janela sugerida de cada fase dentro do período geral (01/10 a 30/11) — datas
